@@ -1,0 +1,41 @@
+services:
+  # -------------------------------
+  # 1. השרת (Web Service)
+  # -------------------------------
+  - type: web
+    name: zipori-api      # ⬅️ שינינו את השם כאן
+    env: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: node app.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_URL
+        # ⬇️ מוודאים שזה תואם לשם הלקוח למטה
+        value: https://zipori-client.onrender.com
+      # ⬇️ חובה: ודא שכל הסודות שלך מוגדרים ב-Render
+      - key: MONGO_URI
+        fromSecret: true
+      - key: JWT_ACCESS_SECRET
+        fromSecret: true
+      - key: JWT_REFRESH_SECRET
+        fromSecret: true
+      - key: WEBHOOK_SECRET_KEY
+        fromSecret: true
+
+  # -------------------------------
+  # 2. הלקוח (Static Site)
+  # -------------------------------
+  - type: static
+    name: zipori-client   # ⬆️ שם זה חייב להתאים ל-CLIENT_URL למעלה
+    env: static
+    rootDir: client
+    plan: free
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        # ⬇️ עדכנו את הכתובת לשם החדש של השרת
+        value: https://zipori-api.onrender.com/api

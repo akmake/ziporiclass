@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>קוביית רוביק – HTML/JS נקי ועובד</title>
+<style>
+  html,body { height:100%; margin:0; background:#0b0f16; color:#fff; font-family:Arial }
+  #app { position:fixed; inset:0 }
+  canvas { width:100%; height:100%; display:block }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0f16);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(6, 4.2, 7);
+scene.add(camera);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = .06;
+controls.minDistance = 3.5; controls.maxDistance = 16;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dir = new THREE.DirectionalLight(0xffffff, 0.75);
+dir.position.set(6,7,6);
+scene.add(dir);
+
+const FACE = { U:0xf2f2f2, R:0xe31b1b, F:0x1eb34a, D:0xfff066, L:0xff8b2a, B:0x1f55f2, K:0x0f1219 };
+const cubeGroup = new THREE.Group(); scene.add(cubeGroup);
+const cubelets = [];
+const gap = 0.04, cubie = 0.96, step = cubie + gap;
+const geo = new THREE.BoxGeometry(cubie, cubie, cubie);
+
+function mat(c){ return new THREE.MeshPhongMaterial({ color:c }); }
+function matsFor(x,y,z) {
+  const m = new Array(6).fill(mat(FACE.K));
+  if (x=== 1) m[0] = mat(FACE.R);
+  if (x===-1) m[1] = mat(FACE.L);
+  if (y=== 1) m[2] = mat(FACE.U);
+  if (y===-1) m[3] = mat(FACE.D);
+  if (z=== 1) m[4] = mat(FACE.F);
+  if (z===-1) m[5] = mat(FACE.B);
+  return m;
+}
+
+for (let xi=-1; xi<=1; xi++){
+  for (let yi=-1; yi<=1; yi++){
+    for (let zi=-1; zi<=1; zi++){
+      const mesh = new THREE.Mesh(geo, matsFor(xi,yi,zi));
+      mesh.userData.coord = new THREE.Vector3(xi, yi, zi);
+      mesh.position.set(xi*step, yi*step, zi*step);
+      cubeGroup.add(mesh);
+      cubelets.push(mesh);
+    }
+  }
+}
+
+function easeInOut(t) { return t<.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2; }
+function tweenRotation(group, axis, angle, ms){
+  return new Promise(resolve=>{
+    const start = performance.now();
+    const startQ = group.quaternion.clone();
+    const targetQ = startQ.clone().multiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
+    function tick(t){
+      const dt=(t-start)/ms, p = dt>=1? 1 : easeInOut(dt);
+      group.quaternion.slerpQuaternions(startQ, targetQ, p); // ← כאן התיקון
+      if(dt<1) requestAnimationFrame(tick); else resolve();
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+// דוגמה: סיבוב אוטומטי כל 2 שניות
+(async function autoSpin(){
+  while(true){
+    await tweenRotation(cubeGroup, new THREE.Vector3(0,1,0), Math.PI/2, 500);
+    await new Promise(r=>setTimeout(r, 1500));
+  }
+})();
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+(function animate(){
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
