@@ -9,21 +9,19 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card.jsx';
-import { 
-  Shield, ListOrdered, Users, Hotel, Mail, FileText, Tag, 
-  Megaphone, Network, TrendingUp, CheckCircle, Wrench, CalendarDays 
+import {
+  Shield, ListOrdered, Users, Hotel, Mail, FileText, Tag,
+  Megaphone, Network, TrendingUp, CheckCircle
 } from 'lucide-react';
 import LogoUploader from '@/components/admin/LogoUploader.jsx';
 
 const fetchDashboardStats = async () => (await api.get('/admin/dashboard/stats')).data;
-
 // צבע הזהב המותגי
 const BRAND_GOLD = '#bfa15f';
 const PIE_COLORS = ['#bfa15f', '#d4c085', '#a2884f', '#e8debd', '#8f763b'];
 
 export default function AdminDashboardPage() {
   const { user } = useAuthStore();
-
   const { data, isLoading } = useQuery({
     queryKey: ['adminDashboardStats'],
     queryFn: fetchDashboardStats,
@@ -79,19 +77,19 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  // רשימת הקישורים המעודכנת - ללא תחזוקה
   const adminLinks = [
-    // ✨ הקישור החדש לסידור עבודה ✨
-    { to: '/admin/daily-plan', title: 'סידור עבודה', description: 'הכנת חדרים והוראות למחר.', icon: CalendarDays },
-
+    // ניהול הזמנות ולידים
     { to: '/admin/orders', title: 'ניהול הזמנות', description: 'צפייה ועדכון כל ההזמנות.', icon: Shield },
     { to: '/leads', title: 'ניהול לידים', description: 'טיפול בפניות ושינוי סטטוסים.', icon: Mail },
-    { to: '/admin/maintenance', title: 'תפעול ותחזוקה', description: 'מרכז בקרה: חדרים, נקיון ותקלות.', icon: Wrench },
-    { to: '/admin/rooms-status', title: 'תמונת מצב', description: 'דשבורד צפייה בסטטוס חדרים.', icon: Hotel },
 
+    // הגדרות מערכת
     { to: '/manage-pricelists', title: 'מחירונים', description: 'ניהול מחירונים.', icon: ListOrdered },
     { to: '/admin/users', title: 'משתמשים', description: 'ניהול משתמשים.', icon: Users },
     { to: '/admin/hotels', title: 'מלונות', description: 'ניהול בתי מלון.', icon: Hotel },
     { to: '/admin/extras', title: 'תוספות', description: 'ניהול סוגי תוספות.', icon: Tag },
+
+    // שיווק וניהול
     { to: '/admin/announcements', title: 'הודעות', description: 'הודעות מערכת.', icon: Megaphone },
     { to: '/admin/referrers', title: 'ניהול אושיות', description: 'ניהול שמות מפנים ונרמול נתונים.', icon: Network },
   ];
@@ -187,12 +185,12 @@ export default function AdminDashboardPage() {
                       <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                               <Pie
-                                data={rejectionData}
-                                cx="50%" cy="50%"
-                                innerRadius={55}
-                                outerRadius={80}
-                                paddingAngle={2}
-                                dataKey="value"
+                                  data={rejectionData}
+                                  cx="50%" cy="50%"
+                                  innerRadius={55}
+                                  outerRadius={80}
+                                  paddingAngle={2}
+                                  dataKey="value"
                               >
                                   {rejectionData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />
@@ -204,8 +202,8 @@ export default function AdminDashboardPage() {
                       </ResponsiveContainer>
                   ) : (
                       <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                        <Shield size={32} className="mb-2 opacity-20"/>
-                        <p className="text-xs">אין נתונים החודש</p>
+                          <Shield size={32} className="mb-2 opacity-20"/>
+                          <p className="text-xs">אין נתונים החודש</p>
                       </div>
                   )}
               </CardContent>
@@ -216,20 +214,20 @@ export default function AdminDashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {adminLinks.map(link => (
-            <Link key={link.to} to={link.to} className="group">
-                <Card className="h-full hover:border-[#bfa15f] transition-colors cursor-pointer border border-slate-200 shadow-sm bg-white">
-                    <CardContent className="flex flex-col items-center justify-center p-6 text-center space-y-3">
-                        <div
-                            className="p-3 rounded-full transition-colors group-hover:bg-[#f9f7f0]"
-                            style={{ backgroundColor: '#fdfcf8', color: BRAND_GOLD }}
-                        >
-                            <link.icon size={24} />
-                        </div>
-                        <h3 className="font-bold text-gray-800">{link.title}</h3>
-                        <p className="text-xs text-gray-500">{link.description}</p>
-                    </CardContent>
-                </Card>
-            </Link>
+              <Link key={link.to} to={link.to} className="group">
+                  <Card className="h-full hover:border-[#bfa15f] transition-colors cursor-pointer border border-slate-200 shadow-sm bg-white">
+                      <CardContent className="flex flex-col items-center justify-center p-6 text-center space-y-3">
+                          <div
+                              className="p-3 rounded-full transition-colors group-hover:bg-[#f9f7f0]"
+                              style={{ backgroundColor: '#fdfcf8', color: BRAND_GOLD }}
+                          >
+                              <link.icon size={24} />
+                          </div>
+                          <h3 className="font-bold text-gray-800">{link.title}</h3>
+                          <p className="text-xs text-gray-500">{link.description}</p>
+                      </CardContent>
+                  </Card>
+              </Link>
           ))}
       </div>
 
