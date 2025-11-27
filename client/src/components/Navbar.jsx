@@ -1,10 +1,9 @@
-// client/src/components/Navbar.jsx
-
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+// הוספתי את האייקונים החדשים: CalendarDays, Activity, Paintbrush, BedDouble
 import {
     Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
-    Mail, Calculator, Wrench
+    Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
@@ -14,56 +13,77 @@ import {
 } from "@/components/ui/Dropdown-menu";
 import { LeadsBell } from './LeadsBell';
 
-// ✨ לוגיקה חדשה להפרדה מוחלטת
-const getVisibleItems = (isAuthenticated, user) => {
-  if (!isAuthenticated) return [];
+// ✨ לוגיקה חדשה: מחזירה אובייקט עם קבוצות במקום רשימה אחת שטוחה
+const getNavGroups = (isAuthenticated, user) => {
+  if (!isAuthenticated) return null;
 
   const role = user?.role;
+  const groups = {
+      sales: [],
+      maintenance: [],
+      admin: []
+  };
 
-  // 1. תפריט לאנשי תחזוקה בלבד
-  if (role === 'maintenance') {
-      return [
-          { to: '/maintenance', label: 'תפעול וניקיון', icon: Wrench },
-          // אפשר להוסיף כאן דברים רלוונטיים נוספים אם יהיו
+  // 1. קבוצת מכירות (Sales)
+  // מנהל רואה את זה, וגם איש מכירות
+  if (role === 'admin' || role === 'sales') {
+      groups.sales = [
+        { to: '/', label: 'ראשי (מכירות)', icon: Home },
+        { to: '/new-order', label: 'הזמנה חדשה', icon: PlusCircle },
+        { to: '/orders-history', label: 'הזמנות והצעות', icon: FileText },
+        { to: '/leads', label: 'תיבת פניות', icon: Mail },
+        { to: '/sales-guide', label: 'מחשבון ומדריך', icon: Calculator },
+      ];
+      // ניהול מחירונים - למנהל או למי שיש הרשאה ספציפית
+      if (user?.canManagePriceLists || role === 'admin') {
+        groups.sales.push({ to: '/manage-pricelists', label: 'ניהול מחירונים', icon: ListOrdered });
+      }
+  }
+
+  // 2. קבוצת תפעול (Maintenance)
+  // מנהל רואה את זה, וגם איש תחזוקה
+  if (role === 'admin' || role === 'maintenance') {
+      groups.maintenance = [
+          // דשבורד התפעול המרכזי (למנהלים)
+          { to: '/admin/maintenance', label: 'מרכז תפעול', icon: Wrench },
+          // סידור עבודה
+          { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
+          // תמונת מצב
+          { to: '/admin/rooms-status', label: 'תמונת מצב', icon: Activity },
+          // מסך העובד הפשוט (צ'ק ליסט)
+          { to: '/maintenance', label: 'מסך עובד שטח', icon: Paintbrush },
       ];
   }
 
-  // 2. תפריט לאנשי מכירות (ולמנהלים)
-  // מנהל רואה הכל, איש מכירות רואה את זה:
-  const salesItems = [
-    { to: '/', label: 'בית', icon: Home },
-    { to: '/new-order', label: 'הזמנה חדשה', icon: PlusCircle },
-    { to: '/orders-history', label: 'הצעות מחיר', icon: FileText },
-    { to: '/leads', label: 'תיבת פניות', icon: Mail },
-    { to: '/sales-guide', label: 'מדריך תמחור', icon: Calculator },
-  ];
-
-  if (user?.canManagePriceLists && role !== 'admin') {
-    salesItems.push({ to: '/manage-pricelists', label: 'ניהול מחירונים', icon: ListOrdered });
-  }
-
-  // מנהל מקבל את כל המכירות + פאנל ניהול
+  // 3. קבוצת אדמין כללי (Admin)
+  // רק מנהל רואה את זה
   if (role === 'admin') {
-    salesItems.push({ to: '/admin', label: 'פאנל ניהול', icon: Shield });
-    // המנהל יכול לגשת גם לתחזוקה דרך הפאנל, אז לא חייב להיות כאן, אבל אפשר להוסיף אם רוצים:
-    // salesItems.push({ to: '/maintenance', label: 'תפעול', icon: Wrench });
+      groups.admin = [
+          { to: '/admin', label: 'דשבורד מנהל', icon: Shield },
+      ];
   }
 
-  return salesItems;
+  return groups;
 };
 
 export default function Navbar() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { isAuthenticated, user, logout } = useAuthStore();
-    const visibleItems = getVisibleItems(isAuthenticated, user);
 
-    // ... שאר הקוד נשאר זהה ...
+    // קריאה לפונקציה החדשה שמחזירה קבוצות
+    const navGroups = getNavGroups(isAuthenticated, user);
+
     return (
         <>
-          {/* Sidebar for Desktop */}
+            {/* Sidebar for Desktop */}
             <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
-                <SidebarContent items={visibleItems} user={user} isAuthenticated={isAuthenticated} logout={logout} />
-              </div>
+                <SidebarContent
+                    groups={navGroups}
+                    user={user}
+                    isAuthenticated={isAuthenticated}
+                    logout={logout}
+                />
+            </div>
 
             {/* Mobile Top Bar */}
             <div className="md:hidden flex items-center justify-between bg-white dark:bg-slate-900 border-b h-16 px-4">
@@ -72,9 +92,9 @@ export default function Navbar() {
                 </Link>
 
                 <div className="flex items-center gap-4">
-                  {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />} 
-                  {/* פעמון לידים רלוונטי רק למכירות */}
-                  
+                  {/* פעמון לידים: רלוונטי רק אם יש הרשאת מכירות/ניהול */}
+                  {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
+
                   <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
                      <Menu className="h-6 w-6" />
                   </Button>
@@ -92,7 +112,7 @@ export default function Navbar() {
                         className="fixed inset-y-0 right-0 z-50 w-64 md:hidden"
                     >
                         <SidebarContent
-                            items={visibleItems}
+                            groups={navGroups}
                             user={user}
                             isAuthenticated={isAuthenticated}
                             logout={logout}
@@ -105,52 +125,92 @@ export default function Navbar() {
       );
 }
 
-function SidebarContent({ items, user, isAuthenticated, logout, onClose }) {
+function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
     const handleLogout = () => {
         logout();
         if (onClose) onClose();
     };
 
     return (
-        <div className="flex flex-col flex-grow border-l border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto h-full">
-            <div className="flex items-center justify-between h-16 flex-shrink-0 px-4">
+        <div className="flex flex-col flex-grow border-l border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto h-full shadow-xl">
+            {/* Header / Logo */}
+            <div className="flex items-center justify-between h-16 flex-shrink-0 px-4 bg-slate-50 border-b">
                 <Link to="/" onClick={onClose} className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
                     ZIPORI CLASS
                 </Link>
 
-                <div className="flex items-center gap-3">
-                  {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
-                  {onClose && (
-                      <Button variant="ghost" size="icon" onClick={onClose}>
-                          <X className="h-6 w-6" />
-                      </Button>
-                  )}
-              </div>
-            </div>
-
-            <div className="flex-1 flex flex-col">
-                <nav className="flex-1 px-2 py-4 space-y-1">
-                    {items.map((item) => (
-                        <NavItem key={item.to} item={item} onClick={onClose} />
-                    ))}
-                </nav>
-                <div className="px-2 py-4 border-t dark:border-slate-800">
-                    {isAuthenticated ? (
-                        <UserNav user={user} logout={handleLogout} />
-                    ) : (
-                        <div className="space-y-2">
-                            <Button variant="ghost" asChild className="w-full justify-start">
-                                <Link to="/login" onClick={onClose}><User className="ml-2 h-4 w-4" />התחברות</Link>
-                            </Button>
-                        </div>
+                <div className="flex items-center gap-3 md:hidden">
+                    {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
+                    {onClose && (
+                        <Button variant="ghost" size="icon" onClick={onClose}>
+                            <X className="h-6 w-6" />
+                        </Button>
                     )}
                 </div>
+            </div>
+
+            {/* Nav Items Section */}
+            <div className="flex-1 flex flex-col py-4 px-3 gap-6">
+                
+                {/* 1. קבוצת מכירות */}
+                {groups?.sales?.length > 0 && (
+                    <div>
+                        <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">מערכת הזמנות</h3>
+                        <nav className="space-y-1">
+                            {groups.sales.map((item) => (
+                                <NavItem key={item.to} item={item} onClick={onClose} />
+                            ))}
+                        </nav>
+                    </div>
+                )}
+
+                {/* 2. קבוצת תפעול */}
+                {groups?.maintenance?.length > 0 && (
+                    <div>
+                        {/* קו הפרדה רק אם יש משהו לפניו */}
+                        {(groups.sales?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
+                        
+                        <h3 className="px-3 text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2 mt-2">תפעול וניקיון</h3>
+                        <nav className="space-y-1">
+                            {groups.maintenance.map((item) => (
+                                <NavItem key={item.to} item={item} onClick={onClose} />
+                            ))}
+                        </nav>
+                    </div>
+                )}
+
+                {/* 3. קבוצת אדמין */}
+                {groups?.admin?.length > 0 && (
+                    <div>
+                        {(groups.sales?.length > 0 || groups.maintenance?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
+                        
+                        <h3 className="px-3 text-xs font-semibold text-purple-600 uppercase tracking-wider mb-2 mt-2">ניהול ראשי</h3>
+                        <nav className="space-y-1">
+                            {groups.admin.map((item) => (
+                                <NavItem key={item.to} item={item} onClick={onClose} />
+                            ))}
+                        </nav>
+                    </div>
+                )}
+            </div>
+
+            {/* Footer User Area */}
+            <div className="px-2 py-4 border-t dark:border-slate-800 bg-gray-50">
+                {isAuthenticated ? (
+                    <UserNav user={user} logout={handleLogout} />
+                ) : (
+                    <div className="space-y-2">
+                       <Button variant="ghost" asChild className="w-full justify-start">
+                            <Link to="/login" onClick={onClose}><User className="ml-2 h-4 w-4" />התחברות</Link>
+                         </Button>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-// ... NavItem & UserNav components remain unchanged ...
+// רכיב פריט ניווט (ללא שינוי מהמקור)
 function NavItem({ item, onClick }) {
     const navLinkClass = "group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors";
     const activeClass = "bg-slate-100 dark:bg-slate-800 text-primary dark:text-white";
@@ -160,13 +220,14 @@ function NavItem({ item, onClick }) {
             to={item.to}
             onClick={onClick}
             className={({ isActive }) => `${navLinkClass} ${isActive ? activeClass : inactiveClass}`}
-        >
+          >
             <item.icon className="ml-3 flex-shrink-0 h-5 w-5" />
             {item.label}
         </NavLink>
     );
 }
 
+// רכיב משתמש (ללא שינוי מהמקור)
 function UserNav({ user, logout }) {
     const getInitials = (name) => {
         if (!name) return 'U';
