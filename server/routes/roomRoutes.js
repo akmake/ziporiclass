@@ -23,14 +23,15 @@ router.post('/daily-plan', requireAdmin, applyDailyPlan); // ✨ הנתיב הח
 
 // 2. נתיבים דינמיים לפי ID של חדר
 // -------------------------------------------
+// requireMaintenance = מאפשר גישה גם למנהל וגם לעובד תחזוקה
 router.patch('/:id/status', requireMaintenance, updateRoomStatus);
 router.post('/:id/tasks', requireMaintenance, addTask);
 router.patch('/:id/tasks/:taskId', requireMaintenance, toggleTask);
-router.delete('/:id', requireAdmin, deleteRoom);
+router.delete('/:id', requireAdmin, deleteRoom); // רק מנהל יכול למחוק חדר
 
 
 // 3. נתיב פרמטרי כללי (חייב להיות אחרון חביב!)
 // -------------------------------------------
-router.get('/:hotelId', getRoomsByHotel);
+router.get('/:hotelId', getRoomsByHotel); // שולף את רשימת החדרים למלון ספציפי
 
 export default router;
