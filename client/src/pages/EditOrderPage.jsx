@@ -4,10 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-
-// עורך טקסט עשיר
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { useAuthStore } from '@/stores/authStore.js'; // ✨ ייבוא ה-store
 
 // Components
 import { AddRoomForm } from '@/components/orders/AddRoomForm';
@@ -21,19 +20,17 @@ import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 
 // Icons
-import { 
-    ArrowRight, User, Phone, Activity, BadgePercent, Save, 
-    FileDown, Hotel, Eye, StickyNote, FilePlus2, Tag, Mail, Calendar, Maximize2 
+import {
+    ArrowRight, User, Phone, Activity, BadgePercent, Save,
+    FileDown, Hotel, Eye, StickyNote, FilePlus2, Tag, Mail, Calendar, Maximize2
 } from 'lucide-react';
 
 import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
 
-// API Functions
 const fetchOrder = async (orderId) => (await api.get(`/orders/${orderId}`)).data;
 
-// ✨ תיקון קריטי: אנחנו שואבים את *כל* המחירונים (בלי active=true) כדי שהחישובים יעבדו גם למחירונים מוסתרים
 const fetchAllPriceListsAsMap = async (hotelId) => {
-  const { data } = await api.get(`/pricelists?hotelId=${hotelId}`); 
+  const { data } = await api.get(`/pricelists?hotelId=${hotelId}`);
   return data.reduce((acc, pl) => {
     acc[pl.name] = pl;
     return acc;
@@ -68,26 +65,25 @@ export default function EditOrderPage() {
     const { orderId } = useParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { user } = useAuthStore(); // ✨ שליפת המשתמש
 
-    // State
     const [rooms, setRooms] = useState([]);
     const [extras, setExtras] = useState([]);
     const [discountPercent, setDiscountPercent] = useState(0);
     const [numberOfNights, setNumberOfNights] = useState(1);
-    
-    const [orderDetails, setOrderDetails] = useState({ 
-        customerName: '', 
-        customerPhone: '', 
+
+    const [orderDetails, setOrderDetails] = useState({
+        customerName: '',
+        customerPhone: '',
         customerEmail: '',
         eventDate: '',
-        status: 'בהמתנה', 
-        notes: '' 
+        status: 'בהמתנה',
+        notes: ''
     });
 
     const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
     const [tempNotes, setTempNotes] = useState('');
 
-    // Queries
     const { data: order, isLoading: isLoadingOrder, isError: isOrderError } = useQuery({
         queryKey: ['order', orderId],
         queryFn: () => fetchOrder(orderId),
@@ -96,7 +92,6 @@ export default function EditOrderPage() {
 
     const hotelId = order?.hotel?._id;
 
-    // שליפת כל המחירונים (כולל לא פעילים) לטובת חישובים תקינים בטבלה
     const { data: priceLists, isLoading: isLoadingPriceLists } = useQuery({
         queryKey: ['priceListsMap', hotelId],
         queryFn: () => fetchAllPriceListsAsMap(hotelId),
@@ -109,20 +104,17 @@ export default function EditOrderPage() {
         enabled: !!hotelId,
     });
 
-    // ✨ פילטור מחירונים לתצוגה בלבד (עבור הוספת חדר חדש)
     const activePriceLists = useMemo(() => {
         if (!priceLists) return {};
         const active = {};
         Object.values(priceLists).forEach(pl => {
-            // מציג רק אם isVisible הוא true (או לא מוגדר)
-            if (pl.isVisible !== false) { 
+            if (pl.isVisible !== false) {
                 active[pl.name] = pl;
             }
         });
         return active;
     }, [priceLists]);
 
-    // אתחול נתונים
     useEffect(() => {
         if (order) {
             setRooms(order.rooms || []);
@@ -134,39 +126,36 @@ export default function EditOrderPage() {
                 customerName: order.customerName || '',
                 customerPhone: order.customerPhone || '',
                 customerEmail: order.customerEmail || '',
-                eventDate: order.eventDate ? format(new Date(order.eventDate), 'yyyy-MM-dd') : '', 
+                eventDate: order.eventDate ? format(new Date(order.eventDate), 'yyyy-MM-dd') : '',
                 status: order.status || 'בהמתנה',
                 notes: order.notes || '',
             });
         }
     }, [order]);
 
-    // ✨ תיקון קריטי: וידוא שחישוב המחירים קורה רק כשיש לנו את כל המידע (מחירונים + הזמנה)
     useEffect(() => {
         if (
-            rooms.length > 0 && 
-            priceLists && 
-            Object.keys(priceLists).length > 0 && // וודא שהמחירונים באמת נטענו
-            order && 
+            rooms.length > 0 &&
+            priceLists &&
+            Object.keys(priceLists).length > 0 &&
+            order &&
             numberOfNights !== order.numberOfNights
         ) {
-             const updatedRooms = rooms.map(room => {
-                 // שימוש במאגר המחירונים המלא
+            const updatedRooms = rooms.map(room => {
                  const newPrice = calculateRoomTotalPrice(
                      room,
-                     priceLists, 
+                     priceLists,
                      room.price_list_names,
                      numberOfNights,
                      room.roomSupplement
                  );
                  return { ...room, price: newPrice };
-             });
+            });
              setRooms(updatedRooms);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [numberOfNights, priceLists, order]); 
+    }, [numberOfNights, priceLists, order]);
 
-    // שמירה
     const { mutate: saveOrder, isPending: isSaving } = useMutation({
         mutationFn: updateOrder,
         onSuccess: () => {
@@ -179,11 +168,8 @@ export default function EditOrderPage() {
         onError: (err) => toast.error(err.response?.data?.message || 'שגיאה בעדכון ההזמנה.'),
     });
 
-    // חישוב טוטאלים
     const totals = useMemo(() => {
-        // אם המחיר בחדר לא חושב (0), ננסה לחשב אותו שוב כאן למקרה חירום, אבל עדיף להסתמך על ה-useEffect
         const roomsTotal = rooms.reduce((sum, room) => {
-            // מנגנון גיבוי: אם המחיר 0 ויש לנו מחירונים, נחשב עכשיו
             let price = room.price;
             if (price === 0 && priceLists && room.price_list_names?.length > 0) {
                  price = calculateRoomTotalPrice(room, priceLists, room.price_list_names, numberOfNights, room.roomSupplement);
@@ -203,10 +189,10 @@ export default function EditOrderPage() {
     const addRoom = (newRoom) => setRooms(prev => [...prev, newRoom]);
     const removeRoom = (index) => setRooms(prev => prev.filter((_, i) => i !== index));
     const updateRoom = (index, updatedRoom) => setRooms(prev => prev.map((room, i) => i === index ? updatedRoom : room));
-    
+
     const handleDetailsChange = (e) => setOrderDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
     const handleStatusChange = (value) => setOrderDetails(prev => ({ ...prev, status: value }));
-    
+
     const handleNightsChange = (e) => {
         const val = parseInt(e.target.value, 10);
         setNumberOfNights(val < 1 ? 1 : val);
@@ -223,7 +209,7 @@ export default function EditOrderPage() {
 
     const handleFinishEditing = () => {
         if (!orderDetails.customerName) return toast.error('חובה להזין שם לקוח.');
-        
+
         const dataToSave = {
           ...order,
           ...orderDetails,
@@ -268,7 +254,7 @@ export default function EditOrderPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
-                        
+
                         {/* שורה 1 */}
                         <div>
                             <Label htmlFor="customerName" className="mb-1">שם הלקוח</Label>
@@ -357,7 +343,6 @@ export default function EditOrderPage() {
                     <Card className="shadow-lg">
                         <CardHeader><CardTitle className="flex items-center gap-2"><FilePlus2 size={22} /> הוספת חדר</CardTitle></CardHeader>
                         <CardContent>
-                            {/* אנו מעבירים לכאן רק את המחירונים הפעילים כדי למנוע בחירה של מחירון ישן */}
                             <AddRoomForm
                                 priceLists={activePriceLists || {}}
                                 roomTypes={roomTypes || []}
@@ -386,10 +371,9 @@ export default function EditOrderPage() {
                         <CardDescription>{rooms.length > 0 ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.` : 'הטבלה תתעדכן לאחר הוספת פריטים.'}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {/* לטבלה אנו מעבירים את כל המחירונים (priceLists) כדי שתדע לחשב גם חדרים ישנים */}
                         <OrderSummaryTable
                             rooms={rooms}
-                            priceLists={priceLists || {}} 
+                            priceLists={priceLists || {}}
                             onRemoveRoom={removeRoom}
                             onUpdateRoom={updateRoom}
                             roomTypes={roomTypes || []}
@@ -433,14 +417,17 @@ export default function EditOrderPage() {
                         </div>
 
                     </CardContent>
-                    
+
                     <CardFooter className="flex flex-col items-end gap-4 bg-slate-50 p-6 rounded-b-xl">
-                        <div className="w-full max-w-sm text-right">
-                            <div className="flex justify-between text-sm text-green-600 font-medium">
-                                <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
-                                <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                        {/* ✨ בדיקת הרשאות להצגת עמלות */}
+                        {(user?.role === 'admin' || user?.canViewCommissions) && (
+                            <div className="w-full max-w-sm text-right">
+                                <div className="flex justify-between text-sm text-green-600 font-medium">
+                                    <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
+                                    <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         <div className="flex justify-start gap-4 w-full mt-4">
                             <Button variant="outline" onClick={handleExportToExcel}><FileDown className="ml-2" /> שמור לאקסל</Button>

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import api from '@/utils/api.js';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { useAuthStore } from '@/stores/authStore.js'; // ✨ ייבוא ה-store
 
 import { AddRoomForm } from '@/components/orders/AddRoomForm';
 import { OrderSummaryTable } from '@/components/orders/OrderSummaryTable';
@@ -73,6 +74,7 @@ export default function OrderPage() {
   const [tempNotes, setTempNotes] = useState('');
   const [nextAction, setNextAction] = useState('reset');
   const queryClient = useQueryClient();
+  const { user } = useAuthStore(); // ✨ שליפת המשתמש
 
   const { data: hotels = [], isLoading: isLoadingHotels } = useQuery({
       queryKey: ['hotels'],
@@ -216,9 +218,6 @@ export default function OrderPage() {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
-      
-      {/* כותרת הדף נקייה (ללא כפתורים) */}
-
 
       <Card className="shadow-lg">
           <CardHeader>
@@ -226,7 +225,6 @@ export default function OrderPage() {
           </CardHeader>
           <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
-                   {/* שורה 1 */}
                    <div>
                        <Label htmlFor="customerName" className="mb-1.5 block">שם הלקוח</Label>
                       <div className="relative">
@@ -240,13 +238,13 @@ export default function OrderPage() {
                        <div className="relative">
                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                          <Input id="customerPhone" name="customerPhone" value={orderDetails.customerPhone} onChange={handleDetailsChange} placeholder="050-1234567" className="pl-10" />
-                      </div>
+                       </div>
                    </div>
 
                    <div>
                        <Label htmlFor="customerEmail" className="mb-1.5 block">אימייל</Label>
                        <div className="relative">
-                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                           <Input id="customerEmail" name="customerEmail" type="email" value={orderDetails.customerEmail} onChange={handleDetailsChange} placeholder="client@example.com" className="pl-10" />
                       </div>
                    </div>
@@ -255,10 +253,9 @@ export default function OrderPage() {
                        <Label htmlFor="eventDate" className="mb-1.5 block">תאריך אירוע/הגעה</Label>
                        <div className="relative">
                           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                         <Input id="eventDate" name="eventDate" type="date" value={orderDetails.eventDate} onChange={handleDetailsChange} className="pl-10" />
+                          <Input id="eventDate" name="eventDate" type="date" value={orderDetails.eventDate} onChange={handleDetailsChange} className="pl-10" />
                       </div>
                    </div>
-
 
                    {/* שורה 2 */}
                    <div>
@@ -290,7 +287,7 @@ export default function OrderPage() {
                               {orderDetails.notes ? (
                                   <span dangerouslySetInnerHTML={{ __html: orderDetails.notes.replace(/<[^>]+>/g, ' ').substring(0, 100) + (orderDetails.notes.length > 100 ? '...' : '') }}></span>
                               ) : (
-                                  <span className="text-muted-foreground">הערות כלליות... (לחץ לעריכה)</span>
+                                   <span className="text-muted-foreground">הערות כלליות... (לחץ לעריכה)</span>
                               )}
                           </div>
                           <Maximize2 className="absolute bottom-2 left-2 h-3 w-3 text-blue-400 opacity-70" />
@@ -301,13 +298,13 @@ export default function OrderPage() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          <div className="lg:col-span-1 space-y-8">
+           <div className="lg:col-span-1 space-y-8">
                <Card className="shadow-lg">
                 <CardHeader><CardTitle className="flex items-center gap-2"><FilePlus2 size={22}/> הוספת חדר חדש</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     <div>
                         <Label htmlFor="hotel">מלון</Label>
-                         <Select value={selectedHotel || ''} onValueChange={setSelectedHotel}>
+                        <Select value={selectedHotel || ''} onValueChange={setSelectedHotel}>
                             <SelectTrigger id="hotel">
                                 <div className="flex items-center gap-2">
                                     <Hotel className="h-4 w-4 text-gray-400" />
@@ -315,7 +312,7 @@ export default function OrderPage() {
                                 </div>
                             </SelectTrigger>
                             <SelectContent>
-                                {isLoadingHotels ? 
+                                {isLoadingHotels ?
                                   <SelectItem value="loading" disabled>טוען מלונות...</SelectItem> :
                                   hotels.map(hotel => <SelectItem key={hotel._id} value={hotel._id}>{hotel.name}</SelectItem>)
                                 }
@@ -333,7 +330,7 @@ export default function OrderPage() {
                         isLoading={isLoading}
                     />
                 </CardContent>
-            </Card>
+              </Card>
 
             <Card className="shadow-lg">
                 <CardHeader><CardTitle className="flex items-center gap-2"><Tag size={22}/> תוספות להזמנה</CardTitle></CardHeader>
@@ -344,22 +341,20 @@ export default function OrderPage() {
           </div>
 
           <Card className="lg:col-span-2 shadow-lg">
-            
-            {/* ✨ הכפתורים הועברו לכאן - ל-CardHeader של הסיכום ✨ */}
             <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
                 <div className="space-y-1">
                     <CardTitle>סיכום הזמנה</CardTitle>
                     <CardDescription>
-                        {rooms.length > 0 || extras.length > 0 
-                            ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.` 
+                        {rooms.length > 0 || extras.length > 0
+                            ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.`
                             : 'הטבלה תתעדכן לאחר הוספת פריטים.'}
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                     <Button 
-                        variant="outline" 
+                     <Button
+                        variant="outline"
                         size="sm"
-                        onClick={handleSaveAndQuote} 
+                        onClick={handleSaveAndQuote}
                         disabled={isSaving}
                         className="border-blue-600 text-blue-700 hover:bg-blue-50 gap-2 h-9"
                       >
@@ -367,9 +362,9 @@ export default function OrderPage() {
                         {isSaving && nextAction === 'view' ? 'שומר...' :'הצג ושמור הזמנה'}
                       </Button>
 
-                      <Button 
+                      <Button
                         size="sm"
-                        onClick={handleFinishOrder} 
+                        onClick={handleFinishOrder}
                         disabled={isSaving}
                         className="bg-primary hover:bg-primary/90 gap-2 h-9"
                       >
@@ -426,15 +421,17 @@ export default function OrderPage() {
                 </div>
 
             </CardContent>
-            
-            {/* ✨ הפוטר נוקה מכפתורים והושארה רק העמלה ✨ */}
+
             <CardFooter className="flex flex-col items-end gap-4 bg-slate-50 p-6 rounded-b-xl">
-                <div className="w-full max-w-sm text-right">
-                    <div className="flex justify-between text-sm text-green-600 font-medium">
-                        <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
-                        <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                {/* ✨ בדיקת הרשאות להצגת עמלות */}
+                {(user?.role === 'admin' || user?.canViewCommissions) && (
+                    <div className="w-full max-w-sm text-right">
+                        <div className="flex justify-between text-sm text-green-600 font-medium">
+                            <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
+                            <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                        </div>
                     </div>
-                </div>
+                )}
             </CardFooter>
           </Card>
       </div>

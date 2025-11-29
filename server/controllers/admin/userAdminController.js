@@ -11,12 +11,15 @@ export const getAllUsers = async (req, res) => {
 };
 
 export const updateUserPermissions = async (req, res) => {
-    const { role, canManagePriceLists } = req.body;
+    // ✨ הוספנו את canViewCommissions
+    const { role, canManagePriceLists, canViewCommissions } = req.body;
     try {
         const user = await User.findById(req.params.id);
         if (user) {
             if (role) user.role = role;
             if (canManagePriceLists !== undefined) user.canManagePriceLists = canManagePriceLists;
+            if (canViewCommissions !== undefined) user.canViewCommissions = canViewCommissions; // ✨ עדכון
+            
             await user.save();
             res.json({ message: 'הרשאות עודכנו בהצלחה' });
         } else {
@@ -29,7 +32,8 @@ export const updateUserPermissions = async (req, res) => {
 };
 
 export const createUser = async (req, res) => {
-    const { name, email, password, role, canManagePriceLists } = req.body;
+    // ✨ הוספנו את canViewCommissions
+    const { name, email, password, role, canManagePriceLists, canViewCommissions } = req.body;
 
     if (!name || !email || !password) {
         return res.status(400).json({ message: 'שם, אימייל וסיסמה הם שדות חובה' });
@@ -43,7 +47,6 @@ export const createUser = async (req, res) => {
 
         const passwordHash = await bcrypt.hash(password, 12);
 
-        // וידוא שהתפקיד תקין, אם לא - ברירת מחדל sales
         let finalRole = 'sales';
         if (role && ['admin', 'sales', 'maintenance'].includes(role)) {
             finalRole = role;
@@ -53,8 +56,9 @@ export const createUser = async (req, res) => {
             name,
             email,
             passwordHash,
-            role: finalRole, 
+            role: finalRole,
             canManagePriceLists: canManagePriceLists || false,
+            canViewCommissions: canViewCommissions || false, // ✨ שמירה
         });
 
         res.status(201).json({
@@ -64,8 +68,7 @@ export const createUser = async (req, res) => {
             role: user.role,
         });
     } catch (error) {
-        // ✨ זה ידפיס ללוג של Render את הסיבה האמיתית לקריסה ✨
-        console.error("CRITICAL ERROR Creating User:", error); 
+        console.error("CRITICAL ERROR Creating User:", error);
         res.status(500).json({ message: 'שגיאה ביצירת המשתמש: ' + error.message });
     }
 };

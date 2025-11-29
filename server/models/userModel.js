@@ -27,13 +27,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'סיסמה חובה'],
     },
-    // ✨ התיקון הקריטי: הוספת התפקידים החדשים לרשימה המותרת ✨
     role: {
       type: String,
-      enum: ['admin', 'sales', 'maintenance'], // <--- חובה שזה יהיה מעודכן!
+      enum: ['admin', 'sales', 'maintenance'],
       default: 'sales',
     },
     canManagePriceLists: {
+      type: Boolean,
+      default: false,
+    },
+    // ✨ שדה חדש: האם המשתמש רשאי לראות עמלות
+    canViewCommissions: {
       type: Boolean,
       default: false,
     },

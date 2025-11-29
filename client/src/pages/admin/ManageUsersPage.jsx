@@ -27,7 +27,12 @@ const roleLabels = {
 export default function ManageUsersPage() {
     const queryClient = useQueryClient();
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-    const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false });
+    
+    // ✨ הוספנו את canViewCommissions לסטייט ההתחלתי
+    const [newUserForm, setNewUserForm] = useState({ 
+        name: '', email: '', password: '', role: 'sales', 
+        canManagePriceLists: false, canViewCommissions: false 
+    });
 
     const { data: users = [], isLoading, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
 
@@ -43,14 +48,15 @@ export default function ManageUsersPage() {
         onSuccess: () => {
             commonMutationOptions.onSuccess();
             setIsCreateDialogOpen(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false });
+            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false });
             toast.success('משתמש נוצר בהצלחה!');
         },
     });
     const deleteUserMutation = useMutation({ ...commonMutationOptions, mutationFn: deleteUser });
 
-    const handlePermissionChange = (user, canManagePriceLists) => {
-        updateUserMutation.mutate({ ...user, canManagePriceLists });
+    // ✨ פונקציה גנרית לשינוי הרשאות
+    const handlePermissionChange = (user, field, value) => {
+        updateUserMutation.mutate({ ...user, [field]: value });
     };
 
     const handleCreateUser = (e) => {
@@ -83,33 +89,44 @@ export default function ManageUsersPage() {
                                 <th className="px-4 py-3 text-right font-medium">אימייל</th>
                                 <th className="px-4 py-3 text-right font-medium">תפקיד</th>
                                 <th className="px-4 py-3 text-right font-medium">ניהול מחירונים</th>
+                                <th className="px-4 py-3 text-right font-medium">צפייה בעמלות</th> {/* ✨ עמודה חדשה */}
                                 <th className="px-4 py-3"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {isLoading && <tr><td colSpan="5" className="p-8 text-center">טוען משתמשים...</td></tr>}
-                            {isError && <tr><td colSpan="5" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
-                            
+                            {isLoading && <tr><td colSpan="6" className="p-8 text-center">טוען משתמשים...</td></tr>}
+                            {isError && <tr><td colSpan="6" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
+
                             {users.map(user => (
                                 <tr key={user._id} className="hover:bg-gray-50/50">
                                     <td className="px-4 py-3 font-medium">{user.name}</td>
                                     <td className="px-4 py-3 text-gray-600">{user.email}</td>
                                     <td className="px-4 py-3">
                                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
-                                            ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 
-                                              user.role === 'maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
+                                            user.role === 'maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                                             {user.role === 'admin' && <Shield size={12}/>}
                                             {user.role === 'maintenance' && <Wrench size={12}/>}
                                             {user.role === 'sales' && <Briefcase size={12}/>}
                                             {roleLabels[user.role] || user.role}
                                         </span>
                                     </td>
+                                    {/* ניהול מחירונים */}
                                     <td className="px-4 py-3">
                                         <Switch
                                             checked={user.canManagePriceLists}
-                                            onCheckedChange={(checked) => handlePermissionChange(user, checked)}
+                                            onCheckedChange={(checked) => handlePermissionChange(user, 'canManagePriceLists', checked)}
                                             disabled={updateUserMutation.isPending || user.role === 'admin'}
                                             aria-label="ניהול מחירונים"
+                                        />
+                                    </td>
+                                    {/* ✨ צפייה בעמלות */}
+                                    <td className="px-4 py-3">
+                                        <Switch
+                                            checked={user.canViewCommissions}
+                                            onCheckedChange={(checked) => handlePermissionChange(user, 'canViewCommissions', checked)}
+                                            disabled={updateUserMutation.isPending || user.role === 'admin'}
+                                            aria-label="צפייה בעמלות"
                                         />
                                     </td>
                                     <td className="px-4 py-3 text-left">
@@ -145,11 +162,18 @@ export default function ManageUsersPage() {
                             </Select>
                         </div>
 
-                        {/* הרשאת מחירונים רלוונטית רק לאנשי מכירות */}
+                        {/* הרשאות נוספות */}
                         {newUserForm.role !== 'admin' && newUserForm.role !== 'maintenance' && (
-                            <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
-                                <Switch id="canManage" checked={newUserForm.canManagePriceLists} onCheckedChange={(c) => setNewUserForm(p => ({...p, canManagePriceLists: c}))} />
-                                <Label htmlFor="canManage">הרשאה לניהול מחירונים</Label>
+                            <div className="space-y-3">
+                                <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
+                                    <Switch id="canManage" checked={newUserForm.canManagePriceLists} onCheckedChange={(c) => setNewUserForm(p => ({...p, canManagePriceLists: c}))} />
+                                    <Label htmlFor="canManage">הרשאה לניהול מחירונים</Label>
+                                </div>
+                                {/* ✨ מתג חדש ליצירה */}
+                                <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
+                                    <Switch id="canViewComm" checked={newUserForm.canViewCommissions} onCheckedChange={(c) => setNewUserForm(p => ({...p, canViewCommissions: c}))} />
+                                    <Label htmlFor="canViewComm">הרשאה לצפייה בעמלות</Label>
+                                </div>
                             </div>
                         )}
                     </form>

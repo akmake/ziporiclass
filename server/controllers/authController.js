@@ -19,25 +19,30 @@ export const registerUser = async (req, res) => {
 
   const hash = await bcrypt.hash(password, 12);
 
-  // ✨ לוגיקה מעודכנת לבחירת תפקיד ✨
-  // אם נשלח תפקיד חוקי מהקליינט - נשתמש בו. אחרת - נגדיר כ-sales.
-  // הערה: במערכת אמיתית, בדרך כלל רק מנהל יכול ליצור משתמשים עם תפקידים ספציפיים,
-  // אבל כאן אנחנו מאפשרים גמישות בהרשמה לצורך הפיתוח.
   let finalRole = 'sales';
   const validRoles = ['admin', 'sales', 'maintenance'];
-  
+
   if (role && validRoles.includes(role)) {
     finalRole = role;
   }
 
-  const user = await User.create({ 
-    name, 
-    email, 
-    passwordHash: hash, 
-    role: finalRole 
+  const user = await User.create({
+    name,
+    email,
+    passwordHash: hash,
+    role: finalRole
   });
 
-  const userPayload = { _id: user._id, name: user.name, email: user.email, role: user.role };
+  // ✨ שליחת ההרשאות החדשות לקליינט
+  const userPayload = { 
+      _id: user._id, 
+      name: user.name, 
+      email: user.email, 
+      role: user.role,
+      canManagePriceLists: user.canManagePriceLists,
+      canViewCommissions: user.canViewCommissions
+  };
+  
   createAndSendTokens(user, res);
   return res.status(201).json({ message: "ההרשמה הושלמה בהצלחה", user: userPayload });
 };
@@ -62,9 +67,16 @@ export const loginUser = async (req, res) => {
 
   await user.resetLoginAttempts();
 
-  // כאן אנחנו מחזירים את ה-role המעודכן לקליינט
-  const userPayload = { _id: user._id, name: user.name, email: user.email, role: user.role };
-  
+  // ✨ שליחת ההרשאות החדשות לקליינט
+  const userPayload = { 
+      _id: user._id, 
+      name: user.name, 
+      email: user.email, 
+      role: user.role,
+      canManagePriceLists: user.canManagePriceLists,
+      canViewCommissions: user.canViewCommissions
+  };
+
   createAndSendTokens(user, res);
   return res.status(200).json({ message: "התחברת בהצלחה", user: userPayload });
 };
@@ -87,8 +99,16 @@ export const refresh = async (req, res) => {
       return res.status(403).json({ message: 'Forbidden. Please log in again.' });
     }
     createAndSendTokens(user, res);
-    
-    const userPayload = { _id: user._id, name: user.name, email: user.email, role: user.role };
+
+    // ✨ שליחת ההרשאות החדשות לקליינט
+    const userPayload = { 
+        _id: user._id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role,
+        canManagePriceLists: user.canManagePriceLists,
+        canViewCommissions: user.canViewCommissions
+    };
     return res.status(200).json({ message: "Tokens refreshed successfully", user: userPayload });
   } catch (error) {
     return res.status(403).json({ message: 'Invalid or expired refresh token.' });
