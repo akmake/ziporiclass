@@ -28,7 +28,7 @@ import AdminDashboardPage from "@/pages/admin/AdminDashboardPage.jsx";
 import AdminMaintenanceDashboard from "@/pages/admin/AdminMaintenanceDashboard.jsx";
 import ManagePhysicalRoomsPage from '@/pages/admin/ManagePhysicalRoomsPage.jsx';
 import RoomStatusPage from '@/pages/admin/RoomStatusPage.jsx';
-import DailyPlanPage from '@/pages/admin/DailyPlanPage.jsx'; // ✨ הוספנו את ייבוא דף סידור העבודה
+import DailyPlanPage from '@/pages/admin/DailyPlanPage.jsx';
 import ManagePriceListsPage from '@/pages/admin/ManagePriceListsPage.jsx';
 import ManageOrdersPage from '@/pages/admin/ManageOrdersPage.jsx';
 import ManageUsersPage from "@/pages/admin/ManageUsersPage.jsx";
@@ -38,56 +38,64 @@ import ManageAnnouncementsPage from '@/pages/admin/ManageAnnouncementsPage.jsx';
 import ManageReferrersPage from '@/pages/admin/ManageReferrersPage.jsx';
 import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
 
+// ✨ ייבוא המנהל החדש
+import PushNotificationManager from "@/components/PushNotificationManager.jsx";
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/quote/:orderId" element={<QuotePage />} />
+    <>
+      {/* ✨ הפעלת מנהל ההתראות ברקע */}
+      <PushNotificationManager />
 
-      <Route path="/" element={<Layout />}>
-        <Route path="login" element={<LoginPage />} />
+      <Routes>
+        <Route path="/quote/:orderId" element={<QuotePage />} />
 
-        {/* --- Sales & General Admin --- */}
-        <Route element={<SalesRoute />}>
-          <Route index element={<HomePage />} />
-          <Route path="new-order" element={<OrderPage />} />
-          <Route path="orders-history" element={<OrdersPage />} />
-          <Route path="edit-order/:orderId" element={<EditOrderPage />} />
-          <Route path="leads" element={<LeadsPage />} />
-          <Route path="sales-guide" element={<PricingLogicPage />} />
+        <Route path="/" element={<Layout />}>
+          <Route path="login" element={<LoginPage />} />
+
+          {/* --- Sales & General Admin --- */}
+          <Route element={<SalesRoute />}>
+            <Route index element={<HomePage />} />
+            <Route path="new-order" element={<OrderPage />} />
+            <Route path="orders-history" element={<OrdersPage />} />
+            <Route path="edit-order/:orderId" element={<EditOrderPage />} />
+            <Route path="leads" element={<LeadsPage />} />
+            <Route path="sales-guide" element={<PricingLogicPage />} />
+          </Route>
+
+          {/* --- Maintenance Workers --- */}
+          <Route element={<MaintenanceRoute />}>
+             <Route path="maintenance" element={<MaintenanceDashboardPage />} />
+          </Route>
+
+          <Route element={<PriceListManagerRoute />}>
+              <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
+          </Route>
+
+          {/* --- Admin Panel --- */}
+          <Route path="admin" element={<AdminRoute />}>
+            <Route index element={<AdminDashboardPage />} />
+
+            <Route path="maintenance" element={<AdminMaintenanceDashboard />} />
+            <Route path="rooms/create" element={<ManagePhysicalRoomsPage />} />
+
+            {/* דפי תפעול וניהול חדרים */}
+            <Route path="rooms-status" element={<RoomStatusPage />} />
+            <Route path="daily-plan" element={<DailyPlanPage />} />
+
+            {/* שאר דפי הניהול */}
+            <Route path="orders" element={<ManageOrdersPage />} />
+            <Route path="users" element={<ManageUsersPage />} />
+            <Route path="hotels" element={<ManageHotelsPage />} />
+            <Route path="affiliates" element={<AffiliateReportsPage />} />
+            <Route path="extras" element={<ManageExtrasPage />} />
+            <Route path="referrers" element={<ManageReferrersPage />} />
+            <Route path="announcements" element={<ManageAnnouncementsPage />} />
+          </Route>
+
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
-
-        {/* --- Maintenance Workers --- */}
-        <Route element={<MaintenanceRoute />}>
-           <Route path="maintenance" element={<MaintenanceDashboardPage />} />
-        </Route>
-
-        <Route element={<PriceListManagerRoute />}>
-            <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
-        </Route>
-
-        {/* --- Admin Panel --- */}
-        <Route path="admin" element={<AdminRoute />}>
-          <Route index element={<AdminDashboardPage />} />
-
-          <Route path="maintenance" element={<AdminMaintenanceDashboard />} />
-          <Route path="rooms/create" element={<ManagePhysicalRoomsPage />} />
-
-          {/* דפי תפעול וניהול חדרים */}
-          <Route path="rooms-status" element={<RoomStatusPage />} />
-          <Route path="daily-plan" element={<DailyPlanPage />} /> {/* ✨ הנתיב החדש לסידור עבודה */}
-
-          {/* שאר דפי הניהול */}
-          <Route path="orders" element={<ManageOrdersPage />} />
-          <Route path="users" element={<ManageUsersPage />} />
-          <Route path="hotels" element={<ManageHotelsPage />} />
-          <Route path="affiliates" element={<AffiliateReportsPage />} />
-          <Route path="extras" element={<ManageExtrasPage />} />
-          <Route path="referrers" element={<ManageReferrersPage />} />
-          <Route path="announcements" element={<ManageAnnouncementsPage />} />
-        </Route>
-
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+      </Routes>
+    </>
   );
 }
