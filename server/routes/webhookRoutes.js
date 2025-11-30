@@ -68,7 +68,7 @@ router.post('/email-inbound', verifySecret, async (req, res) => {
         
         // שולח התראה ברקע לכל המנויים
         sendPushToAll({
-            title: `🔥 ליד חדש: ${leadTitle}`,
+            title: ` ליד חדש מאת: ${leadTitle}`,
             body: leadMsg,
             url: '/leads' // לחיצה תוביל לדף הלידים
         });
