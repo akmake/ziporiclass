@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-// הוספתי את האייקונים החדשים: CalendarDays, Activity, Paintbrush, BedDouble
 import {
     Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
     Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/Dropdown-menu";
 import { LeadsBell } from './LeadsBell';
 
-// ✨ לוגיקה חדשה: מחזירה אובייקט עם קבוצות במקום רשימה אחת שטוחה
+// לוגיקה לבניית התפריטים לפי הרשאות
 const getNavGroups = (isAuthenticated, user) => {
   if (!isAuthenticated) return null;
 
@@ -25,7 +24,6 @@ const getNavGroups = (isAuthenticated, user) => {
   };
 
   // 1. קבוצת מכירות (Sales)
-  // מנהל רואה את זה, וגם איש מכירות
   if (role === 'admin' || role === 'sales') {
       groups.sales = [
         { to: '/', label: 'ראשי (מכירות)', icon: Home },
@@ -34,29 +32,22 @@ const getNavGroups = (isAuthenticated, user) => {
         { to: '/leads', label: 'תיבת פניות', icon: Mail },
         { to: '/sales-guide', label: 'מחשבון ומדריך', icon: Calculator },
       ];
-      // ניהול מחירונים - למנהל או למי שיש הרשאה ספציפית
       if (user?.canManagePriceLists || role === 'admin') {
         groups.sales.push({ to: '/manage-pricelists', label: 'ניהול מחירונים', icon: ListOrdered });
       }
   }
 
   // 2. קבוצת תפעול (Maintenance)
-  // מנהל רואה את זה, וגם איש תחזוקה
   if (role === 'admin' || role === 'maintenance') {
       groups.maintenance = [
-          // דשבורד התפעול המרכזי (למנהלים)
           { to: '/admin/maintenance', label: 'מרכז תפעול', icon: Wrench },
-          // סידור עבודה
           { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
-          // תמונת מצב
           { to: '/admin/rooms-status', label: 'תמונת מצב', icon: Activity },
-          // מסך העובד הפשוט (צ'ק ליסט)
           { to: '/maintenance', label: 'מסך עובד שטח', icon: Paintbrush },
       ];
   }
 
   // 3. קבוצת אדמין כללי (Admin)
-  // רק מנהל רואה את זה
   if (role === 'admin') {
       groups.admin = [
           { to: '/admin', label: 'דשבורד מנהל', icon: Shield },
@@ -70,7 +61,6 @@ export default function Navbar() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { isAuthenticated, user, logout } = useAuthStore();
 
-    // קריאה לפונקציה החדשה שמחזירה קבוצות
     const navGroups = getNavGroups(isAuthenticated, user);
 
     return (
@@ -92,7 +82,7 @@ export default function Navbar() {
                 </Link>
 
                 <div className="flex items-center gap-4">
-                  {/* פעמון לידים: רלוונטי רק אם יש הרשאת מכירות/ניהול */}
+                  {/* פעמון בנייד */}
                   {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
 
                   <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
@@ -139,8 +129,11 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                     ZIPORI CLASS
                 </Link>
 
-                <div className="flex items-center gap-3 md:hidden">
+                {/* ✨ התיקון כאן: הסרתי את md:hidden כדי שהפעמון יופיע גם במחשב ✨ */}
+                <div className="flex items-center gap-3">
                     {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
+                    
+                    {/* כפתור סגירה - יופיע רק אם יש פונקציית סגירה (כלומר בנייד) */}
                     {onClose && (
                         <Button variant="ghost" size="icon" onClick={onClose}>
                             <X className="h-6 w-6" />
@@ -151,7 +144,7 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
 
             {/* Nav Items Section */}
             <div className="flex-1 flex flex-col py-4 px-3 gap-6">
-                
+
                 {/* 1. קבוצת מכירות */}
                 {groups?.sales?.length > 0 && (
                     <div>
@@ -167,9 +160,7 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                 {/* 2. קבוצת תפעול */}
                 {groups?.maintenance?.length > 0 && (
                     <div>
-                        {/* קו הפרדה רק אם יש משהו לפניו */}
                         {(groups.sales?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
-                        
                         <h3 className="px-3 text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2 mt-2">תפעול וניקיון</h3>
                         <nav className="space-y-1">
                             {groups.maintenance.map((item) => (
@@ -183,7 +174,6 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                 {groups?.admin?.length > 0 && (
                     <div>
                         {(groups.sales?.length > 0 || groups.maintenance?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
-                        
                         <h3 className="px-3 text-xs font-semibold text-purple-600 uppercase tracking-wider mb-2 mt-2">ניהול ראשי</h3>
                         <nav className="space-y-1">
                             {groups.admin.map((item) => (
@@ -200,7 +190,7 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                     <UserNav user={user} logout={handleLogout} />
                 ) : (
                     <div className="space-y-2">
-                       <Button variant="ghost" asChild className="w-full justify-start">
+                        <Button variant="ghost" asChild className="w-full justify-start">
                             <Link to="/login" onClick={onClose}><User className="ml-2 h-4 w-4" />התחברות</Link>
                          </Button>
                     </div>
@@ -210,7 +200,7 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
     );
 }
 
-// רכיב פריט ניווט (ללא שינוי מהמקור)
+// רכיב פריט ניווט
 function NavItem({ item, onClick }) {
     const navLinkClass = "group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors";
     const activeClass = "bg-slate-100 dark:bg-slate-800 text-primary dark:text-white";
@@ -227,7 +217,7 @@ function NavItem({ item, onClick }) {
     );
 }
 
-// רכיב משתמש (ללא שינוי מהמקור)
+// רכיב משתמש
 function UserNav({ user, logout }) {
     const getInitials = (name) => {
         if (!name) return 'U';
