@@ -11,7 +11,7 @@ import AuditLog from '../models/AuditLog.js';
  */
 export const logAction = async (req, action, entity, entityId, description, changes = null) => {
   try {
-    if (!req.user) return; // לא מתעדים פעולות אנונימיות (אלא אם זה לוגין)
+    if (!req.user) return; // לא מתעדים פעולות אנונימיות (אלא אם זה לוגין שבו מכניסים user ידנית)
 
     const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
