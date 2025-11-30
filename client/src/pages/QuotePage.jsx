@@ -1,4 +1,5 @@
 // client/src/pages/QuotePage.jsx
+
 import React, { useRef, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -8,7 +9,8 @@ import { Button } from '@/components/ui/Button.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { ArrowRight, Download, Send, User, LoaderCircle, Mail, Calendar, Zap } from 'lucide-react';
+// ✨ הוספנו את Printer לרשימת האייקונים
+import { ArrowRight, Download, Send, User, LoaderCircle, Mail, Calendar, Zap, Printer } from 'lucide-react';
 import { formatPhoneForWhatsApp } from '@/utils/phone.js';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -60,7 +62,7 @@ export default function QuotePage() {
   const hotel = order?.hotel || {};
   const brandColor = hotel?.brandColor || '#b45309';
 
-  // --- לוגיקת חלוקת עמודים מתוקנת (מספור קבוע) ---
+  // --- לוגיקת חלוקת עמודים ---
   const pages = useMemo(() => {
     if (!order) return [];
 
@@ -68,7 +70,7 @@ export default function QuotePage() {
     const roomItems = (order.rooms || []).map((room, idx) => ({
         _type: 'room',
         _id: `room-${idx}`,
-        serialNumber: idx + 1, // ✨ מספר סידורי קבוע
+        serialNumber: idx + 1,
         name: room.roomType || 'חדר רגיל',
         description: room.price_list_names?.join(' + '),
         roomNote: room.notes,
@@ -81,7 +83,7 @@ export default function QuotePage() {
     const extraItems = (order.extras || []).map((extra, idx) => ({
         _type: 'extra',
         _id: `extra-${idx}`,
-        serialNumber: startExtraIndex + idx, // ✨ המשך מספור רציף
+        serialNumber: startExtraIndex + idx,
         name: extra.extraType,
         description: 'תוספת להזמנה',
         details: extra,
@@ -97,7 +99,7 @@ export default function QuotePage() {
 
     // --- הגדרות עמודים ---
     const ITEMS_PER_FIRST_PAGE = 4;
-    const ITEMS_PER_MIDDLE_PAGE = 7; // התיקון הקודם נשאר (7 ולא 8)
+    const ITEMS_PER_MIDDLE_PAGE = 7;
     const ITEMS_PER_LAST_PAGE = 7;
 
     const resultPages = [];
@@ -177,7 +179,7 @@ export default function QuotePage() {
       for (let i = 0; i < pageElements.length; i++) {
         const pageEl = pageElements[i];
         const canvas = await html2canvas(pageEl, {
-            scale: 2, // הורדתי ל-2 לביצועים מהירים יותר, אפשר להחזיר ל-4 אם האיכות יורדת
+            scale: 2,
             useCORS: true,
             backgroundColor: '#ffffff',
             logging: false
@@ -284,7 +286,19 @@ export default function QuotePage() {
               </Button>
             <span className="font-bold text-gray-700 hidden sm:inline">תצוגה מקדימה ({pages.length} דפים)</span>
           </div>
+        
         <div className="flex gap-2">
+            {/* ✨ כפתור ההדפסה החדש ✨ */}
+            <Button 
+                onClick={() => window.print()} 
+                variant="outline" 
+                className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm"
+                title="הדפס במדפסת"
+            >
+                <Printer className="h-4 w-4"/>
+                <span className="hidden sm:inline">הדפס</span>
+            </Button>
+
             <Button onClick={handleDownloadPDF} disabled={isDownloading} className="bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm">
                 {isDownloading ? <LoaderCircle className="animate-spin h-4 w-4"/> : <Download className="h-4 w-4"/>}
                 <span className="hidden sm:inline">הורד PDF</span>
@@ -332,7 +346,7 @@ export default function QuotePage() {
           </div>
           <DialogFooter>
               <Button type="submit" onClick={handleSendEmail} disabled={isSendingEmail}>
-               {isSendingEmail && <LoaderCircle className="ml-2 h-4 w-4 animate-spin" />} שלח הצעה
+                {isSendingEmail && <LoaderCircle className="ml-2 h-4 w-4 animate-spin" />} שלח הצעה
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -340,7 +354,7 @@ export default function QuotePage() {
 
       <div className="flex flex-col items-center py-8 gap-8" ref={pagesContainerRef}>
         {pages.map((pageData, index) => (
-           <div
+            <div
                 key={index}
                 className="quote-page bg-white shadow-2xl w-[210mm] min-h-[297mm] relative text-slate-800 mx-auto flex flex-col"
                 style={{ padding: '15mm' }}
@@ -412,7 +426,7 @@ export default function QuotePage() {
                                         return (
                                             <tr key={`header-${idx}`} className="bg-slate-50">
                                                 <td colSpan="4" className="py-2 px-4 font-bold text-slate-700 text-sm border-y">
-                                                      {item.name}
+                                                    {item.name}
                                                 </td>
                                             </tr>
                                         );
@@ -420,7 +434,6 @@ export default function QuotePage() {
 
                                     return (
                                         <tr key={idx}>
-                                            {/* ✨ שימוש במספר הסידורי הקבוע במקום בחישוב */}
                                             <td className="py-4 px-4 align-top text-gray-500 text-center">{item.serialNumber}</td>
 
                                             <td className="py-4 px-4 align-top">
@@ -479,7 +492,7 @@ export default function QuotePage() {
                                     className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none bg-yellow-50/50 p-4 rounded-lg border border-yellow-100/50"
                                     style={{ whiteSpace: 'pre-wrap' }}
                                 >
-                                     {cleanNotes}
+                                    {cleanNotes}
                                 </div>
                             </div>
                         )}
@@ -515,7 +528,6 @@ export default function QuotePage() {
                         </div>
                     </div>
                 ) : (
-                    /* תיקון כיתוב פוטר אמצעי */
                     <div className="mt-auto text-center pt-8">
                         <p className="text-gray-300 text-xs">המשך בעמוד הבא...</p>
                     </div>
