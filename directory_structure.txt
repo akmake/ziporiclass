@@ -2,38 +2,51 @@
 📄 .gitattributes
 📄 .gitignore
 📄 README.md
-  # פרויקט קייטרינג - Full Stack
+  # Zipori Class - מערכת ניהול הזמנות ותפעול מלונות
   
-  פרויקט Full-Stack מודרני המדגים מערכת הזמנות לקייטרינג.
+  מערכת CRM ו-PMS (Property Management System) מתקדמת לניהול רשת מלונות "ציפורי קלאס".
+  המערכת מספקת פתרון מקצה לקצה: החל משלב קליטת הליד והצעת המחיר, ועד לניהול התפעול השוטף, ניקיון החדרים והתחזוקה.
+  
   הפרויקט בנוי בארכיטקטורת Monorepo ומכיל:
-  - **Client**: אפליקציית React עם Vite, TailwindCSS, Zustand ו-React Query.
-  - **Server**: שרת Express עם Node.js, MongoDB, אימות JWT מאובטח והגנות מתקדמות.
-  - **Containerization**: הגדרות Docker ו-Docker Compose להרצה קלה בסביבות פיתוח וייצור.
+  - **Client**: אפליקציית React מודרנית עם Vite, TailwindCSS (shadcn/ui), Zustand לניהול מצב, React Query לסנכרון נתונים ו-Framer Motion לאנימציות.
+  - **Server**: שרת Express חזק עם Node.js, מסד נתונים MongoDB, אימות מאובטח (JWT + CSRF), ומערכת התראות (Web Push).
+  
+  ---
+  
+  ## ✨ פיצ'רים מרכזיים
+  
+  ### 🏨 ניהול הזמנות ומכירות (CRM)
+  - **ניהול לידים:** קליטה אוטומטית של פניות (Webhooks), סינון, סטטוסים ומעקב.
+  - **הזמנות:** יצירת הזמנות מורכבות, ניהול מחירונים דינמיים, חישוב מחירים אוטומטי לפי הרכב אורחים.
+  - **הצעות מחיר:** הפקת דפי נחיתה להצעת מחיר וייצוא ל-PDF לשליחה ללקוח.
+  - **מחשבונים:** לוגיקה עסקית חכמה לחישוב עלויות, תוספות והנחות.
+  
+  ### 🧹 תפעול ואחזקה (Operations)
+  - **תמונת מצב חדרים (Live):** דשבורד בזמן אמת המציג חדרים נקיים, מלוכלכים או בתקלה.
+  - **סידור עבודה יומי:** הקצאת משימות למחר (Checkout / Stayover).
+  - **ניהול משימות:** צ'ק ליסטים לניקיון, דיווח תקלות ותיקונים.
+  - **ממשק עובד:** מסך מותאם לעובדי שטח לדיווח ביצוע בזמן אמת.
+  
+  ### 🛡️ ניהול ובקרה (Admin)
+  - **דשבורד מנהלים:** סטטיסטיקות, גרפים, הכנסות וביצועי אנשי מכירות.
+  - **משתמשים והרשאות:** ניהול תפקידים (Admin, Sales, Maintenance) ובקרת גישה.
+  - **הגדרות מערכת:** ניהול מלונות, סוגי חדרים, מחירונים והודעות מערכת.
+  - **התראות:** מערכת Push Notifications לעדכון על לידים חדשים גם כשהדפדפן סגור.
+  
+  ---
   
   ## 🚀 הרצה מקומית (פיתוח)
   
-  1.  **התקנת תלויות בכל הפרויקטים:**
-      ```bash
-      npm run install-all
-      ```
+  ### 1. דרישות קדם
+  - Node.js (גרסה 18+)
+  - MongoDB (מקומי או Atlas URI)
   
-  2.  **יצירת קובץ סביבה בשרת:**
-      - העתק את `server/.env.example` לקובץ חדש בשם `server/.env`.
-      - מלא את הערכים הסודיים בקובץ.
-  
-  3.  **הרצת שרת ולקוח במקביל:**
-      ```bash
-      npm run dev
-      ```
-      - הלקוח ירוץ ב-`http://localhost:5173`.
-      - השרת ירוץ ב-`http://localhost:4000`.
-  
-  ## 🐳 הרצה עם Docker
-  
-  ודא ש-Docker ו-Docker Compose מותקנים במערכת.
-  
+  ### 2. התקנת תלויות
+  הרץ את הפקודה הבאה בתיקייה הראשית כדי להתקין תלויות לשרת וללקוח:
   ```bash
-  npm run docker:up
+  npm install
+  cd client && npm install
+  cd ../server && npm install
 📁 client/
   📄 .env.development.local
   📄 components.json
@@ -76,6 +89,47 @@
   📁 public/
     📄 favicon.svg
     📄 notification.mp3
+    📄 sw.js
+      // client/public/sw.js
+      
+      self.addEventListener('push', function(event) {
+        // קבלת הנתונים מהשרת
+        const data = event.data ? JSON.parse(event.data.text()) : {};
+      
+        const options = {
+          body: data.body || 'יש לך הודעה חדשה במערכת',
+          icon: data.icon || '/favicon.svg',
+          badge: '/favicon.svg', // אייקון קטן בשורת ההתראות (אנדרואיד)
+          data: {
+              url: data.url || '/' // ה-URL שנפתח בלחיצה
+          }
+        };
+      
+        event.waitUntil(
+          self.registration.showNotification(data.title || 'התראה חדשה', options)
+        );
+      });
+      
+      self.addEventListener('notificationclick', function(event) {
+        event.notification.close();
+      
+        // לחיצה על ההתראה פותחת את האתר
+        event.waitUntil(
+          clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+            // אם יש טאב פתוח, תעבור אליו
+            for (let i = 0; i < clientList.length; i++) {
+              let client = clientList[i];
+              if (client.url && 'focus' in client) {
+                return client.focus();
+              }
+            }
+            // אם אין טאב, פתח חדש עם הכתובת שהגיעה מהשרת
+            if (clients.openWindow) {
+              return clients.openWindow(event.notification.data.url);
+            }
+          })
+        );
+      });
   📁 src/
     📄 App.jsx
       import { Routes, Route } from "react-router-dom";
@@ -108,7 +162,7 @@
       import AdminMaintenanceDashboard from "@/pages/admin/AdminMaintenanceDashboard.jsx";
       import ManagePhysicalRoomsPage from '@/pages/admin/ManagePhysicalRoomsPage.jsx';
       import RoomStatusPage from '@/pages/admin/RoomStatusPage.jsx';
-      import DailyPlanPage from '@/pages/admin/DailyPlanPage.jsx'; // ✨ הוספנו את ייבוא דף סידור העבודה
+      import DailyPlanPage from '@/pages/admin/DailyPlanPage.jsx';
       import ManagePriceListsPage from '@/pages/admin/ManagePriceListsPage.jsx';
       import ManageOrdersPage from '@/pages/admin/ManageOrdersPage.jsx';
       import ManageUsersPage from "@/pages/admin/ManageUsersPage.jsx";
@@ -118,57 +172,65 @@
       import ManageReferrersPage from '@/pages/admin/ManageReferrersPage.jsx';
       import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
       
+      // ✨ ייבוא המנהל החדש
+      import PushNotificationManager from "@/components/PushNotificationManager.jsx";
+      
       export default function App() {
         return (
-          <Routes>
-            <Route path="/quote/:orderId" element={<QuotePage />} />
+          <>
+            {/* ✨ הפעלת מנהל ההתראות ברקע */}
+            <PushNotificationManager />
       
-            <Route path="/" element={<Layout />}>
-              <Route path="login" element={<LoginPage />} />
+            <Routes>
+              <Route path="/quote/:orderId" element={<QuotePage />} />
       
-              {/* --- Sales & General Admin --- */}
-              <Route element={<SalesRoute />}>
-                <Route index element={<HomePage />} />
-                <Route path="new-order" element={<OrderPage />} />
-                <Route path="orders-history" element={<OrdersPage />} />
-                <Route path="edit-order/:orderId" element={<EditOrderPage />} />
-                <Route path="leads" element={<LeadsPage />} />
-                <Route path="sales-guide" element={<PricingLogicPage />} />
+              <Route path="/" element={<Layout />}>
+                <Route path="login" element={<LoginPage />} />
+      
+                {/* --- Sales & General Admin --- */}
+                <Route element={<SalesRoute />}>
+                  <Route index element={<HomePage />} />
+                  <Route path="new-order" element={<OrderPage />} />
+                  <Route path="orders-history" element={<OrdersPage />} />
+                  <Route path="edit-order/:orderId" element={<EditOrderPage />} />
+                  <Route path="leads" element={<LeadsPage />} />
+                  <Route path="sales-guide" element={<PricingLogicPage />} />
+                </Route>
+      
+                {/* --- Maintenance Workers --- */}
+                <Route element={<MaintenanceRoute />}>
+                   <Route path="maintenance" element={<MaintenanceDashboardPage />} />
+                </Route>
+      
+                <Route element={<PriceListManagerRoute />}>
+                    <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
+                </Route>
+      
+                {/* --- Admin Panel --- */}
+                <Route path="admin" element={<AdminRoute />}>
+                  <Route index element={<AdminDashboardPage />} />
+      
+                  <Route path="maintenance" element={<AdminMaintenanceDashboard />} />
+                  <Route path="rooms/create" element={<ManagePhysicalRoomsPage />} />
+      
+                  {/* דפי תפעול וניהול חדרים */}
+                  <Route path="rooms-status" element={<RoomStatusPage />} />
+                  <Route path="daily-plan" element={<DailyPlanPage />} />
+      
+                  {/* שאר דפי הניהול */}
+                  <Route path="orders" element={<ManageOrdersPage />} />
+                  <Route path="users" element={<ManageUsersPage />} />
+                  <Route path="hotels" element={<ManageHotelsPage />} />
+                  <Route path="affiliates" element={<AffiliateReportsPage />} />
+                  <Route path="extras" element={<ManageExtrasPage />} />
+                  <Route path="referrers" element={<ManageReferrersPage />} />
+                  <Route path="announcements" element={<ManageAnnouncementsPage />} />
+                </Route>
+      
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
-      
-              {/* --- Maintenance Workers --- */}
-              <Route element={<MaintenanceRoute />}>
-                 <Route path="maintenance" element={<MaintenanceDashboardPage />} />
-              </Route>
-      
-              <Route element={<PriceListManagerRoute />}>
-                  <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
-              </Route>
-      
-              {/* --- Admin Panel --- */}
-              <Route path="admin" element={<AdminRoute />}>
-                <Route index element={<AdminDashboardPage />} />
-      
-                <Route path="maintenance" element={<AdminMaintenanceDashboard />} />
-                <Route path="rooms/create" element={<ManagePhysicalRoomsPage />} />
-      
-                {/* דפי תפעול וניהול חדרים */}
-                <Route path="rooms-status" element={<RoomStatusPage />} />
-                <Route path="daily-plan" element={<DailyPlanPage />} /> {/* ✨ הנתיב החדש לסידור עבודה */}
-      
-                {/* שאר דפי הניהול */}
-                <Route path="orders" element={<ManageOrdersPage />} />
-                <Route path="users" element={<ManageUsersPage />} />
-                <Route path="hotels" element={<ManageHotelsPage />} />
-                <Route path="affiliates" element={<AffiliateReportsPage />} />
-                <Route path="extras" element={<ManageExtrasPage />} />
-                <Route path="referrers" element={<ManageReferrersPage />} />
-                <Route path="announcements" element={<ManageAnnouncementsPage />} />
-              </Route>
-      
-              <Route path="*" element={<NotFoundPage />} />
-            </Route>
-          </Routes>
+            </Routes>
+          </>
         );
       }
     📁 components/
@@ -304,7 +366,6 @@
       📄 Navbar.jsx
         import { useState } from "react";
         import { Link, NavLink } from "react-router-dom";
-        // הוספתי את האייקונים החדשים: CalendarDays, Activity, Paintbrush, BedDouble
         import {
             Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
             Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush
@@ -317,7 +378,7 @@
         } from "@/components/ui/Dropdown-menu";
         import { LeadsBell } from './LeadsBell';
         
-        // ✨ לוגיקה חדשה: מחזירה אובייקט עם קבוצות במקום רשימה אחת שטוחה
+        // לוגיקה לבניית התפריטים לפי הרשאות
         const getNavGroups = (isAuthenticated, user) => {
           if (!isAuthenticated) return null;
         
@@ -329,7 +390,6 @@
           };
         
           // 1. קבוצת מכירות (Sales)
-          // מנהל רואה את זה, וגם איש מכירות
           if (role === 'admin' || role === 'sales') {
               groups.sales = [
                 { to: '/', label: 'ראשי (מכירות)', icon: Home },
@@ -338,29 +398,22 @@
                 { to: '/leads', label: 'תיבת פניות', icon: Mail },
                 { to: '/sales-guide', label: 'מחשבון ומדריך', icon: Calculator },
               ];
-              // ניהול מחירונים - למנהל או למי שיש הרשאה ספציפית
               if (user?.canManagePriceLists || role === 'admin') {
                 groups.sales.push({ to: '/manage-pricelists', label: 'ניהול מחירונים', icon: ListOrdered });
               }
           }
         
           // 2. קבוצת תפעול (Maintenance)
-          // מנהל רואה את זה, וגם איש תחזוקה
           if (role === 'admin' || role === 'maintenance') {
               groups.maintenance = [
-                  // דשבורד התפעול המרכזי (למנהלים)
                   { to: '/admin/maintenance', label: 'מרכז תפעול', icon: Wrench },
-                  // סידור עבודה
                   { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
-                  // תמונת מצב
                   { to: '/admin/rooms-status', label: 'תמונת מצב', icon: Activity },
-                  // מסך העובד הפשוט (צ'ק ליסט)
                   { to: '/maintenance', label: 'מסך עובד שטח', icon: Paintbrush },
               ];
           }
         
           // 3. קבוצת אדמין כללי (Admin)
-          // רק מנהל רואה את זה
           if (role === 'admin') {
               groups.admin = [
                   { to: '/admin', label: 'דשבורד מנהל', icon: Shield },
@@ -374,7 +427,6 @@
             const [sidebarOpen, setSidebarOpen] = useState(false);
             const { isAuthenticated, user, logout } = useAuthStore();
         
-            // קריאה לפונקציה החדשה שמחזירה קבוצות
             const navGroups = getNavGroups(isAuthenticated, user);
         
             return (
@@ -396,7 +448,7 @@
                         </Link>
         
                         <div className="flex items-center gap-4">
-                          {/* פעמון לידים: רלוונטי רק אם יש הרשאת מכירות/ניהול */}
+                          {/* פעמון בנייד */}
                           {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
         
                           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
@@ -443,8 +495,11 @@
                             ZIPORI CLASS
                         </Link>
         
-                        <div className="flex items-center gap-3 md:hidden">
+                        {/* ✨ התיקון כאן: הסרתי את md:hidden כדי שהפעמון יופיע גם במחשב ✨ */}
+                        <div className="flex items-center gap-3">
                             {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
+        
+                            {/* כפתור סגירה - יופיע רק אם יש פונקציית סגירה (כלומר בנייד) */}
                             {onClose && (
                                 <Button variant="ghost" size="icon" onClick={onClose}>
                                     <X className="h-6 w-6" />
@@ -471,9 +526,7 @@
                         {/* 2. קבוצת תפעול */}
                         {groups?.maintenance?.length > 0 && (
                             <div>
-                                {/* קו הפרדה רק אם יש משהו לפניו */}
                                 {(groups.sales?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
-        
                                 <h3 className="px-3 text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2 mt-2">תפעול וניקיון</h3>
                                 <nav className="space-y-1">
                                     {groups.maintenance.map((item) => (
@@ -487,7 +540,6 @@
                         {groups?.admin?.length > 0 && (
                             <div>
                                 {(groups.sales?.length > 0 || groups.maintenance?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
-        
                                 <h3 className="px-3 text-xs font-semibold text-purple-600 uppercase tracking-wider mb-2 mt-2">ניהול ראשי</h3>
                                 <nav className="space-y-1">
                                     {groups.admin.map((item) => (
@@ -504,7 +556,7 @@
                             <UserNav user={user} logout={handleLogout} />
                         ) : (
                             <div className="space-y-2">
-                               <Button variant="ghost" asChild className="w-full justify-start">
+                                <Button variant="ghost" asChild className="w-full justify-start">
                                     <Link to="/login" onClick={onClose}><User className="ml-2 h-4 w-4" />התחברות</Link>
                                  </Button>
                             </div>
@@ -514,7 +566,7 @@
             );
         }
         
-        // רכיב פריט ניווט (ללא שינוי מהמקור)
+        // רכיב פריט ניווט
         function NavItem({ item, onClick }) {
             const navLinkClass = "group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors";
             const activeClass = "bg-slate-100 dark:bg-slate-800 text-primary dark:text-white";
@@ -531,7 +583,7 @@
             );
         }
         
-        // רכיב משתמש (ללא שינוי מהמקור)
+        // רכיב משתמש
         function UserNav({ user, logout }) {
             const getInitials = (name) => {
                 if (!name) return 'U';
@@ -588,6 +640,89 @@
         };
         
         export default ProtectedRoute;
+      📄 PushNotificationManager.jsx
+        import { useEffect } from 'react';
+        import { useAuthStore } from '@/stores/authStore.js';
+        import api from '@/utils/api.js';
+        
+        // פונקציית עזר להמרת מפתח VAPID
+        function urlBase64ToUint8Array(base64String) {
+          const padding = '='.repeat((4 - base64String.length % 4) % 4);
+          const base64 = (base64String + padding)
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+        
+          const rawData = window.atob(base64);
+          const outputArray = new Uint8Array(rawData.length);
+        
+          for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+          }
+          return outputArray;
+        }
+        
+        export default function PushNotificationManager() {
+          const { isAuthenticated } = useAuthStore();
+        
+          useEffect(() => {
+            // 1. האם הדפדפן תומך?
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                return;
+            }
+        
+            // 2. האם המשתמש מחובר?
+            if (!isAuthenticated) return;
+        
+            const registerPush = async () => {
+              try {
+                // רישום ה-Service Worker
+                const register = await navigator.serviceWorker.register('/sw.js', {
+                  scope: '/'
+                });
+        
+                // בדיקה האם כבר רשום
+                let subscription = await register.pushManager.getSubscription();
+        
+                if (!subscription) {
+                    // אם לא רשום, צריך לקבל את המפתח הציבורי מהשרת
+                    const { data } = await api.get('/push/key');
+                    const publicVapidKey = data.publicKey;
+        
+                    // הרשמה ל-Push Service של הדפדפן
+                    subscription = await register.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+                    });
+                }
+        
+                // שליחת המינוי לשרת שלנו לשמירה
+                await api.post('/push/subscribe', subscription);
+                console.log('✅ Push notification registered successfully');
+        
+              } catch (error) {
+                console.error('❌ Failed to register push notification:', error);
+              }
+            };
+        
+            // בקשת הרשאה (אם טרם ניתנה)
+            if (Notification.permission === 'default') {
+                // מחכה לאינטראקציה ראשונית כדי לא "להפציץ" את המשתמש מיד
+                const timer = setTimeout(() => {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            registerPush();
+                        }
+                    });
+                }, 3000);
+                return () => clearTimeout(timer);
+            } else if (Notification.permission === 'granted') {
+                registerPush();
+            }
+        
+          }, [isAuthenticated]);
+        
+          return null; // רכיב לוגי בלבד, ללא תצוגה
+        }
       📄 StatsCard.jsx
         export default function StatsCard({ label, value, icon }) {
           return (
@@ -3143,10 +3278,9 @@
         import api from '@/utils/api.js';
         import toast from 'react-hot-toast';
         import { format } from 'date-fns';
-        
-        // עורך טקסט עשיר
         import ReactQuill from 'react-quill';
         import 'react-quill/dist/quill.snow.css';
+        import { useAuthStore } from '@/stores/authStore.js'; // ✨ ייבוא ה-store
         
         // Components
         import { AddRoomForm } from '@/components/orders/AddRoomForm';
@@ -3167,10 +3301,8 @@
         
         import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
         
-        // API Functions
         const fetchOrder = async (orderId) => (await api.get(`/orders/${orderId}`)).data;
         
-        // ✨ תיקון קריטי: אנחנו שואבים את *כל* המחירונים (בלי active=true) כדי שהחישובים יעבדו גם למחירונים מוסתרים
         const fetchAllPriceListsAsMap = async (hotelId) => {
           const { data } = await api.get(`/pricelists?hotelId=${hotelId}`);
           return data.reduce((acc, pl) => {
@@ -3207,8 +3339,8 @@
             const { orderId } = useParams();
             const navigate = useNavigate();
             const queryClient = useQueryClient();
+            const { user } = useAuthStore(); // ✨ שליפת המשתמש
         
-            // State
             const [rooms, setRooms] = useState([]);
             const [extras, setExtras] = useState([]);
             const [discountPercent, setDiscountPercent] = useState(0);
@@ -3226,7 +3358,6 @@
             const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
             const [tempNotes, setTempNotes] = useState('');
         
-            // Queries
             const { data: order, isLoading: isLoadingOrder, isError: isOrderError } = useQuery({
                 queryKey: ['order', orderId],
                 queryFn: () => fetchOrder(orderId),
@@ -3235,7 +3366,6 @@
         
             const hotelId = order?.hotel?._id;
         
-            // שליפת כל המחירונים (כולל לא פעילים) לטובת חישובים תקינים בטבלה
             const { data: priceLists, isLoading: isLoadingPriceLists } = useQuery({
                 queryKey: ['priceListsMap', hotelId],
                 queryFn: () => fetchAllPriceListsAsMap(hotelId),
@@ -3248,12 +3378,10 @@
                 enabled: !!hotelId,
             });
         
-            // ✨ פילטור מחירונים לתצוגה בלבד (עבור הוספת חדר חדש)
             const activePriceLists = useMemo(() => {
                 if (!priceLists) return {};
                 const active = {};
                 Object.values(priceLists).forEach(pl => {
-                    // מציג רק אם isVisible הוא true (או לא מוגדר)
                     if (pl.isVisible !== false) {
                         active[pl.name] = pl;
                     }
@@ -3261,7 +3389,6 @@
                 return active;
             }, [priceLists]);
         
-            // אתחול נתונים
             useEffect(() => {
                 if (order) {
                     setRooms(order.rooms || []);
@@ -3280,17 +3407,15 @@
                 }
             }, [order]);
         
-            // ✨ תיקון קריטי: וידוא שחישוב המחירים קורה רק כשיש לנו את כל המידע (מחירונים + הזמנה)
             useEffect(() => {
                 if (
                     rooms.length > 0 &&
                     priceLists &&
-                    Object.keys(priceLists).length > 0 && // וודא שהמחירונים באמת נטענו
+                    Object.keys(priceLists).length > 0 &&
                     order &&
                     numberOfNights !== order.numberOfNights
                 ) {
-                     const updatedRooms = rooms.map(room => {
-                         // שימוש במאגר המחירונים המלא
+                    const updatedRooms = rooms.map(room => {
                          const newPrice = calculateRoomTotalPrice(
                              room,
                              priceLists,
@@ -3299,13 +3424,12 @@
                              room.roomSupplement
                          );
                          return { ...room, price: newPrice };
-                     });
+                    });
                      setRooms(updatedRooms);
                 }
                 // eslint-disable-next-line react-hooks/exhaustive-deps
             }, [numberOfNights, priceLists, order]);
         
-            // שמירה
             const { mutate: saveOrder, isPending: isSaving } = useMutation({
                 mutationFn: updateOrder,
                 onSuccess: () => {
@@ -3318,11 +3442,8 @@
                 onError: (err) => toast.error(err.response?.data?.message || 'שגיאה בעדכון ההזמנה.'),
             });
         
-            // חישוב טוטאלים
             const totals = useMemo(() => {
-                // אם המחיר בחדר לא חושב (0), ננסה לחשב אותו שוב כאן למקרה חירום, אבל עדיף להסתמך על ה-useEffect
                 const roomsTotal = rooms.reduce((sum, room) => {
-                    // מנגנון גיבוי: אם המחיר 0 ויש לנו מחירונים, נחשב עכשיו
                     let price = room.price;
                     if (price === 0 && priceLists && room.price_list_names?.length > 0) {
                          price = calculateRoomTotalPrice(room, priceLists, room.price_list_names, numberOfNights, room.roomSupplement);
@@ -3496,7 +3617,6 @@
                             <Card className="shadow-lg">
                                 <CardHeader><CardTitle className="flex items-center gap-2"><FilePlus2 size={22} /> הוספת חדר</CardTitle></CardHeader>
                                 <CardContent>
-                                    {/* אנו מעבירים לכאן רק את המחירונים הפעילים כדי למנוע בחירה של מחירון ישן */}
                                     <AddRoomForm
                                         priceLists={activePriceLists || {}}
                                         roomTypes={roomTypes || []}
@@ -3525,7 +3645,6 @@
                                 <CardDescription>{rooms.length > 0 ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.` : 'הטבלה תתעדכן לאחר הוספת פריטים.'}</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                {/* לטבלה אנו מעבירים את כל המחירונים (priceLists) כדי שתדע לחשב גם חדרים ישנים */}
                                 <OrderSummaryTable
                                     rooms={rooms}
                                     priceLists={priceLists || {}}
@@ -3574,12 +3693,15 @@
                             </CardContent>
         
                             <CardFooter className="flex flex-col items-end gap-4 bg-slate-50 p-6 rounded-b-xl">
-                                <div className="w-full max-w-sm text-right">
-                                    <div className="flex justify-between text-sm text-green-600 font-medium">
-                                        <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
-                                        <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                                {/* ✨ בדיקת הרשאות להצגת עמלות */}
+                                {(user?.role === 'admin' || user?.canViewCommissions) && (
+                                    <div className="w-full max-w-sm text-right">
+                                        <div className="flex justify-between text-sm text-green-600 font-medium">
+                                            <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
+                                            <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
         
                                 <div className="flex justify-start gap-4 w-full mt-4">
                                     <Button variant="outline" onClick={handleExportToExcel}><FileDown className="ml-2" /> שמור לאקסל</Button>
@@ -4517,6 +4639,7 @@
         import api from '@/utils/api.js';
         import ReactQuill from 'react-quill';
         import 'react-quill/dist/quill.snow.css';
+        import { useAuthStore } from '@/stores/authStore.js'; // ✨ ייבוא ה-store
         
         import { AddRoomForm } from '@/components/orders/AddRoomForm';
         import { OrderSummaryTable } from '@/components/orders/OrderSummaryTable';
@@ -4585,6 +4708,7 @@
           const [tempNotes, setTempNotes] = useState('');
           const [nextAction, setNextAction] = useState('reset');
           const queryClient = useQueryClient();
+          const { user } = useAuthStore(); // ✨ שליפת המשתמש
         
           const { data: hotels = [], isLoading: isLoadingHotels } = useQuery({
               queryKey: ['hotels'],
@@ -4729,16 +4853,12 @@
           return (
             <div className="container mx-auto p-4 space-y-8">
         
-              {/* כותרת הדף נקייה (ללא כפתורים) */}
-        
-        
               <Card className="shadow-lg">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2">פרטי הפנייה</CardTitle>
                   </CardHeader>
                   <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
-                           {/* שורה 1 */}
                            <div>
                                <Label htmlFor="customerName" className="mb-1.5 block">שם הלקוח</Label>
                               <div className="relative">
@@ -4752,13 +4872,13 @@
                                <div className="relative">
                                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                  <Input id="customerPhone" name="customerPhone" value={orderDetails.customerPhone} onChange={handleDetailsChange} placeholder="050-1234567" className="pl-10" />
-                              </div>
+                               </div>
                            </div>
         
                            <div>
                                <Label htmlFor="customerEmail" className="mb-1.5 block">אימייל</Label>
                                <div className="relative">
-                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                   <Input id="customerEmail" name="customerEmail" type="email" value={orderDetails.customerEmail} onChange={handleDetailsChange} placeholder="client@example.com" className="pl-10" />
                               </div>
                            </div>
@@ -4767,10 +4887,9 @@
                                <Label htmlFor="eventDate" className="mb-1.5 block">תאריך אירוע/הגעה</Label>
                                <div className="relative">
                                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                 <Input id="eventDate" name="eventDate" type="date" value={orderDetails.eventDate} onChange={handleDetailsChange} className="pl-10" />
+                                  <Input id="eventDate" name="eventDate" type="date" value={orderDetails.eventDate} onChange={handleDetailsChange} className="pl-10" />
                               </div>
                            </div>
-        
         
                            {/* שורה 2 */}
                            <div>
@@ -4802,7 +4921,7 @@
                                       {orderDetails.notes ? (
                                           <span dangerouslySetInnerHTML={{ __html: orderDetails.notes.replace(/<[^>]+>/g, ' ').substring(0, 100) + (orderDetails.notes.length > 100 ? '...' : '') }}></span>
                                       ) : (
-                                          <span className="text-muted-foreground">הערות כלליות... (לחץ לעריכה)</span>
+                                           <span className="text-muted-foreground">הערות כלליות... (לחץ לעריכה)</span>
                                       )}
                                   </div>
                                   <Maximize2 className="absolute bottom-2 left-2 h-3 w-3 text-blue-400 opacity-70" />
@@ -4813,13 +4932,13 @@
               </Card>
         
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                  <div className="lg:col-span-1 space-y-8">
+                   <div className="lg:col-span-1 space-y-8">
                        <Card className="shadow-lg">
                         <CardHeader><CardTitle className="flex items-center gap-2"><FilePlus2 size={22}/> הוספת חדר חדש</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
                             <div>
                                 <Label htmlFor="hotel">מלון</Label>
-                                 <Select value={selectedHotel || ''} onValueChange={setSelectedHotel}>
+                                <Select value={selectedHotel || ''} onValueChange={setSelectedHotel}>
                                     <SelectTrigger id="hotel">
                                         <div className="flex items-center gap-2">
                                             <Hotel className="h-4 w-4 text-gray-400" />
@@ -4845,7 +4964,7 @@
                                 isLoading={isLoading}
                             />
                         </CardContent>
-                    </Card>
+                      </Card>
         
                     <Card className="shadow-lg">
                         <CardHeader><CardTitle className="flex items-center gap-2"><Tag size={22}/> תוספות להזמנה</CardTitle></CardHeader>
@@ -4856,8 +4975,6 @@
                   </div>
         
                   <Card className="lg:col-span-2 shadow-lg">
-        
-                    {/* ✨ הכפתורים הועברו לכאן - ל-CardHeader של הסיכום ✨ */}
                     <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
                         <div className="space-y-1">
                             <CardTitle>סיכום הזמנה</CardTitle>
@@ -4939,14 +5056,16 @@
         
                     </CardContent>
         
-                    {/* ✨ הפוטר נוקה מכפתורים והושארה רק העמלה ✨ */}
                     <CardFooter className="flex flex-col items-end gap-4 bg-slate-50 p-6 rounded-b-xl">
-                        <div className="w-full max-w-sm text-right">
-                            <div className="flex justify-between text-sm text-green-600 font-medium">
-                                <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
-                                <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                        {/* ✨ בדיקת הרשאות להצגת עמלות */}
+                        {(user?.role === 'admin' || user?.canViewCommissions) && (
+                            <div className="w-full max-w-sm text-right">
+                                <div className="flex justify-between text-sm text-green-600 font-medium">
+                                    <span className="flex items-center gap-1.5"><BadgePercent size={16}/> עמלתך (3%):</span>
+                                    <span>+ {totals.salesCommission.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}</span>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </CardFooter>
                   </Card>
               </div>
@@ -5577,6 +5696,7 @@
         }
       📄 QuotePage.jsx
         // client/src/pages/QuotePage.jsx
+        
         import React, { useRef, useState, useMemo } from 'react';
         import { useParams, Link } from 'react-router-dom';
         import { useQuery } from '@tanstack/react-query';
@@ -5586,7 +5706,8 @@
         import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
         import { Input } from "@/components/ui/Input";
         import { Label } from "@/components/ui/Label";
-        import { ArrowRight, Download, Send, User, LoaderCircle, Mail, Calendar, Zap } from 'lucide-react';
+        // ✨ הוספנו את Printer לרשימת האייקונים
+        import { ArrowRight, Download, Send, User, LoaderCircle, Mail, Calendar, Zap, Printer } from 'lucide-react';
         import { formatPhoneForWhatsApp } from '@/utils/phone.js';
         import html2canvas from 'html2canvas';
         import jsPDF from 'jspdf';
@@ -5638,7 +5759,7 @@
           const hotel = order?.hotel || {};
           const brandColor = hotel?.brandColor || '#b45309';
         
-          // --- לוגיקת חלוקת עמודים מתוקנת (מספור קבוע) ---
+          // --- לוגיקת חלוקת עמודים ---
           const pages = useMemo(() => {
             if (!order) return [];
         
@@ -5646,7 +5767,7 @@
             const roomItems = (order.rooms || []).map((room, idx) => ({
                 _type: 'room',
                 _id: `room-${idx}`,
-                serialNumber: idx + 1, // ✨ מספר סידורי קבוע
+                serialNumber: idx + 1,
                 name: room.roomType || 'חדר רגיל',
                 description: room.price_list_names?.join(' + '),
                 roomNote: room.notes,
@@ -5659,7 +5780,7 @@
             const extraItems = (order.extras || []).map((extra, idx) => ({
                 _type: 'extra',
                 _id: `extra-${idx}`,
-                serialNumber: startExtraIndex + idx, // ✨ המשך מספור רציף
+                serialNumber: startExtraIndex + idx,
                 name: extra.extraType,
                 description: 'תוספת להזמנה',
                 details: extra,
@@ -5675,7 +5796,7 @@
         
             // --- הגדרות עמודים ---
             const ITEMS_PER_FIRST_PAGE = 4;
-            const ITEMS_PER_MIDDLE_PAGE = 7; // התיקון הקודם נשאר (7 ולא 8)
+            const ITEMS_PER_MIDDLE_PAGE = 7;
             const ITEMS_PER_LAST_PAGE = 7;
         
             const resultPages = [];
@@ -5755,7 +5876,7 @@
               for (let i = 0; i < pageElements.length; i++) {
                 const pageEl = pageElements[i];
                 const canvas = await html2canvas(pageEl, {
-                    scale: 2, // הורדתי ל-2 לביצועים מהירים יותר, אפשר להחזיר ל-4 אם האיכות יורדת
+                    scale: 2,
                     useCORS: true,
                     backgroundColor: '#ffffff',
                     logging: false
@@ -5862,7 +5983,19 @@
                       </Button>
                     <span className="font-bold text-gray-700 hidden sm:inline">תצוגה מקדימה ({pages.length} דפים)</span>
                   </div>
+        
                 <div className="flex gap-2">
+                    {/* ✨ כפתור ההדפסה החדש ✨ */}
+                    <Button
+                        onClick={() => window.print()}
+                        variant="outline"
+                        className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm"
+                        title="הדפס במדפסת"
+                    >
+                        <Printer className="h-4 w-4"/>
+                        <span className="hidden sm:inline">הדפס</span>
+                    </Button>
+        
                     <Button onClick={handleDownloadPDF} disabled={isDownloading} className="bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm">
                         {isDownloading ? <LoaderCircle className="animate-spin h-4 w-4"/> : <Download className="h-4 w-4"/>}
                         <span className="hidden sm:inline">הורד PDF</span>
@@ -5910,7 +6043,7 @@
                   </div>
                   <DialogFooter>
                       <Button type="submit" onClick={handleSendEmail} disabled={isSendingEmail}>
-                       {isSendingEmail && <LoaderCircle className="ml-2 h-4 w-4 animate-spin" />} שלח הצעה
+                        {isSendingEmail && <LoaderCircle className="ml-2 h-4 w-4 animate-spin" />} שלח הצעה
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -5918,7 +6051,7 @@
         
               <div className="flex flex-col items-center py-8 gap-8" ref={pagesContainerRef}>
                 {pages.map((pageData, index) => (
-                   <div
+                    <div
                         key={index}
                         className="quote-page bg-white shadow-2xl w-[210mm] min-h-[297mm] relative text-slate-800 mx-auto flex flex-col"
                         style={{ padding: '15mm' }}
@@ -5990,7 +6123,7 @@
                                                 return (
                                                     <tr key={`header-${idx}`} className="bg-slate-50">
                                                         <td colSpan="4" className="py-2 px-4 font-bold text-slate-700 text-sm border-y">
-                                                              {item.name}
+                                                            {item.name}
                                                         </td>
                                                     </tr>
                                                 );
@@ -5998,7 +6131,6 @@
         
                                             return (
                                                 <tr key={idx}>
-                                                    {/* ✨ שימוש במספר הסידורי הקבוע במקום בחישוב */}
                                                     <td className="py-4 px-4 align-top text-gray-500 text-center">{item.serialNumber}</td>
         
                                                     <td className="py-4 px-4 align-top">
@@ -6057,7 +6189,7 @@
                                             className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none bg-yellow-50/50 p-4 rounded-lg border border-yellow-100/50"
                                             style={{ whiteSpace: 'pre-wrap' }}
                                         >
-                                             {cleanNotes}
+                                            {cleanNotes}
                                         </div>
                                     </div>
                                 )}
@@ -6093,7 +6225,6 @@
                                 </div>
                             </div>
                         ) : (
-                            /* תיקון כיתוב פוטר אמצעי */
                             <div className="mt-auto text-center pt-8">
                                 <p className="text-gray-300 text-xs">המשך בעמוד הבא...</p>
                             </div>
@@ -8300,7 +8431,12 @@
           export default function ManageUsersPage() {
               const queryClient = useQueryClient();
               const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-              const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false });
+          
+              // ✨ הוספנו את canViewCommissions לסטייט ההתחלתי
+              const [newUserForm, setNewUserForm] = useState({
+                  name: '', email: '', password: '', role: 'sales',
+                  canManagePriceLists: false, canViewCommissions: false
+              });
           
               const { data: users = [], isLoading, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
           
@@ -8316,14 +8452,15 @@
                   onSuccess: () => {
                       commonMutationOptions.onSuccess();
                       setIsCreateDialogOpen(false);
-                      setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false });
+                      setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false });
                       toast.success('משתמש נוצר בהצלחה!');
                   },
               });
               const deleteUserMutation = useMutation({ ...commonMutationOptions, mutationFn: deleteUser });
           
-              const handlePermissionChange = (user, canManagePriceLists) => {
-                  updateUserMutation.mutate({ ...user, canManagePriceLists });
+              // ✨ פונקציה גנרית לשינוי הרשאות
+              const handlePermissionChange = (user, field, value) => {
+                  updateUserMutation.mutate({ ...user, [field]: value });
               };
           
               const handleCreateUser = (e) => {
@@ -8356,12 +8493,13 @@
                                           <th className="px-4 py-3 text-right font-medium">אימייל</th>
                                           <th className="px-4 py-3 text-right font-medium">תפקיד</th>
                                           <th className="px-4 py-3 text-right font-medium">ניהול מחירונים</th>
+                                          <th className="px-4 py-3 text-right font-medium">צפייה בעמלות</th> {/* ✨ עמודה חדשה */}
                                           <th className="px-4 py-3"></th>
                                       </tr>
                                   </thead>
                                   <tbody className="divide-y">
-                                      {isLoading && <tr><td colSpan="5" className="p-8 text-center">טוען משתמשים...</td></tr>}
-                                      {isError && <tr><td colSpan="5" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
+                                      {isLoading && <tr><td colSpan="6" className="p-8 text-center">טוען משתמשים...</td></tr>}
+                                      {isError && <tr><td colSpan="6" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
           
                                       {users.map(user => (
                                           <tr key={user._id} className="hover:bg-gray-50/50">
@@ -8370,19 +8508,29 @@
                                               <td className="px-4 py-3">
                                                   <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
                                                       ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                                                        user.role === 'maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                      user.role === 'maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                                                       {user.role === 'admin' && <Shield size={12}/>}
                                                       {user.role === 'maintenance' && <Wrench size={12}/>}
                                                       {user.role === 'sales' && <Briefcase size={12}/>}
                                                       {roleLabels[user.role] || user.role}
                                                   </span>
                                               </td>
+                                              {/* ניהול מחירונים */}
                                               <td className="px-4 py-3">
                                                   <Switch
                                                       checked={user.canManagePriceLists}
-                                                      onCheckedChange={(checked) => handlePermissionChange(user, checked)}
+                                                      onCheckedChange={(checked) => handlePermissionChange(user, 'canManagePriceLists', checked)}
                                                       disabled={updateUserMutation.isPending || user.role === 'admin'}
                                                       aria-label="ניהול מחירונים"
+                                                  />
+                                              </td>
+                                              {/* ✨ צפייה בעמלות */}
+                                              <td className="px-4 py-3">
+                                                  <Switch
+                                                      checked={user.canViewCommissions}
+                                                      onCheckedChange={(checked) => handlePermissionChange(user, 'canViewCommissions', checked)}
+                                                      disabled={updateUserMutation.isPending || user.role === 'admin'}
+                                                      aria-label="צפייה בעמלות"
                                                   />
                                               </td>
                                               <td className="px-4 py-3 text-left">
@@ -8418,11 +8566,18 @@
                                       </Select>
                                   </div>
           
-                                  {/* הרשאת מחירונים רלוונטית רק לאנשי מכירות */}
+                                  {/* הרשאות נוספות */}
                                   {newUserForm.role !== 'admin' && newUserForm.role !== 'maintenance' && (
-                                      <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
-                                          <Switch id="canManage" checked={newUserForm.canManagePriceLists} onCheckedChange={(c) => setNewUserForm(p => ({...p, canManagePriceLists: c}))} />
-                                          <Label htmlFor="canManage">הרשאה לניהול מחירונים</Label>
+                                      <div className="space-y-3">
+                                          <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
+                                              <Switch id="canManage" checked={newUserForm.canManagePriceLists} onCheckedChange={(c) => setNewUserForm(p => ({...p, canManagePriceLists: c}))} />
+                                              <Label htmlFor="canManage">הרשאה לניהול מחירונים</Label>
+                                          </div>
+                                          {/* ✨ מתג חדש ליצירה */}
+                                          <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
+                                              <Switch id="canViewComm" checked={newUserForm.canViewCommissions} onCheckedChange={(c) => setNewUserForm(p => ({...p, canViewCommissions: c}))} />
+                                              <Label htmlFor="canViewComm">הרשאה לצפייה בעמלות</Label>
+                                          </div>
                                       </div>
                                   )}
                               </form>
@@ -9846,6 +10001,7 @@
         chunkSizeWarningLimit: 2000,
       },
     });
+📄 directory_structure.txt
 📄 docker-compose.yml
 🚫 node_modules/ (נפסל לסריקה)
 📄 package-lock.json
@@ -11385,6 +11541,93 @@
     
     if __name__ == "__main__":
         main()
+  📄 simpel.py
+    import os
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+    
+    MAX_DEPTH = 5
+    SKIP_DIRS = {"node_modules", ".git", "__pycache__","package-lock.json"}
+    PRINT_CONTENT_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css",".prisma", ".mjs", ".cjs", ".env", ".md", "Dockerfile","docker-compose.yml", ".jsonc", ".eslintrc.json", "tsconfig.json"}
+    
+    
+    def scan_directory(path, indent=0, output_lines=None, current_depth=0, print_content=False):
+        if output_lines is None:
+            output_lines = []
+    
+        if current_depth > MAX_DEPTH:
+            output_lines.append("  " * indent + "🔽 ... (עוד תיקיות הוסתרו)")
+            return output_lines
+    
+        try:
+            items = sorted(os.listdir(path))
+        except PermissionError:
+            output_lines.append("  " * indent + f"[⛔ אין הרשאה]: {path}")
+            return output_lines
+    
+        for item in items:
+            full_path = os.path.join(path, item)
+    
+            if os.path.isdir(full_path) and item in SKIP_DIRS:
+                print(f"⏭️ מדלג על תיקייה: {full_path}")
+                output_lines.append("  " * indent + f"🚫 {item}/ (נפסל לסריקה)")
+                continue
+    
+            print(f"▶️ סורק: {full_path}")
+    
+            if os.path.isdir(full_path):
+                output_lines.append("  " * indent + f"📁 {item}/")
+                scan_directory(full_path, indent + 1, output_lines, current_depth + 1, print_content)
+            else:
+                output_lines.append("  " * indent + f"📄 {item}")
+                ext = os.path.splitext(item)[1].lower()
+                if print_content and ext in PRINT_CONTENT_EXTENSIONS:
+                    try:
+                        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                            lines = f.readlines()
+                            for line in lines:
+                                output_lines.append("  " * (indent + 1) + line.rstrip())
+                    except Exception as e:
+                        output_lines.append("  " * (indent + 1) + f"[שגיאה בקריאה: {e}]")
+    
+        return output_lines
+    
+    def ask_include_content():
+        root = tk.Tk()
+        root.withdraw()
+        result = messagebox.askyesno(
+            "האם לכלול תוכן קבצים?",
+            "האם אתה רוצה שהקוד ידפיס גם את תוכן קבצי הקוד (ולא רק את שמותיהם)?"
+        )
+        return result
+    
+    def main():
+        root = tk.Tk()
+        root.withdraw()
+        folder_path = filedialog.askdirectory(title="בחר תקייה לסריקה")
+    
+        if not folder_path:
+            print("❌ לא נבחרה תקייה.")
+            return
+    
+        include_content = ask_include_content()
+        print(f"\n📂 סורק את: {folder_path} (עד עומק {MAX_DEPTH})")
+        print(f"📄 כולל תוכן קבצים: {'כן' if include_content else 'לא'}\n")
+    
+        structure_lines = scan_directory(folder_path, print_content=include_content)
+    
+        print("\n📋 מבנה מלא:\n")
+        for line in structure_lines:
+            print(line)
+    
+        output_file = os.path.join(folder_path, "directory_structure.txt")
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(structure_lines))
+    
+        print(f"\n✅ נשמר ב: {output_file}")
+    
+    if __name__ == "__main__":
+        main()
   📄 skriptName.py
     import os
     import tkinter as tk
@@ -11848,10 +12091,8 @@
     import mongoose from 'mongoose';
     import csurf from 'csurf';
     
-    // ⬇️ --- ייבואים קריטיים להגשת האפליקציה --- ⬇️
     import path from 'path';
     import { fileURLToPath } from 'url';
-    // ⬆️ ------------------------------------- ⬆️
     
     // --- ייבוא נתיבים ---
     import authRoutes from './routes/auth.js';
@@ -11867,11 +12108,11 @@
     import adminRoomTypeRoutes from './routes/adminRoomTypes.js';
     import announcementRoutes from './routes/announcementRoutes.js';
     import adminExtraTypesRoutes from './routes/adminExtraTypes.js';
-    import uploadRoutes from './routes/uploadRoutes.js'; // <--- הוסף את זה למעלה
-    import referrerRoutes from './routes/referrerRoutes.js';// --- ייבוא מידלוורים ---
-    import rateLimiter from './middlewares/rateLimiter.js';
-    import roomRoutes from './routes/roomRoutes.js'; // <--- הוסף את זה למעלה
-    // --- חיבור למסד הנתונים ---
+    import uploadRoutes from './routes/uploadRoutes.js';
+    import referrerRoutes from './routes/referrerRoutes.js';
+    import roomRoutes from './routes/roomRoutes.js';
+    import pushRoutes from './routes/pushRoutes.js'; // ✨ ייבוא החדש
+    
     try {
       await mongoose.connect(process.env.MONGO_URI);
       console.log('✔ Mongo connected');
@@ -11882,12 +12123,9 @@
     
     const app = express();
     
-    // ⬇️ --- הגדרות נתיבים (Path) --- ⬇️
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    // ⬆️ --------------------------- ⬆️
     
-    // --- מידלוורים כלליים ---
     app.use(helmet({ crossOriginResourcePolicy: false }));
     const allowedOrigins = [
       process.env.CLIENT_URL,
@@ -11907,13 +12145,9 @@
     app.use(cookieParser());
     app.use(mongoSanitize());
     
-    // ⬇️ --- הגשת תיקיית 'uploads' (כדי שלוגואים יעבדו) --- ⬇️
-    // ודא שתיקייה זו קיימת בשרת שלך במיקום 'server/uploads'
     const uploadsPath = path.join(__dirname, 'uploads');
     app.use('/uploads', express.static(uploadsPath));
-    // ⬆️ ------------------------------------------------ ⬆️
     
-    // --- הגדרת פונקציית הגנת CSRF ---
     const csrfProtection = csurf({
       cookie: {
         httpOnly: true,
@@ -11922,16 +12156,10 @@
       },
     });
     
-    // =================================================================
-    // --- הגדרת נתיבי API ---
-    // =================================================================
-    
-    // 1. נתיבים ציבוריים (ללא CSRF)
     app.use('/api/auth', authRoutes);
     app.use('/api/webhooks', webhookRoutes);
     
-    // 2. נתיב קבלת טוקן CSRF (עם CSRF)
-    app.get('/api/csrf-token', rateLimiter, csrfProtection, (req, res) => {
+    app.get('/api/csrf-token', csrfProtection, (req, res) => {
       const token = req.csrfToken();
       res.cookie('XSRF-TOKEN', token, {
         httpOnly: false,
@@ -11941,7 +12169,6 @@
       res.json({ csrfToken: token });
     });
     
-    // 3. הפעלת הגנת CSRF באופן מותנה על כל שאר הנתיבים
     app.use('/api', (req, res, next) => {
       if (
         req.path.startsWith('/auth') ||
@@ -11953,7 +12180,7 @@
       csrfProtection(req, res, next);
     });
     
-    // 4. נתיבים מוגנים
+    // --- חיבור נתיבי API ---
     app.use('/api/pricelists', priceListRoutes);
     app.use('/api/orders', orderRoutes);
     app.use('/api/admin/orders', adminOrderRoutes);
@@ -11964,18 +12191,15 @@
     app.use('/api/admin/dashboard', adminDashboardRoutes);
     app.use('/api/admin/room-types', adminRoomTypeRoutes);
     app.use('/api/announcements', announcementRoutes);
-    app.use('/api/upload', uploadRoutes); // <--- הוסף את זה
+    app.use('/api/upload', uploadRoutes);
     app.use('/api/admin/extras', adminExtraTypesRoutes);
-    app.use('/api/rooms', roomRoutes); // <--- הוסף את זה (לפני או אחרי orders)
+    app.use('/api/rooms', roomRoutes);
     app.use('/api/referrers', referrerRoutes);
-    // 5. הגשת קבצי ה-Build של הקליינט (React App)
-    //    זה מחפש את תיקיית 'dist' שנבנתה
+    app.use('/api/push', pushRoutes); // ✨ הפעלת הנתיב החדש
+    
     const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
     app.use(express.static(clientBuildPath));
     
-    // 6. נתיב "תפוס הכל" (Catch-all)
-    //    מגיש את האפליקציה של ריאקט עבור כל נתיב שאינו API
-    //    זה מה שמתקן את ה-404 ב- /quote/:orderId
     app.use('*', (req, res) => {
       if (req.path.startsWith('/api/')) {
         return res.status(404).json({ message: 'API route not found.' });
@@ -11983,18 +12207,13 @@
     
       const indexHtmlPath = path.resolve(clientBuildPath, 'index.html');
     
-      // הגש את האפליקציה הראשית
       res.sendFile(indexHtmlPath, (err) => {
         if (err) {
-          // אם הקובץ לא קיים (כמו שקורה ב-dev או ב-build שגוי), שלח הודעת שגיאה ברורה
-          res.status(500).send(`Error serving index.html: ${err.message}. 'client/dist' folder not found. Did you run 'npm run build' in the client directory?`);
+          res.status(500).send(`Error serving index.html: ${err.message}.`);
         }
       });
     });
     
-    // ⬆️ === סוף התיקון === ⬆️
-    
-    // --- הפעלת השרת ---
     const PORT = process.env.PORT || 4000;
     app.listen(PORT, () => console.log(`✔ Server is booming on port ${PORT}`));
     
@@ -12614,12 +12833,15 @@
         };
         
         export const updateUserPermissions = async (req, res) => {
-            const { role, canManagePriceLists } = req.body;
+            // ✨ הוספנו את canViewCommissions
+            const { role, canManagePriceLists, canViewCommissions } = req.body;
             try {
                 const user = await User.findById(req.params.id);
                 if (user) {
                     if (role) user.role = role;
                     if (canManagePriceLists !== undefined) user.canManagePriceLists = canManagePriceLists;
+                    if (canViewCommissions !== undefined) user.canViewCommissions = canViewCommissions; // ✨ עדכון
+        
                     await user.save();
                     res.json({ message: 'הרשאות עודכנו בהצלחה' });
                 } else {
@@ -12632,7 +12854,8 @@
         };
         
         export const createUser = async (req, res) => {
-            const { name, email, password, role, canManagePriceLists } = req.body;
+            // ✨ הוספנו את canViewCommissions
+            const { name, email, password, role, canManagePriceLists, canViewCommissions } = req.body;
         
             if (!name || !email || !password) {
                 return res.status(400).json({ message: 'שם, אימייל וסיסמה הם שדות חובה' });
@@ -12646,7 +12869,6 @@
         
                 const passwordHash = await bcrypt.hash(password, 12);
         
-                // וידוא שהתפקיד תקין, אם לא - ברירת מחדל sales
                 let finalRole = 'sales';
                 if (role && ['admin', 'sales', 'maintenance'].includes(role)) {
                     finalRole = role;
@@ -12658,6 +12880,7 @@
                     passwordHash,
                     role: finalRole,
                     canManagePriceLists: canManagePriceLists || false,
+                    canViewCommissions: canViewCommissions || false, // ✨ שמירה
                 });
         
                 res.status(201).json({
@@ -12667,7 +12890,6 @@
                     role: user.role,
                 });
             } catch (error) {
-                // ✨ זה ידפיס ללוג של Render את הסיבה האמיתית לקריסה ✨
                 console.error("CRITICAL ERROR Creating User:", error);
                 res.status(500).json({ message: 'שגיאה ביצירת המשתמש: ' + error.message });
             }
@@ -12830,10 +13052,6 @@
       
         const hash = await bcrypt.hash(password, 12);
       
-        // ✨ לוגיקה מעודכנת לבחירת תפקיד ✨
-        // אם נשלח תפקיד חוקי מהקליינט - נשתמש בו. אחרת - נגדיר כ-sales.
-        // הערה: במערכת אמיתית, בדרך כלל רק מנהל יכול ליצור משתמשים עם תפקידים ספציפיים,
-        // אבל כאן אנחנו מאפשרים גמישות בהרשמה לצורך הפיתוח.
         let finalRole = 'sales';
         const validRoles = ['admin', 'sales', 'maintenance'];
       
@@ -12848,7 +13066,16 @@
           role: finalRole
         });
       
-        const userPayload = { _id: user._id, name: user.name, email: user.email, role: user.role };
+        // ✨ שליחת ההרשאות החדשות לקליינט
+        const userPayload = {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            canManagePriceLists: user.canManagePriceLists,
+            canViewCommissions: user.canViewCommissions
+        };
+      
         createAndSendTokens(user, res);
         return res.status(201).json({ message: "ההרשמה הושלמה בהצלחה", user: userPayload });
       };
@@ -12873,8 +13100,15 @@
       
         await user.resetLoginAttempts();
       
-        // כאן אנחנו מחזירים את ה-role המעודכן לקליינט
-        const userPayload = { _id: user._id, name: user.name, email: user.email, role: user.role };
+        // ✨ שליחת ההרשאות החדשות לקליינט
+        const userPayload = {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            canManagePriceLists: user.canManagePriceLists,
+            canViewCommissions: user.canViewCommissions
+        };
       
         createAndSendTokens(user, res);
         return res.status(200).json({ message: "התחברת בהצלחה", user: userPayload });
@@ -12899,7 +13133,15 @@
           }
           createAndSendTokens(user, res);
       
-          const userPayload = { _id: user._id, name: user.name, email: user.email, role: user.role };
+          // ✨ שליחת ההרשאות החדשות לקליינט
+          const userPayload = {
+              _id: user._id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              canManagePriceLists: user.canManagePriceLists,
+              canViewCommissions: user.canViewCommissions
+          };
           return res.status(200).json({ message: "Tokens refreshed successfully", user: userPayload });
         } catch (error) {
           return res.status(403).json({ message: 'Invalid or expired refresh token.' });
@@ -15315,6 +15557,26 @@
       
       
       export default mongoose.model('Stock', stockSchema);
+    📄 Subscription.js
+      import mongoose from 'mongoose';
+      
+      const subscriptionSchema = new mongoose.Schema({
+        // קישור למשתמש (אופציונלי, כדי לדעת מי נרשם)
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          default: null
+        },
+        // אובייקט ה-Push שהדפדפן מייצר
+        endpoint: { type: String, required: true, unique: true },
+        keys: {
+          p256dh: { type: String, required: true },
+          auth: { type: String, required: true }
+        },
+        createdAt: { type: Date, default: Date.now }
+      });
+      
+      export default mongoose.model('Subscription', subscriptionSchema);
     📄 Transaction.js
       // server/models/Transaction.js
       import mongoose from 'mongoose';
@@ -15457,13 +15719,17 @@
             type: String,
             required: [true, 'סיסמה חובה'],
           },
-          // ✨ התיקון הקריטי: הוספת התפקידים החדשים לרשימה המותרת ✨
           role: {
             type: String,
-            enum: ['admin', 'sales', 'maintenance'], // <--- חובה שזה יהיה מעודכן!
+            enum: ['admin', 'sales', 'maintenance'],
             default: 'sales',
           },
           canManagePriceLists: {
+            type: Boolean,
+            default: false,
+          },
+          // ✨ שדה חדש: האם המשתמש רשאי לראות עמלות
+          canViewCommissions: {
             type: Boolean,
             default: false,
           },
@@ -15858,6 +16124,42 @@
       router.delete('/:id', canManage, deletePriceList);
       
       export default router;
+    📄 pushRoutes.js
+      import express from 'express';
+      import Subscription from '../models/Subscription.js';
+      import { getPublicKey } from '../utils/pushHandler.js';
+      import { requireAuth } from '../middlewares/authMiddleware.js';
+      
+      const router = express.Router();
+      
+      // קבלת המפתח הציבורי (כדי שהקליינט יוכל להירשם)
+      router.get('/key', (req, res) => {
+        res.json({ publicKey: getPublicKey() });
+      });
+      
+      // שמירת מנוי חדש (Subscribe)
+      router.post('/subscribe', requireAuth, async (req, res) => {
+        try {
+          const subscription = req.body;
+      
+          // בדיקה אם קיים כבר
+          const exists = await Subscription.findOne({ endpoint: subscription.endpoint });
+          if (!exists) {
+            await Subscription.create({
+              user: req.user._id,
+              endpoint: subscription.endpoint,
+              keys: subscription.keys
+            });
+          }
+      
+          res.status(201).json({ message: 'Subscribed successfully' });
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({ message: 'Error subscribing' });
+        }
+      });
+      
+      export default router;
     📄 rateRoutes.js
       // server/routes/rateRoutes.js
       
@@ -15963,6 +16265,8 @@
       import express from 'express';
       import InboundEmail from '../models/InboundEmail.js';
       import ReferrerAlias from '../models/ReferrerAlias.js';
+      // ✨ 1. ייבוא פונקציית השליחה
+      import { sendPushToAll } from '../utils/pushHandler.js';
       
       const router = express.Router();
       
@@ -15973,7 +16277,8 @@
           const match = text.match(regex);
       
           if (match && match[1]) {
-              let rawName = match[1].trim().split(/\s+/).slice(0, 2).join(' ');
+      
+             let rawName = match[1].trim().split(/\s+/).slice(0, 2).join(' ');
               rawName = rawName.replace(/[.,;!?-]$/, '');
       
               // בדיקת נרמול מול המילון
@@ -16019,6 +16324,23 @@
           });
       
           await newEmail.save();
+      
+          // ✨ 3. שליחת התראה לכולם (Push Notification)
+          try {
+              const leadTitle = parsedName || 'לקוח חדש';
+              const leadMsg = parsedNote || 'התקבלה פנייה חדשה למערכת';
+      
+              // שולח התראה ברקע לכל המנויים
+              sendPushToAll({
+                  title: ` ליד חדש מאת: ${leadTitle}`,
+                  body: leadMsg,
+                  url: '/leads' // לחיצה תוביל לדף הלידים
+              });
+          } catch (pushErr) {
+              console.error("Push notification failed:", pushErr);
+              // לא עוצרים את ה-Response בגלל כישלון התראה
+          }
+      
           res.status(201).json({ message: 'Saved', referrer: detectedReferrer });
       
         } catch (error) {
@@ -17177,6 +17499,73 @@
         }
         return schedule;
       }
+    📄 pushHandler.js
+      import webpush from 'web-push';
+      import Subscription from '../models/Subscription.js';
+      
+      // =================================================================
+      // 🔑 הגדרות VAPID Keys - המפתחות שלך
+      // =================================================================
+      const publicVapidKey = 'BK2xkowsIPCT8VCKEuioVCHmXa3kS10k3yoWh-uCoxKMwGyW4jRh5HdYjkg0RiS4ZOjylCIMSMSgvm23Cai7pFA';
+      const privateVapidKey = 'PkRNszG1kHw2RvhvuZwDd6YcZVrceyJgc_a18bk43Z0';
+      const adminEmail = 'mailto:admin@zipori.com'; // כתובת המייל שלך למקרה של בעיות בשליחה
+      
+      // הגדרת הספרייה עם המפתחות
+      try {
+          webpush.setVapidDetails(
+              adminEmail,
+              publicVapidKey,
+              privateVapidKey
+          );
+          console.log('✅ VAPID Keys configured successfully.');
+      } catch (error) {
+          console.warn("❌ Warning: VAPID keys configuration failed:", error.message);
+      }
+      
+      // ייצוא המפתח הציבורי כדי שהצד-לקוח יוכל להירשם אליו
+      export const getPublicKey = () => publicVapidKey;
+      
+      /**
+       * שולח הודעת Push לכל המנויים הרשומים במערכת
+       * @param {Object} payload - { title, body, url, icon }
+       */
+      export const sendPushToAll = async (payload) => {
+        // שליפת כל המנויים מהדאטה-בייס
+        const subscriptions = await Subscription.find({});
+      
+        if (subscriptions.length === 0) return;
+      
+        const notificationPayload = JSON.stringify({
+          title: payload.title || 'הודעה חדשה',
+          body: payload.body || 'יש לך עדכון במערכת',
+          url: payload.url || '/',
+          icon: '/favicon.svg'
+        });
+      
+        console.log(`📤 Sending push notification to ${subscriptions.length} subscribers...`);
+      
+        const promises = subscriptions.map(sub => {
+          const pushConfig = {
+            endpoint: sub.endpoint,
+            keys: {
+              auth: sub.keys.auth,
+              p256dh: sub.keys.p256dh
+            }
+          };
+      
+          return webpush.sendNotification(pushConfig, notificationPayload)
+            .catch(err => {
+              // קוד 410 או 404 אומר שהמנוי כבר לא קיים (המשתמש הסיר הרשאה)
+              if (err.statusCode === 410 || err.statusCode === 404) {
+                console.log(`🗑️ Subscription expired, deleting: ${sub._id}`);
+                return Subscription.findByIdAndDelete(sub._id);
+              }
+              console.error('❌ Error sending push:', err.statusCode);
+            });
+        });
+      
+        await Promise.all(promises);
+      };
     📄 tokenHandler.js
       import jwt from 'jsonwebtoken';
       

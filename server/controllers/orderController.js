@@ -1,10 +1,10 @@
-// server/controllers/orderController.js
 import Order from '../models/Order.js';
 import PriceList from '../models/PriceList.js';
 import RoomType from '../models/RoomType.js';
 import { calculateRoomTotalPrice } from '../lib/priceCalculator.js';
 import { getNextSequenceValue } from '../models/Counter.js';
-import nodemailer from 'nodemailer'; // ודא שהתקנת: npm install nodemailer
+import nodemailer from 'nodemailer'; 
+import { logAction } from '../utils/auditLogger.js'; // ✨ ייבוא
 
 // פונקציית עזר לחישוב מחיר סופי
 const calculateFinalTotal = (roomsPrice, extras, discountPercent) => {
@@ -78,7 +78,7 @@ export const createOrder = async (req, res) => {
         price,
         roomType: roomTypeName,
         roomSupplement: supplement,
-        notes: room.notes 
+        notes: room.notes
       };
     });
 
@@ -100,8 +100,11 @@ export const createOrder = async (req, res) => {
         extras,
         discountPercent,
         total_price: finalPrice,
-        notes, 
+        notes,
     });
+
+    // ✨ תיעוד יצירה
+    await logAction(req, 'CREATE', 'Order', newOrderInMongo._id, `נוצרה הזמנה חדשה #${orderNumber} עבור ${customerName}`);
 
     res.status(201).json(newOrderInMongo);
   } catch (error) {
@@ -123,6 +126,12 @@ export const updateOrder = async (req, res) => {
         if (order.user.toString() !== req.user.id && req.user.role !== 'admin') {
             return res.status(403).json({ message: 'אין הרשאה לערוך הזמנה זו' });
         }
+
+        // --- בדיקת שינויים ללוג ---
+        let changes = {};
+        if (status && status !== order.status) changes.status = { from: order.status, to: status };
+        if (customerName && customerName !== order.customerName) changes.name = { from: order.customerName, to: customerName };
+        // ------------------------
 
         let roomsTotalPrice = 0;
         let roomsWithServerPrice = order.rooms;
@@ -172,6 +181,8 @@ export const updateOrder = async (req, res) => {
         let finalPrice = calculateFinalTotal(roomsTotalPrice, currentExtras, currentDiscount);
         if (total_price !== undefined) finalPrice = total_price;
 
+        if (finalPrice !== order.total_price) changes.price = { from: order.total_price, to: finalPrice };
+
         // עדכון שדות
         order.hotel = hotel ?? order.hotel;
         order.customerName = customerName ?? order.customerName;
@@ -188,6 +199,14 @@ export const updateOrder = async (req, res) => {
         order.total_price = finalPrice;
 
         const updatedOrder = await order.save();
+
+        // ✨ תיעוד עדכון
+        let logDesc = `עודכנה הזמנה #${updatedOrder.orderNumber}`;
+        if (changes.status) logDesc += `, סטטוס: ${changes.status.to}`;
+        if (changes.price) logDesc += `, סכום: ${changes.price.to}`;
+        
+        await logAction(req, 'UPDATE', 'Order', updatedOrder._id, logDesc, changes);
+
         res.json(updatedOrder);
     } catch (error) {
         console.error("Order update error:", error);
@@ -246,7 +265,7 @@ export const getPublicQuoteById = async (req, res) => {
             numberOfNights: order.numberOfNights,
             extras: order.extras,
             discountPercent: order.discountPercent,
-            notes: order.notes 
+            notes: order.notes
         });
     } catch (error) {
         res.status(500).json({ message: "שגיאה בטעינת ההזמנה" });
@@ -261,13 +280,17 @@ export const deleteOrder = async (req, res) => {
             return res.status(403).json({ message: 'אין הרשאה למחוק הזמנה זו' });
         }
         await Order.findByIdAndDelete(req.params.id);
+        
+        // ✨ תיעוד מחיקה
+        await logAction(req, 'DELETE', 'Order', req.params.id, `נמחקה הזמנה #${order.orderNumber}`);
+
         res.json({ message: 'ההזמנה נמחקה' });
     } catch (error) {
         res.status(500).json({ message: 'שגיאה במחיקת ההזמנה' });
     }
 };
 
-// ✨ פונקציה לשליחת הצעת מחיר במייל
+// פונקציה לשליחת הצעת מחיר במייל
 export const sendOrderEmail = async (req, res) => {
     try {
         const { email, customerName } = req.body;
@@ -277,20 +300,16 @@ export const sendOrderEmail = async (req, res) => {
             return res.status(400).json({ message: 'חסר כתובת אימייל או קובץ PDF' });
         }
 
-        // הגדרת הטרנספורטר (שרת המייל)
-        // הגדרת הטרנספורטר עם הגדרות ספציפיות לשרתים בענן
         const transporter = nodemailer.createTransport({
             host: 'smtp.gmail.com',
-            port: 465, // שימוש בפורט 465 (SSL) שעובד טוב יותר בשרתי ענן
-            secure: true, // חובה עבור פורט 465
+            port: 465,
+            secure: true,
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
             },
-            // הגדרות נוספות למניעת תקלות
             tls: {
-                // אל תיכשל אם האישור לא מושלם (עוזר לפעמים בשרתי פיתוח)
-                rejectUnauthorized: false 
+                rejectUnauthorized: false
             }
         });
 
@@ -318,6 +337,10 @@ export const sendOrderEmail = async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
+        
+        // ✨ תיעוד שליחת מייל
+        await logAction(req, 'EXPORT', 'Order', req.params.id, `נשלחה הצעת מחיר במייל ל-${email}`);
+
         res.status(200).json({ message: 'Email sent successfully' });
 
     } catch (error) {

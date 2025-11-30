@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
     Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
-    Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush
+    Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History // ✨ הוספת History
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
@@ -51,6 +51,7 @@ const getNavGroups = (isAuthenticated, user) => {
   if (role === 'admin') {
       groups.admin = [
           { to: '/admin', label: 'דשבורד מנהל', icon: Shield },
+          { to: '/admin/audit-logs', label: 'יומן פעילות', icon: History }, // ✨ הוספת הפריט לתפריט
       ];
   }
 
@@ -77,7 +78,7 @@ export default function Navbar() {
 
             {/* Mobile Top Bar */}
             <div className="md:hidden flex items-center justify-between bg-white dark:bg-slate-900 border-b h-16 px-4">
-                <Link to="/" className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
+               <Link to="/" className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
                      ZIPORI CLASS
                 </Link>
 
@@ -132,7 +133,7 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                 {/* ✨ התיקון כאן: הסרתי את md:hidden כדי שהפעמון יופיע גם במחשב ✨ */}
                 <div className="flex items-center gap-3">
                     {isAuthenticated && user?.role !== 'maintenance' && <LeadsBell />}
-                    
+
                     {/* כפתור סגירה - יופיע רק אם יש פונקציית סגירה (כלומר בנייד) */}
                     {onClose && (
                         <Button variant="ghost" size="icon" onClick={onClose}>

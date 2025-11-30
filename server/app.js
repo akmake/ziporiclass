@@ -28,7 +28,8 @@ import adminExtraTypesRoutes from './routes/adminExtraTypes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import referrerRoutes from './routes/referrerRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
-import pushRoutes from './routes/pushRoutes.js'; // ✨ ייבוא החדש
+import pushRoutes from './routes/pushRoutes.js';
+import adminAuditRoutes from './routes/adminAudit.js'; // ✨ ייבוא הנתיב החדש
 
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -52,7 +53,6 @@ const allowedOrigins = [
 ];
 
 const filteredOrigins = allowedOrigins.filter(Boolean);
-
 app.use(cors({
   origin: filteredOrigins,
   credentials: true
@@ -112,7 +112,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/admin/extras', adminExtraTypesRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/referrers', referrerRoutes);
-app.use('/api/push', pushRoutes); // ✨ הפעלת הנתיב החדש
+app.use('/api/push', pushRoutes);
+app.use('/api/admin/audit', adminAuditRoutes); // ✨ חיבור הנתיב החדש
 
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuildPath));
