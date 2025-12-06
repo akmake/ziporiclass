@@ -51,6 +51,7 @@ const getNavGroups = (isAuthenticated, user) => {
   if (role === 'admin') {
       groups.admin = [
           { to: '/admin', label: 'דשבורד מנהל', icon: Shield },
+          { to: '/admin/commissions', label: 'דוח עמלות', icon: FileSpreadsheet },
           { to: '/admin/audit-logs', label: 'יומן פעילות', icon: History }, // ✨ הוספת הפריט לתפריט
       ];
   }

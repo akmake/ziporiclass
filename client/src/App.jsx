@@ -38,6 +38,7 @@ import ManageAnnouncementsPage from '@/pages/admin/ManageAnnouncementsPage.jsx';
 import ManageReferrersPage from '@/pages/admin/ManageReferrersPage.jsx';
 import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
 import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx"; // ✨ ייבוא החדש
+import CommissionsPage from "@/pages/admin/CommissionsPage.jsx";
 
 // ✨ ייבוא המנהל החדש
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="affiliates" element={<AffiliateReportsPage />} />
             <Route path="extras" element={<ManageExtrasPage />} />
             <Route path="referrers" element={<ManageReferrersPage />} />
+            <Route path="commissions" element={<CommissionsPage />} />
             <Route path="announcements" element={<ManageAnnouncementsPage />} />
             <Route path="audit-logs" element={<AuditLogsPage />} /> {/* ✨ הנתיב החדש */}
           </Route>

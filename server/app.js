@@ -30,6 +30,8 @@ import referrerRoutes from './routes/referrerRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
 import adminAuditRoutes from './routes/adminAudit.js'; // ✨ ייבוא הנתיב החדש
+import adminCommissionRoutes from './routes/adminCommissions.js';
+
 
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -114,6 +116,9 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/referrers', referrerRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/admin/audit', adminAuditRoutes); // ✨ חיבור הנתיב החדש
+app.use('/api/admin/commissions', adminCommissionRoutes);
+
+
 
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuildPath));
