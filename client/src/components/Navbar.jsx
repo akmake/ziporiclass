@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
     Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
-    Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History // ✨ הוספת History
+    Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History,FileSpreadsheet // ✨ הוספת History
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
