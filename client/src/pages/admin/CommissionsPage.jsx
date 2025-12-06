@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
@@ -7,15 +7,15 @@ import { format } from 'date-fns';
 
 // UI Components
 import { Button } from '@/components/ui/Button.jsx';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card.jsx';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card.jsx';
 import { Checkbox } from '@/components/ui/Checkbox.jsx';
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Input } from '@/components/ui/Input.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
-import { 
-    UploadCloud, FileSpreadsheet, AlertTriangle, Save, Filter, 
-    CheckCircle2, Pencil, History, ChevronDown, ChevronUp, Search
+import {
+    FileSpreadsheet, AlertTriangle, Save, Filter,
+    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy
 } from 'lucide-react';
 
 // --- הגדרות עמודות מהאקסל ---
@@ -35,6 +35,68 @@ function parseMoney(val) {
 function cleanStr(val) {
     if (val === undefined || val === null) return "";
     return val.toString().trim();
+}
+
+// ✨ פונקציה חדשה לחישוב סיכום לפי נציגים
+function getReportSummary(items) {
+    const summary = {};
+
+    items.forEach(item => {
+        const name = item.clerkName || 'לא ידוע';
+        if (!summary[name]) {
+            summary[name] = { count: 0, totalRevenue: 0, totalCommission: 0 };
+        }
+        summary[name].count += 1;
+        summary[name].totalRevenue += item.paidAmount || 0;
+        summary[name].totalCommission += item.commission || 0;
+    });
+
+    // המרה למערך ומיון לפי סכום עמלה (מהגבוה לנמוך)
+    return Object.entries(summary)
+        .map(([name, data]) => ({ name, ...data }))
+        .sort((a, b) => b.totalCommission - a.totalCommission);
+}
+
+// ✨ קומפוננטת סיכום חדשה
+function ReportSummaryTable({ items }) {
+    const summaryData = useMemo(() => getReportSummary(items), [items]);
+
+    return (
+        <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-amber-500" /> סיכום ביצועים לפי נציג
+            </h4>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-right bg-white rounded-md shadow-sm border">
+                    <thead className="bg-slate-100 text-slate-600 font-semibold">
+                        <tr>
+                            <th className="p-2 border-b">שם הנציג</th>
+                            <th className="p-2 border-b text-center">כמות עסקאות</th>
+                            <th className="p-2 border-b">סך הכנסות (שולם)</th>
+                            <th className="p-2 border-b text-purple-700">סך עמלה לתשלום</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {summaryData.map((row, idx) => (
+                            <tr key={row.name} className="hover:bg-slate-50">
+                                <td className="p-2 font-medium">{row.name}</td>
+                                <td className="p-2 text-center">{row.count}</td>
+                                <td className="p-2">{row.totalRevenue.toLocaleString()} ₪</td>
+                                <td className="p-2 font-bold text-purple-700">{row.totalCommission.toLocaleString()} ₪</td>
+                            </tr>
+                        ))}
+                        {/* שורת סיכום כללי */}
+                        <tr className="bg-slate-50 font-bold border-t-2 border-slate-200">
+                            <td className="p-2">סה"כ כללי</td>
+                            <td className="p-2 text-center">{summaryData.reduce((sum, r) => sum + r.count, 0)}</td>
+                            <td className="p-2">{summaryData.reduce((sum, r) => sum + r.totalRevenue, 0).toLocaleString()} ₪</td>
+                            <td className="p-2 text-purple-700">{summaryData.reduce((sum, r) => sum + r.totalCommission, 0).toLocaleString()} ₪</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
 }
 
 export default function CommissionsPage() {
@@ -68,21 +130,18 @@ export default function CommissionsPage() {
 }
 
 // ============================================================================
-// 🟢 קומפוננטה 1: המחולל (Generator)
+// 🟢 קומפוננטה 1: המחולל (Generator) - ללא שינוי מהקוד המקורי שלך
 // ============================================================================
 function CommissionGenerator({ onReportGenerated }) {
-    // Data State
     const [invoicesMap, setInvoicesMap] = useState(null);
     const [reservationsData, setReservationsData] = useState(null);
     const [allClerks, setAllClerks] = useState([]);
     const [selectedClerks, setSelectedClerks] = useState(new Set());
-    
-    // Process State
-    const [processedRows, setProcessedRows] = useState([]); // כל השורות (ירוק+אדום)
-    const [selectedRows, setSelectedRows] = useState(new Set()); // מה נבחר להפקה
-    const [step, setStep] = useState(1); // 1=Upload, 2=SelectClerks, 3=Table
-    
-    // Fix Dialog State
+
+    const [processedRows, setProcessedRows] = useState([]); 
+    const [selectedRows, setSelectedRows] = useState(new Set()); 
+    const [step, setStep] = useState(1); 
+
     const [isFixDialogOpen, setIsFixDialogOpen] = useState(false);
     const [rowToFix, setRowToFix] = useState(null);
     const [fixAmount, setFixAmount] = useState('');
@@ -90,22 +149,19 @@ function CommissionGenerator({ onReportGenerated }) {
 
     const queryClient = useQueryClient();
 
-    // 1. טעינת רשימת ה-IDs שכבר שולמו בעבר (כדי לסנן אותם)
     const { data: paidHistoryIds = [] } = useQuery({
         queryKey: ['paidCommissionsIds'],
         queryFn: async () => (await api.get('/admin/commissions/paid-ids')).data
     });
 
-    // 2. שמירת הדוח בשרת
     const generateMutation = useMutation({
         mutationFn: (items) => api.post('/admin/commissions/generate', { items }),
         onSuccess: () => {
             toast.success('הדוח הופק ונשמר בהצלחה!');
-            // רענון נתונים
             queryClient.invalidateQueries(['paidCommissionsIds']);
             queryClient.invalidateQueries(['commissionReports']);
             resetAll();
-            onReportGenerated(); // מעבר לטאב היסטוריה
+            onReportGenerated();
         },
         onError: (err) => toast.error('שגיאה בשמירת הדוח: ' + (err.response?.data?.message || err.message))
     });
@@ -120,7 +176,6 @@ function CommissionGenerator({ onReportGenerated }) {
         setSelectedRows(new Set());
     };
 
-    // --- שלב א': טעינת קבצים ---
     const handleFileUpload = (e, type) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -183,33 +238,27 @@ function CommissionGenerator({ onReportGenerated }) {
         toast.success(`נטענו ${data.length} שורות הזמנות`);
     };
 
-    // --- שלב ב': ביצוע ההצלבה (המוח של המערכת) ---
     const handleAnalyze = () => {
         if (!invoicesMap || !reservationsData) return toast.error("חסרים קבצים");
         if (selectedClerks.size === 0) return toast.error("בחר לפחות נציג אחד");
-        
+
         const tempConsolidated = {};
-        const newSelectedIds = new Set(); // כאן נאגור את הירוקים האוטומטיים
+        const newSelectedIds = new Set(); 
 
         reservationsData.forEach(row => {
-            // סינון נציג
             const rowClerk = cleanStr(row["c_taken_clerk"]);
             if (!selectedClerks.has(rowClerk)) return;
 
-            // סינון סטטוס
             let status = (row["c_reservation_status"] || "").toString().toLowerCase();
             if (status === "can") return;
 
-            // מזהה הזמנה
             let masterId = (row["c_master_id"] || "").toString().trim();
             if (!masterId) return;
 
-            // 🛑 סינון היסטוריה: אם ההזמנה הזו כבר קיימת בהיסטוריה, דלג עליה!
             if (paidHistoryIds.includes(masterId)) return;
 
             let price = parseMoney(row["price_local"]);
 
-            // איחוד שורות (כי יכולים להיות כמה חדרים לאותה הזמנה)
             if (!tempConsolidated[masterId]) {
                 tempConsolidated[masterId] = {
                     masterId: masterId,
@@ -224,27 +273,24 @@ function CommissionGenerator({ onReportGenerated }) {
             tempConsolidated[masterId].totalOrderPrice += price;
         });
 
-        // חישובים סופיים לכל שורה
         const finalRows = Object.values(tempConsolidated).map(item => {
             let foundData = invoicesMap["ID_" + item.masterId] || invoicesMap["NAME_" + item.guestName];
-            
+
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
             let isGroup = item.priceCode.includes("קבוצות");
             let commissionRate = isGroup ? 0.015 : 0.03;
-            
+
             let expectedWithVat = item.totalOrderPrice * 1.18;
             let diff = Math.abs(expectedWithVat - finalInvoiceAmount);
-            
-            // קביעת צבע
-            let colorStatus = 'red'; // ברירת מחדל: בעייתי
+
+            let colorStatus = 'red'; 
             if (expectedWithVat > 0 || finalInvoiceAmount > 0) {
-                if (diff < 5.0) colorStatus = 'green'; 
+                if (diff < 5.0) colorStatus = 'green';
                 else if (expectedWithVat < finalInvoiceAmount) colorStatus = 'yellow';
             }
 
-            // ✨ אם ירוק -> הוסף לרשימת הנבחרים אוטומטית
             if (colorStatus === 'green') {
                 newSelectedIds.add(item.masterId);
             }
@@ -262,18 +308,15 @@ function CommissionGenerator({ onReportGenerated }) {
             };
         });
 
-        // הסרת שורות ריקות (0 הזמנה ו-0 תשלום)
         const relevantRows = finalRows.filter(r => r.finalInvoiceAmount > 0 || r.expectedWithVat > 0);
 
         setProcessedRows(relevantRows);
         setSelectedRows(newSelectedIds);
-        setStep(3); // עבור לטבלה
+        setStep(3); 
     };
 
-    // --- תיקון ידני ---
     const openFixDialog = (row) => {
         setRowToFix(row);
-        // מציע את הסכום המלא כברירת מחדל לתיקון
         setFixAmount(row.expectedWithVat > 0 ? Math.round(row.expectedWithVat) : row.finalInvoiceAmount);
         setFixNote('');
         setIsFixDialogOpen(true);
@@ -282,16 +325,16 @@ function CommissionGenerator({ onReportGenerated }) {
     const applyFix = () => {
         if (!rowToFix) return;
         const newAmount = parseFloat(fixAmount);
-        
+
         const updatedRows = processedRows.map(r => {
             if (r.masterId === rowToFix.masterId) {
                 const commissionRate = r.isGroup ? 0.015 : 0.03;
                 return {
                     ...r,
-                    finalInvoiceAmount: newAmount, // הסכום החדש הקובע
-                    commissionToPay: newAmount * commissionRate, // עמלה מחושבת מחדש
+                    finalInvoiceAmount: newAmount,
+                    commissionToPay: newAmount * commissionRate, 
                     finalInvNum: fixNote || r.finalInvNum || 'תיקון ידני',
-                    colorStatus: 'green', // הופך לירוק
+                    colorStatus: 'green',
                     manualFix: true
                 };
             }
@@ -299,8 +342,6 @@ function CommissionGenerator({ onReportGenerated }) {
         });
 
         setProcessedRows(updatedRows);
-        
-        // מוסיף לרשימת הנבחרים
         const newSelected = new Set(selectedRows);
         newSelected.add(rowToFix.masterId);
         setSelectedRows(newSelected);
@@ -309,10 +350,9 @@ function CommissionGenerator({ onReportGenerated }) {
         toast.success("העסקה תוקנה ואושרה!");
     };
 
-    // --- הפקת הדוח ---
     const handleGenerateReport = () => {
         const rowsToSave = processedRows.filter(r => selectedRows.has(r.masterId));
-        
+
         if (rowsToSave.length === 0) return toast.error("לא נבחרו שורות להפקה");
         if (!window.confirm(`האם להפיק דוח עבור ${rowsToSave.length} עסקאות?\nהנתונים יישמרו והעסקאות יסומנו כ"שולמו".`)) return;
 
@@ -326,16 +366,12 @@ function CommissionGenerator({ onReportGenerated }) {
         setSelectedRows(next);
     };
 
-    // --- סינון לתצוגה ---
-    // אנחנו מציגים רק את מה ש*לא* ירוק (או מה שתוקן ידנית והפך לירוק עכשיו).
-    // שורות שהיו ירוקות מלכתחילה מוסתרות מהטבלה הראשית.
     const visibleRows = processedRows.filter(r => r.colorStatus !== 'green' || r.manualFix);
     const hiddenGreenCount = processedRows.length - visibleRows.length;
     const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.masterId)).reduce((sum, r) => sum + r.commissionToPay, 0);
 
     return (
         <div className="space-y-6 animate-in fade-in">
-            {/* שלב 1: העלאת קבצים */}
             {step === 1 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className={`border-2 border-dashed ${invoicesMap ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}>
@@ -356,7 +392,6 @@ function CommissionGenerator({ onReportGenerated }) {
                 </div>
             )}
 
-            {/* שלב 2: בחירת נציגים */}
             {step === 2 && (
                 <Card className="max-w-4xl mx-auto">
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -387,10 +422,8 @@ function CommissionGenerator({ onReportGenerated }) {
                 </Card>
             )}
 
-            {/* שלב 3: הטבלה וההפקה */}
             {step === 3 && (
                 <div className="space-y-6">
-                    {/* סיכום עליון */}
                     <Card className="bg-gradient-to-r from-white to-green-50 border-green-200">
                         <CardContent className="p-6 flex flex-col md:flex-row justify-between items-center gap-6">
                             <div className="flex items-center gap-4">
@@ -413,12 +446,11 @@ function CommissionGenerator({ onReportGenerated }) {
                         </CardContent>
                     </Card>
 
-                    {/* טבלת החריגים */}
                     <div className="bg-white rounded-lg shadow-sm overflow-hidden border">
                         <div className="p-4 bg-red-50 border-b border-red-100 text-red-800 font-bold flex items-center gap-2">
                             <AlertTriangle size={18}/> רשימת חריגים לבדיקה ידנית (אדום/צהוב)
                         </div>
-                        
+
                         {visibleRows.length === 0 ? (
                             <div className="p-12 text-center text-gray-500">
                                 <CheckCircle2 size={48} className="mx-auto text-green-400 mb-2"/>
@@ -462,11 +494,11 @@ function CommissionGenerator({ onReportGenerated }) {
                                                 <td className="p-3 font-bold">{row.finalInvoiceAmount.toLocaleString()}</td>
                                                 <td className="p-3 text-purple-700 font-bold">{row.commissionToPay.toLocaleString()}</td>
                                                 <td className="p-3">
-                                                    {row.manualFix ? 
+                                                    {row.manualFix ?
                                                         <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">תוקן ידנית</span> :
-                                                        row.colorStatus === 'red' ? 
-                                                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">חסר</span> :
-                                                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-bold">עודף</span>
+                                                        row.colorStatus === 'red' ?
+                                                            <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">חסר</span> :
+                                                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-bold">עודף</span>
                                                     }
                                                 </td>
                                             </tr>
@@ -479,7 +511,6 @@ function CommissionGenerator({ onReportGenerated }) {
                 </div>
             )}
 
-            {/* דיאלוג תיקון ידני */}
             <Dialog open={isFixDialogOpen} onOpenChange={setIsFixDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -510,7 +541,7 @@ function CommissionGenerator({ onReportGenerated }) {
 }
 
 // ============================================================================
-// 🟡 קומפוננטה 2: היסטוריית דוחות (History)
+// 🟡 קומפוננטה 2: היסטוריית דוחות (History) - ✨ מעודכן!
 // ============================================================================
 function ReportsHistory() {
     const { data: reports = [], isLoading } = useQuery({
@@ -534,7 +565,7 @@ function ReportsHistory() {
                     <div className="space-y-4">
                         {reports.map(report => (
                             <div key={report._id} className="border rounded-lg overflow-hidden bg-white shadow-sm">
-                                <div 
+                                <div
                                     className="p-4 bg-slate-50 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors"
                                     onClick={() => toggleExpand(report._id)}
                                 >
@@ -553,8 +584,15 @@ function ReportsHistory() {
                                 </div>
 
                                 {expandedReportId === report._id && (
-                                    <div className="p-0 border-t bg-white animate-in slide-in-from-top-2">
-                                        <div className="max-h-[400px] overflow-y-auto">
+                                    <div className="p-4 border-t bg-white animate-in slide-in-from-top-2">
+                                        
+                                        {/* ✨ הטבלה המסכמת החדשה */}
+                                        <ReportSummaryTable items={report.items} />
+
+                                        {/* ✨ כותרת לפירוט */}
+                                        <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">פירוט מלא של ההזמנות</h4>
+
+                                        <div className="max-h-[400px] overflow-y-auto border rounded-md">
                                             <table className="w-full text-sm text-right">
                                                 <thead className="text-gray-500 border-b bg-gray-50 sticky top-0">
                                                     <tr>
