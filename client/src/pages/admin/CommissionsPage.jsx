@@ -374,13 +374,13 @@ function CommissionGenerator({ onReportGenerated }) {
             {step === 1 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className={`border-2 border-dashed ${invoicesMap ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}>
-                        <CardHeader><CardTitle>1. דו"ח חשבוניות 442</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>1. דו"ח חשבוניות (442)</CardTitle></CardHeader>
                         <CardContent className="text-center">
                             <input type="file" onChange={(e) => handleFileUpload(e, 'invoices')} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/>
                         </CardContent>
                     </Card>
                     <Card className={`border-2 border-dashed ${reservationsData ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}>
-                        <CardHeader><CardTitle>2. דו"ח הזמנות 250 (250)</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>2. דו"ח הזמנות (250)</CardTitle></CardHeader>
                         <CardContent className="text-center">
                             <input type="file" onChange={(e) => handleFileUpload(e, 'reservations')} disabled={!invoicesMap} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/>
                         </CardContent>
