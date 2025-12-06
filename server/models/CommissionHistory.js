@@ -6,4 +6,4 @@ const commissionHistorySchema = new mongoose.Schema({
   reportId: { type: mongoose.Schema.Types.ObjectId, ref: 'CommissionReport' } // קישור לדוח
 }, { timestamps: true });
 
-export default mongoose.model('CommissionHistory', commissionHistorySchema);
+export default mongoose.models.CommissionHistory || mongoose.model('CommissionHistory', commissionHistorySchema);

@@ -22,4 +22,4 @@ const commissionReportSchema = new mongoose.Schema({
   }]
 }, { timestamps: true });
 
-export default mongoose.model('CommissionReport', commissionReportSchema);
+export default mongoose.models.CommissionReport || mongoose.model('CommissionReport', commissionReportSchema);
