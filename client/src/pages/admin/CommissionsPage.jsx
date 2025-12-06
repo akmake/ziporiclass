@@ -37,7 +37,7 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ פונקציה חדשה לחישוב סיכום לפי נציגים
+// ✨ חישוב סיכום לפי נציגים
 function getReportSummary(items) {
     const summary = {};
 
@@ -51,18 +51,17 @@ function getReportSummary(items) {
         summary[name].totalCommission += item.commission || 0;
     });
 
-    // המרה למערך ומיון לפי סכום עמלה (מהגבוה לנמוך)
     return Object.entries(summary)
         .map(([name, data]) => ({ name, ...data }))
         .sort((a, b) => b.totalCommission - a.totalCommission);
 }
 
-// ✨ קומפוננטת סיכום חדשה
+// ✨ קומפוננטת סיכום - הותאמה ל-RTL
 function ReportSummaryTable({ items }) {
     const summaryData = useMemo(() => getReportSummary(items), [items]);
 
     return (
-        <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+        <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200" dir="rtl">
             <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-amber-500" /> סיכום ביצועים לפי נציג
             </h4>
@@ -70,10 +69,10 @@ function ReportSummaryTable({ items }) {
                 <table className="w-full text-sm text-right bg-white rounded-md shadow-sm border">
                     <thead className="bg-slate-100 text-slate-600 font-semibold">
                         <tr>
-                            <th className="p-2 border-b">שם הנציג</th>
+                            <th className="p-2 border-b text-right">שם הנציג</th>
                             <th className="p-2 border-b text-center">כמות עסקאות</th>
-                            <th className="p-2 border-b">סך הכנסות (שולם)</th>
-                            <th className="p-2 border-b text-purple-700">סך עמלה לתשלום</th>
+                            <th className="p-2 border-b text-right">סך הכנסות (שולם)</th>
+                            <th className="p-2 border-b text-right text-purple-700">סך עמלה לתשלום</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -103,7 +102,8 @@ export default function CommissionsPage() {
     const [activeTab, setActiveTab] = useState("generator");
 
     return (
-        <div className="container mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">
+        // ✨ הוספת dir="rtl" לכל העמוד
+        <div className="container mx-auto p-6 space-y-6 bg-slate-50 min-h-screen" dir="rtl">
             <header>
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
                     <FileSpreadsheet className="text-purple-600"/> ניהול עמלות מרוכז
@@ -130,7 +130,7 @@ export default function CommissionsPage() {
 }
 
 // ============================================================================
-// 🟢 קומפוננטה 1: המחולל (Generator) - ללא שינוי מהקוד המקורי שלך
+// 🟢 קומפוננטה 1: המחולל (Generator)
 // ============================================================================
 function CommissionGenerator({ onReportGenerated }) {
     const [invoicesMap, setInvoicesMap] = useState(null);
@@ -541,7 +541,7 @@ function CommissionGenerator({ onReportGenerated }) {
 }
 
 // ============================================================================
-// 🟡 קומפוננטה 2: היסטוריית דוחות (History) - ✨ מעודכן!
+// 🟡 קומפוננטה 2: היסטוריית דוחות (History) - ✨ מעודכן ל-RTL
 // ============================================================================
 function ReportsHistory() {
     const { data: reports = [], isLoading } = useQuery({
@@ -586,7 +586,7 @@ function ReportsHistory() {
                                 {expandedReportId === report._id && (
                                     <div className="p-4 border-t bg-white animate-in slide-in-from-top-2">
                                         
-                                        {/* ✨ הטבלה המסכמת החדשה */}
+                                        {/* ✨ הטבלה המסכמת החדשה עם כיווניות נכונה */}
                                         <ReportSummaryTable items={report.items} />
 
                                         {/* ✨ כותרת לפירוט */}
