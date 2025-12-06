@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
@@ -6,15 +6,16 @@ import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card.jsx';
 import { Checkbox } from '@/components/ui/Checkbox.jsx';
-import { UploadCloud, FileSpreadsheet, CheckCircle, AlertTriangle, Download, Save } from 'lucide-react';
+import { Label } from '@/components/ui/Label.jsx';
+import { UploadCloud, FileSpreadsheet, AlertTriangle, Save, Filter, CheckCircle2 } from 'lucide-react';
 
-// --- הגדרות עמודות מהקובץ המקורי ---
+// --- הגדרות עמודות ---
 const INV_COL_ID = "c_folio_number";
 const INV_COL_NAME = "guest_name";
 const INV_COL_AMOUNT = "invoice_amount";
 const INV_COL_NUM = "c_invoice_number";
 
-// --- פונקציות עזר (לוגיקה מה-HTML) ---
+// --- פונקציות עזר ---
 function parseMoney(val) {
     if (!val) return 0;
     let cleanStr = val.toString().replace(/,/g, '').trim();
@@ -31,33 +32,45 @@ export default function CommissionsPage() {
     // State
     const [invoicesMap, setInvoicesMap] = useState(null);
     const [reservationsData, setReservationsData] = useState(null);
+    
+    // ניהול נציגים
+    const [allClerks, setAllClerks] = useState([]);
+    const [selectedClerks, setSelectedClerks] = useState(new Set());
+
+    // תוצאות
     const [processedRows, setProcessedRows] = useState([]);
-    const [selectedRows, setSelectedRows] = useState(new Set()); // IDs שנבחרו להפקה
-    const [step, setStep] = useState(1); // 1=Upload, 2=Review, 3=Done
+    const [selectedRows, setSelectedRows] = useState(new Set()); // IDs שנבחרו להפקה (כולל ירוקים נסתרים)
+    const [step, setStep] = useState(1); // 1=Upload, 2=ClerkSelect, 3=Review
 
     const queryClient = useQueryClient();
 
-    // שליפת רשימת ההזמנות שכבר שולמו (היסטוריה)
+    // שליפת היסטוריה
     const { data: paidHistoryIds = [] } = useQuery({
         queryKey: ['paidCommissions'],
         queryFn: async () => (await api.get('/admin/commissions/paid-ids')).data
     });
 
-    // מוטציה לשמירת ההזמנות ששולמו
     const saveMutation = useMutation({
         mutationFn: (items) => api.post('/admin/commissions/mark-paid', { items }),
         onSuccess: () => {
-            toast.success('הדוח הופק והנתונים נשמרו בהיסטוריה!');
+            toast.success('הדוח הופק והנתונים נשמרו!');
             queryClient.invalidateQueries(['paidCommissions']);
-            setStep(1); // חזרה להתחלה או רענון
-            setProcessedRows([]);
-            setInvoicesMap(null);
-            setReservationsData(null);
+            resetAll();
         },
         onError: () => toast.error('שגיאה בשמירת הנתונים')
     });
 
-    // --- קריאת קבצים ---
+    const resetAll = () => {
+        setStep(1);
+        setProcessedRows([]);
+        setInvoicesMap(null);
+        setReservationsData(null);
+        setAllClerks([]);
+        setSelectedClerks(new Set());
+        setSelectedRows(new Set());
+    };
+
+    // --- טעינת קבצים ---
     const handleFileUpload = (e, type) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -85,7 +98,6 @@ export default function CommissionsPage() {
             if (folioRaw) {
                 let folioStr = folioRaw.toString().trim();
                 let masterId = folioStr.length > 6 ? folioStr.slice(0, -2) : folioStr;
-                
                 let key = "ID_" + masterId;
                 if (!map[key]) map[key] = { amount: 0, numbers: new Set() };
                 map[key].amount += amount;
@@ -107,25 +119,55 @@ export default function CommissionsPage() {
 
     const processReservations = (data) => {
         setReservationsData(data);
-        toast.success(`נטענו ${data.length} שורות הזמנות`);
+        
+        // חילוץ רשימת נציגים ייחודית
+        const clerksSet = new Set();
+        data.forEach(row => {
+            const clerk = cleanStr(row["c_taken_clerk"]);
+            if (clerk) clerksSet.add(clerk);
+        });
+        
+        const sortedClerks = Array.from(clerksSet).sort();
+        setAllClerks(sortedClerks);
+        setSelectedClerks(new Set(sortedClerks)); // ברירת מחדל: כולם מסומנים
+
+        toast.success(`נטענו ${data.length} שורות. נמצאו ${sortedClerks.length} נציגים.`);
     };
 
-    // --- הלוגיקה הראשית: הצלבה וסינון ---
+    // --- ניהול נציגים (Checkbox) ---
+    const toggleClerk = (clerk) => {
+        const next = new Set(selectedClerks);
+        if (next.has(clerk)) next.delete(clerk);
+        else next.add(clerk);
+        setSelectedClerks(next);
+    };
+
+    const toggleAllClerks = () => {
+        if (selectedClerks.size === allClerks.length) setSelectedClerks(new Set());
+        else setSelectedClerks(new Set(allClerks));
+    };
+
+    // --- לוגיקת הניתוח ---
     const handleAnalyze = () => {
-        if (!invoicesMap || !reservationsData) return toast.error("חובה להעלות את שני הקבצים");
+        if (!invoicesMap || !reservationsData) return toast.error("חסרים קבצים");
+        if (selectedClerks.size === 0) return toast.error("יש לבחור לפחות נציג אחד");
 
         const tempConsolidated = {};
-        const newSelected = new Set();
+        const newSelectedIds = new Set();
 
         reservationsData.forEach(row => {
-            // סינונים בסיסיים
+            // 1. סינון נציגים
+            const rowClerk = cleanStr(row["c_taken_clerk"]);
+            if (!selectedClerks.has(rowClerk)) return;
+
+            // 2. סינונים בסיסיים
             let status = (row["c_reservation_status"] || "").toString().toLowerCase();
-            if (status === "can") return; // מבוטל
+            if (status === "can") return;
 
             let masterId = (row["c_master_id"] || "").toString().trim();
             if (!masterId) return;
 
-            // 🛑 סינון קריטי: אם כבר שולם בעבר - דלג!
+            // 🛑 3. סינון היסטוריה (דילוג על מה שכבר שולם)
             if (paidHistoryIds.includes(masterId)) return;
 
             let price = parseMoney(row["price_local"]);
@@ -135,7 +177,7 @@ export default function CommissionsPage() {
                     masterId: masterId,
                     guestName: cleanStr(row["guest_name"]),
                     status: row["c_reservation_status"],
-                    clerk: cleanStr(row["c_taken_clerk"]),
+                    clerk: rowClerk,
                     priceCode: cleanStr(row["c_price_code"] || ""),
                     roomCount: 0,
                     totalOrderPrice: 0
@@ -145,32 +187,29 @@ export default function CommissionsPage() {
             tempConsolidated[masterId].roomCount += 1;
         });
 
-        // חישוב סופי לכל שורה
+        // חישוב סופי
         const finalRows = Object.values(tempConsolidated).map(item => {
-            // חיפוש בחשבוניות
             let foundData = invoicesMap["ID_" + item.masterId] || invoicesMap["NAME_" + item.guestName];
             
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
-            // חישוב עמלה
             let isGroup = item.priceCode.includes("קבוצות");
             let commissionRate = isGroup ? 0.015 : 0.03;
             let commissionToPay = finalInvoiceAmount * commissionRate;
 
-            // צבעים ולוגיקה
             let expectedWithVat = item.totalOrderPrice * 1.18;
             let diff = Math.abs(expectedWithVat - finalInvoiceAmount);
             
-            let colorStatus = 'red'; // ברירת מחדל: חסר כסף
+            let colorStatus = 'red'; // ברירת מחדל: חסר/בעייתי
             if (expectedWithVat > 0 || finalInvoiceAmount > 0) {
-                if (diff < 5.0) colorStatus = 'green'; // תואם
-                else if (expectedWithVat < finalInvoiceAmount) colorStatus = 'yellow'; // שולם יותר
+                if (diff < 5.0) colorStatus = 'green'; 
+                else if (expectedWithVat < finalInvoiceAmount) colorStatus = 'yellow';
             }
 
-            // אוטומציה: אם ירוק - סמן אוטומטית!
+            // ✨ אוטומציה: ירוק נכנס ל-Selected אוטומטית!
             if (colorStatus === 'green') {
-                newSelected.add(item.masterId);
+                newSelectedIds.add(item.masterId);
             }
 
             return {
@@ -183,34 +222,32 @@ export default function CommissionsPage() {
             };
         });
 
-        // סינון שורות ללא חשבונית וללא תשלום (לא רלוונטיות לדוח)
+        // סינון שורות ריקות לחלוטין
         const relevantRows = finalRows.filter(r => r.finalInvoiceAmount > 0 || r.expectedWithVat > 0);
 
         setProcessedRows(relevantRows);
-        setSelectedRows(newSelected);
-        setStep(2);
+        setSelectedRows(newSelectedIds);
+        setStep(3); // מעבר למסך התוצאות
     };
 
-    // --- פעולות בטבלה ---
-    const toggleRow = (id) => {
+    // --- UI של טבלה ---
+    const handleRowSelection = (id) => {
         const next = new Set(selectedRows);
         if (next.has(id)) next.delete(id);
         else next.add(id);
         setSelectedRows(next);
     };
 
-    // --- הפקת דוח וסיום ---
     const handleFinalize = () => {
+        // שולחים את כל מה שמסומן (כולל הירוקים הנסתרים)
         const rowsToPay = processedRows.filter(r => selectedRows.has(r.masterId));
         
         if (rowsToPay.length === 0) return toast.error("לא נבחרו שורות לתשלום");
 
-        if (!window.confirm(`אתה עומד לאשר תשלום עמלות עבור ${rowsToPay.length} הזמנות.\nהזמנות אלו יסומנו כ"שולמו" ולא יופיעו בדוחות הבאים.\nלהמשיך?`)) return;
+        if (!window.confirm(`סה"כ ${rowsToPay.length} עסקאות יסומנו כ"שולמו" (כולל ירוקות).\nהאם להמשיך?`)) return;
 
-        // 1. יצירת אקסל להורדה (כמו ב-HTML המקורי)
         generateExcel(rowsToPay);
 
-        // 2. שמירה בשרת
         const dbPayload = rowsToPay.map(r => ({
             masterId: r.masterId,
             clerkName: r.clerk,
@@ -224,14 +261,12 @@ export default function CommissionsPage() {
     };
 
     const generateExcel = (rows) => {
-        // חישוב סיכום לפי נציג
         const clerkSummary = {};
         rows.forEach(r => {
             if (!clerkSummary[r.clerk]) clerkSummary[r.clerk] = 0;
             clerkSummary[r.clerk] += r.commissionToPay;
         });
 
-        // הכנת הנתונים לגיליון
         const summaryData = Object.entries(clerkSummary).map(([name, total]) => ({
             "שם הנציג": name,
             "סה\"כ עמלה": total
@@ -250,28 +285,30 @@ export default function CommissionsPage() {
         }));
 
         const wb = XLSX.utils.book_new();
-        
         const wsSummary = XLSX.utils.json_to_sheet(summaryData);
         XLSX.utils.book_append_sheet(wb, wsSummary, "סיכום נציגים");
-
         const wsDetails = XLSX.utils.json_to_sheet(detailsData);
         XLSX.utils.book_append_sheet(wb, wsDetails, "פירוט עסקאות");
-
         XLSX.writeFile(wb, `Commissions_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
-    // --- UI Render ---
+    // חישוב כמה ירוקים יש סה"כ (לתצוגה)
+    const greenCount = processedRows.filter(r => r.colorStatus === 'green').length;
+    // סינון שורות לתצוגה (רק לא ירוקות)
+    const visibleRows = processedRows.filter(r => r.colorStatus !== 'green');
+
     return (
         <div className="container mx-auto p-6 space-y-8 bg-slate-50 min-h-screen">
             <header>
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                    <FileSpreadsheet className="text-purple-600"/> מחולל דוחות עמלות (V16)
+                    <FileSpreadsheet className="text-purple-600"/> מחולל דוחות עמלות
                 </h1>
                 <p className="text-gray-600 mt-1">
-                    המערכת תזהה אוטומטית הזמנות חדשות שנסגרו ותחשב עמלות. הזמנות שאושרו בעבר לא יופיעו שוב.
+                    המערכת תזהה אוטומטית עסקאות תקינות (ירוק) ותסתיר אותן. עליך לאשר רק את החריגים.
                 </p>
             </header>
 
+            {/* שלב 1: העלאת קבצים */}
             {step === 1 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className={`border-2 border-dashed ${invoicesMap ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}>
@@ -289,73 +326,126 @@ export default function CommissionsPage() {
                     </Card>
 
                     <div className="col-span-full">
-                        <Button onClick={handleAnalyze} disabled={!invoicesMap || !reservationsData} className="w-full h-12 text-lg bg-purple-700 hover:bg-purple-800">
-                            <UploadCloud className="ml-2"/> בצע הצלבה וניתוח
+                        <Button onClick={() => setStep(2)} disabled={!invoicesMap || !reservationsData} className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700">
+                            המשך לבחירת נציגים
                         </Button>
                     </div>
                 </div>
             )}
 
+            {/* שלב 2: בחירת נציגים */}
             {step === 2 && (
+                <Card className="max-w-4xl mx-auto">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle>בחר נציגים לחישוב</CardTitle>
+                        <div className="space-x-2 space-x-reverse">
+                            <Button variant="outline" size="sm" onClick={toggleAllClerks}>
+                                {selectedClerks.size === allClerks.length ? 'נקה הכל' : 'סמן הכל'}
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-lg border max-h-[300px] overflow-y-auto">
+                            {allClerks.map(clerk => (
+                                <div key={clerk} className="flex items-center gap-2 p-2 bg-white rounded border">
+                                    <Checkbox 
+                                        id={`c_${clerk}`} 
+                                        checked={selectedClerks.has(clerk)}
+                                        onCheckedChange={() => toggleClerk(clerk)}
+                                    />
+                                    <Label htmlFor={`c_${clerk}`} className="cursor-pointer truncate text-sm" title={clerk}>
+                                        {clerk}
+                                    </Label>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-6 flex justify-between">
+                            <Button variant="outline" onClick={() => setStep(1)}>חזור</Button>
+                            <Button onClick={handleAnalyze} className="bg-purple-700 hover:bg-purple-800 gap-2 w-48">
+                                <Filter size={18}/> בצע ניתוח
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* שלב 3: תוצאות */}
+            {step === 3 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                    <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow border">
-                        <div>
-                            <h2 className="text-xl font-bold">תוצאות ניתוח</h2>
-                            <p className="text-sm text-gray-500">סה"כ {processedRows.length} הזמנות רלוונטיות (שלא שולמו בעבר).</p>
+                    
+                    {/* סיכום עליון */}
+                    <div className="bg-white p-4 rounded-lg shadow border border-green-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-green-100 p-3 rounded-full text-green-700">
+                                <CheckCircle2 size={32} />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-800">ניתוח הושלם!</h2>
+                                <p className="text-gray-600">
+                                    <span className="font-bold text-green-700">{greenCount}</span> עסקאות תקינות (ירוקות) סומנו אוטומטית והוסתרו.
+                                    <br/>
+                                    לפניך <span className="font-bold text-red-600">{visibleRows.length}</span> עסקאות חריגות לבדיקה ידנית.
+                                </p>
+                            </div>
                         </div>
                         <div className="flex gap-3">
-                            <Button variant="outline" onClick={() => setStep(1)}>התחל מחדש</Button>
-                            <Button onClick={handleFinalize} className="bg-green-600 hover:bg-green-700 gap-2">
-                                <Save size={18}/> הפק דוח וסמן כ"שולם"
+                            <Button variant="outline" onClick={resetAll}>התחל מחדש</Button>
+                            <Button onClick={handleFinalize} className="bg-green-600 hover:bg-green-700 gap-2 h-12 px-6 text-lg shadow-md">
+                                <Save size={20}/> הפק דוח סופי ({selectedRows.size})
                             </Button>
                         </div>
                     </div>
 
-                    {/* מקרא */}
-                    <div className="flex gap-4 justify-center text-sm font-bold">
-                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded border border-green-200 flex items-center gap-2"><CheckCircle size={14}/> ירוק: תואם (נבחר אוטומטית)</span>
-                        <span className="bg-red-100 text-red-800 px-3 py-1 rounded border border-red-200 flex items-center gap-2"><AlertTriangle size={14}/> אדום: חסר כסף</span>
-                        <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded border border-yellow-200 flex items-center gap-2"><AlertTriangle size={14}/> צהוב: שולם יותר</span>
-                    </div>
-
+                    {/* טבלה (רק לא ירוקים) */}
                     <div className="bg-white rounded-lg shadow overflow-hidden border">
-                        <table className="w-full text-sm text-right">
-                            <thead className="bg-slate-100 text-slate-700 font-bold border-b">
-                                <tr>
-                                    <th className="p-3 w-10">בחר</th>
-                                    <th className="p-3">הזמנה</th>
-                                    <th className="p-3">אורח</th>
-                                    <th className="p-3">נציג</th>
-                                    <th className="p-3">צפוי (כולל מע"מ)</th>
-                                    <th className="p-3">בפועל (חשבונית)</th>
-                                    <th className="p-3">עמלה</th>
-                                    <th className="p-3">סטטוס</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {processedRows.map(row => (
-                                    <tr key={row.masterId} className={`hover:bg-slate-50 transition-colors ${selectedRows.has(row.masterId) ? 'bg-purple-50' : ''}`}>
-                                        <td className="p-3 text-center">
-                                            <Checkbox 
-                                                checked={selectedRows.has(row.masterId)}
-                                                onCheckedChange={() => toggleRow(row.masterId)}
-                                            />
-                                        </td>
-                                        <td className="p-3 font-mono">{row.masterId}</td>
-                                        <td className="p-3">{row.guestName}</td>
-                                        <td className="p-3">{row.clerk}</td>
-                                        <td className="p-3">{row.expectedWithVat.toLocaleString()} ₪</td>
-                                        <td className="p-3 font-bold">{row.finalInvoiceAmount.toLocaleString()} ₪</td>
-                                        <td className="p-3 text-purple-700 font-bold">{row.commissionToPay.toLocaleString()} ₪</td>
-                                        <td className="p-3">
-                                            {row.colorStatus === 'green' && <span className="inline-block w-3 h-3 rounded-full bg-green-500" title="תואם"></span>}
-                                            {row.colorStatus === 'red' && <span className="inline-block w-3 h-3 rounded-full bg-red-500" title="חסר"></span>}
-                                            {row.colorStatus === 'yellow' && <span className="inline-block w-3 h-3 rounded-full bg-yellow-400" title="עודף"></span>}
-                                        </td>
+                        <div className="p-3 bg-red-50 border-b border-red-100 text-red-800 text-sm font-bold flex items-center gap-2">
+                            <AlertTriangle size={16}/> רשימת חריגים לבדיקה (אדום/צהוב בלבד)
+                        </div>
+                        
+                        {visibleRows.length === 0 ? (
+                            <div className="p-10 text-center text-gray-500">
+                                אין חריגים! כל העסקאות ירוקות ומוכנות להפקה.
+                            </div>
+                        ) : (
+                            <table className="w-full text-sm text-right">
+                                <thead className="bg-slate-100 text-slate-700 font-bold border-b">
+                                    <tr>
+                                        <th className="p-3 w-12 text-center">אשר</th>
+                                        <th className="p-3">הזמנה</th>
+                                        <th className="p-3">אורח</th>
+                                        <th className="p-3">נציג</th>
+                                        <th className="p-3">צפוי (כולל מע"מ)</th>
+                                        <th className="p-3">בפועל (חשבונית)</th>
+                                        <th className="p-3">הפרש</th>
+                                        <th className="p-3">סטטוס</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {visibleRows.map(row => (
+                                        <tr key={row.masterId} className={`hover:bg-slate-50 transition-colors ${selectedRows.has(row.masterId) ? 'bg-green-50' : ''}`}>
+                                            <td className="p-3 text-center">
+                                                <Checkbox 
+                                                    checked={selectedRows.has(row.masterId)}
+                                                    onCheckedChange={() => handleRowSelection(row.masterId)}
+                                                />
+                                            </td>
+                                            <td className="p-3 font-mono">{row.masterId}</td>
+                                            <td className="p-3">{row.guestName}</td>
+                                            <td className="p-3">{row.clerk}</td>
+                                            <td className="p-3">{row.expectedWithVat.toLocaleString()} ₪</td>
+                                            <td className="p-3 font-bold">{row.finalInvoiceAmount.toLocaleString()} ₪</td>
+                                            <td className="p-3 text-gray-500" dir="ltr">
+                                                {(row.finalInvoiceAmount - row.expectedWithVat).toLocaleString()}
+                                            </td>
+                                            <td className="p-3">
+                                                {row.colorStatus === 'red' && <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">חסר כסף</span>}
+                                                {row.colorStatus === 'yellow' && <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-bold">שולם יותר</span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </div>
             )}
