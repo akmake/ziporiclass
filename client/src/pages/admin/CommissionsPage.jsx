@@ -56,12 +56,12 @@ function getReportSummary(items) {
         .sort((a, b) => b.totalCommission - a.totalCommission);
 }
 
-// ✨ קומפוננטת סיכום - הותאמה ל-RTL
+// ✨ קומפוננטת סיכום - RTL מתוקן
 function ReportSummaryTable({ items }) {
     const summaryData = useMemo(() => getReportSummary(items), [items]);
 
     return (
-        <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200" dir="rtl">
+        <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200 text-right" dir="rtl">
             <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-amber-500" /> סיכום ביצועים לפי נציג
             </h4>
@@ -78,18 +78,18 @@ function ReportSummaryTable({ items }) {
                     <tbody className="divide-y">
                         {summaryData.map((row, idx) => (
                             <tr key={row.name} className="hover:bg-slate-50">
-                                <td className="p-2 font-medium">{row.name}</td>
+                                <td className="p-2 font-medium text-right">{row.name}</td>
                                 <td className="p-2 text-center">{row.count}</td>
-                                <td className="p-2">{row.totalRevenue.toLocaleString()} ₪</td>
-                                <td className="p-2 font-bold text-purple-700">{row.totalCommission.toLocaleString()} ₪</td>
+                                <td className="p-2 text-right">{row.totalRevenue.toLocaleString()} ₪</td>
+                                <td className="p-2 font-bold text-purple-700 text-right">{row.totalCommission.toLocaleString()} ₪</td>
                             </tr>
                         ))}
                         {/* שורת סיכום כללי */}
                         <tr className="bg-slate-50 font-bold border-t-2 border-slate-200">
-                            <td className="p-2">סה"כ כללי</td>
+                            <td className="p-2 text-right">סה"כ כללי</td>
                             <td className="p-2 text-center">{summaryData.reduce((sum, r) => sum + r.count, 0)}</td>
-                            <td className="p-2">{summaryData.reduce((sum, r) => sum + r.totalRevenue, 0).toLocaleString()} ₪</td>
-                            <td className="p-2 text-purple-700">{summaryData.reduce((sum, r) => sum + r.totalCommission, 0).toLocaleString()} ₪</td>
+                            <td className="p-2 text-right">{summaryData.reduce((sum, r) => sum + r.totalRevenue, 0).toLocaleString()} ₪</td>
+                            <td className="p-2 text-purple-700 text-right">{summaryData.reduce((sum, r) => sum + r.totalCommission, 0).toLocaleString()} ₪</td>
                         </tr>
                     </tbody>
                 </table>
@@ -102,8 +102,7 @@ export default function CommissionsPage() {
     const [activeTab, setActiveTab] = useState("generator");
 
     return (
-        // ✨ הוספת dir="rtl" לכל העמוד
-        <div className="container mx-auto p-6 space-y-6 bg-slate-50 min-h-screen" dir="rtl">
+        <div className="container mx-auto p-6 space-y-6 bg-slate-50 min-h-screen text-right" dir="rtl">
             <header>
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
                     <FileSpreadsheet className="text-purple-600"/> ניהול עמלות מרוכז
@@ -111,7 +110,7 @@ export default function CommissionsPage() {
                 <p className="text-gray-600 mt-1">מערכת הצלבה, חישוב עמלות והיסטוריית תשלומים.</p>
             </header>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir="rtl">
                 <TabsList className="bg-white border p-1 grid w-full grid-cols-2 lg:w-[400px]">
                     <TabsTrigger value="generator">מחולל דוחות (חדש)</TabsTrigger>
                     <TabsTrigger value="history">היסטוריית דוחות</TabsTrigger>
@@ -371,7 +370,7 @@ function CommissionGenerator({ onReportGenerated }) {
     const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.masterId)).reduce((sum, r) => sum + r.commissionToPay, 0);
 
     return (
-        <div className="space-y-6 animate-in fade-in">
+        <div className="space-y-6 animate-in fade-in text-right">
             {step === 1 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className={`border-2 border-dashed ${invoicesMap ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}>
@@ -402,7 +401,7 @@ function CommissionGenerator({ onReportGenerated }) {
                         }}>{selectedClerks.size === allClerks.length ? 'נקה הכל' : 'סמן הכל'}</Button>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-lg border max-h-[300px] overflow-y-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-lg border max-h-[300px] overflow-y-auto" dir="rtl">
                             {allClerks.map(clerk => (
                                 <div key={clerk} className="flex items-center gap-2 p-2 bg-white rounded border">
                                     <Checkbox checked={selectedClerks.has(clerk)} onCheckedChange={() => {
@@ -463,15 +462,15 @@ function CommissionGenerator({ onReportGenerated }) {
                                         <tr>
                                             <th className="p-3 w-16 text-center">בחר</th>
                                             <th className="p-3 w-16 text-center">תיקון</th>
-                                            <th className="p-3">חשבונית</th>
-                                            <th className="p-3">הזמנה</th>
-                                            <th className="p-3">אורח</th>
-                                            <th className="p-3">נציג</th>
-                                            <th className="p-3">ללא מע"מ</th>
-                                            <th className="p-3">צפוי (כולל)</th>
-                                            <th className="p-3">בפועל</th>
-                                            <th className="p-3">עמלה</th>
-                                            <th className="p-3">סטטוס</th>
+                                            <th className="p-3 text-right">חשבונית</th>
+                                            <th className="p-3 text-right">הזמנה</th>
+                                            <th className="p-3 text-right">אורח</th>
+                                            <th className="p-3 text-right">נציג</th>
+                                            <th className="p-3 text-right">ללא מע"מ</th>
+                                            <th className="p-3 text-right">צפוי (כולל)</th>
+                                            <th className="p-3 text-right">בפועל</th>
+                                            <th className="p-3 text-right">עמלה</th>
+                                            <th className="p-3 text-right">סטטוס</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
@@ -485,15 +484,15 @@ function CommissionGenerator({ onReportGenerated }) {
                                                         <Pencil className="h-4 w-4 text-blue-600"/>
                                                     </Button>
                                                 </td>
-                                                <td className="p-3 text-xs">{row.finalInvNum}</td>
-                                                <td className="p-3 font-mono">{row.masterId}</td>
-                                                <td className="p-3">{row.guestName}</td>
-                                                <td className="p-3">{row.clerk}</td>
-                                                <td className="p-3 text-gray-500">{row.totalOrderPrice.toLocaleString()}</td>
-                                                <td className="p-3 font-medium">{row.expectedWithVat.toLocaleString()}</td>
-                                                <td className="p-3 font-bold">{row.finalInvoiceAmount.toLocaleString()}</td>
-                                                <td className="p-3 text-purple-700 font-bold">{row.commissionToPay.toLocaleString()}</td>
-                                                <td className="p-3">
+                                                <td className="p-3 text-xs text-right">{row.finalInvNum}</td>
+                                                <td className="p-3 font-mono text-right">{row.masterId}</td>
+                                                <td className="p-3 text-right">{row.guestName}</td>
+                                                <td className="p-3 text-right">{row.clerk}</td>
+                                                <td className="p-3 text-gray-500 text-right">{row.totalOrderPrice.toLocaleString()}</td>
+                                                <td className="p-3 font-medium text-right">{row.expectedWithVat.toLocaleString()}</td>
+                                                <td className="p-3 font-bold text-right">{row.finalInvoiceAmount.toLocaleString()}</td>
+                                                <td className="p-3 text-purple-700 font-bold text-right">{row.commissionToPay.toLocaleString()}</td>
+                                                <td className="p-3 text-right">
                                                     {row.manualFix ?
                                                         <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">תוקן ידנית</span> :
                                                         row.colorStatus === 'red' ?
@@ -541,7 +540,7 @@ function CommissionGenerator({ onReportGenerated }) {
 }
 
 // ============================================================================
-// 🟡 קומפוננטה 2: היסטוריית דוחות (History) - ✨ מעודכן ל-RTL
+// 🟡 קומפוננטה 2: היסטוריית דוחות (History) - ✨ מעודכן ל-RTL מלא
 // ============================================================================
 function ReportsHistory() {
     const { data: reports = [], isLoading } = useQuery({
@@ -558,7 +557,7 @@ function ReportsHistory() {
     if (isLoading) return <div className="text-center p-10 text-gray-500">טוען היסטוריה...</div>;
 
     return (
-        <Card>
+        <Card className="text-right" dir="rtl">
             <CardHeader><CardTitle>דוחות שהופקו בעבר</CardTitle></CardHeader>
             <CardContent>
                 {reports.length === 0 ? <p className="text-center py-8 text-gray-500">עדיין לא הופקו דוחות.</p> : (
@@ -576,7 +575,7 @@ function ReportsHistory() {
                                         <div className="text-sm text-gray-600">
                                             <span className="font-bold">{report.itemsCount}</span> הזמנות
                                         </div>
-                                        <div className="text-purple-700 font-bold text-lg border-r pr-8 mr-4 border-slate-300">
+                                        <div className="text-purple-700 font-bold text-lg border-l pl-8 ml-4 border-slate-300">
                                             סה"כ שולם: ₪{report.totalAmount.toLocaleString()}
                                         </div>
                                     </div>
@@ -590,33 +589,33 @@ function ReportsHistory() {
                                         <ReportSummaryTable items={report.items} />
 
                                         {/* ✨ כותרת לפירוט */}
-                                        <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">פירוט מלא של ההזמנות</h4>
+                                        <h4 className="text-sm font-bold text-slate-500 uppercase mb-2 mt-6">פירוט מלא של ההזמנות</h4>
 
                                         <div className="max-h-[400px] overflow-y-auto border rounded-md">
                                             <table className="w-full text-sm text-right">
                                                 <thead className="text-gray-500 border-b bg-gray-50 sticky top-0">
                                                     <tr>
-                                                        <th className="p-3">הזמנה</th>
-                                                        <th className="p-3">אורח</th>
-                                                        <th className="p-3">נציג</th>
-                                                        <th className="p-3">חשבוניות</th>
-                                                        <th className="p-3">שווי הזמנה</th>
-                                                        <th className="p-3">שולם בפועל</th>
-                                                        <th className="p-3 text-purple-700">עמלה</th>
-                                                        <th className="p-3">הערה</th>
+                                                        <th className="p-3 text-right">הזמנה</th>
+                                                        <th className="p-3 text-right">אורח</th>
+                                                        <th className="p-3 text-right">נציג</th>
+                                                        <th className="p-3 text-right">חשבוניות</th>
+                                                        <th className="p-3 text-right">שווי הזמנה</th>
+                                                        <th className="p-3 text-right">שולם בפועל</th>
+                                                        <th className="p-3 text-right text-purple-700">עמלה</th>
+                                                        <th className="p-3 text-right">הערה</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y">
                                                     {report.items.map((item, idx) => (
                                                         <tr key={idx} className="hover:bg-slate-50">
-                                                            <td className="p-3 font-mono">{item.masterId}</td>
-                                                            <td className="p-3">{item.guestName}</td>
-                                                            <td className="p-3">{item.clerkName}</td>
-                                                            <td className="p-3 text-xs">{item.invoiceNumbers?.join(', ')}</td>
-                                                            <td className="p-3 text-gray-500">{item.orderAmount?.toLocaleString()}</td>
-                                                            <td className="p-3 font-bold">{item.paidAmount?.toLocaleString()}</td>
-                                                            <td className="p-3 text-purple-700 font-bold">{item.commission?.toLocaleString()} ₪</td>
-                                                            <td className="p-3 text-xs text-gray-400">
+                                                            <td className="p-3 font-mono text-right">{item.masterId}</td>
+                                                            <td className="p-3 text-right">{item.guestName}</td>
+                                                            <td className="p-3 text-right">{item.clerkName}</td>
+                                                            <td className="p-3 text-xs text-right">{item.invoiceNumbers?.join(', ')}</td>
+                                                            <td className="p-3 text-gray-500 text-right">{item.orderAmount?.toLocaleString()}</td>
+                                                            <td className="p-3 font-bold text-right">{item.paidAmount?.toLocaleString()}</td>
+                                                            <td className="p-3 text-purple-700 font-bold text-right">{item.commission?.toLocaleString()} ₪</td>
+                                                            <td className="p-3 text-xs text-gray-400 text-right">
                                                                 {item.isManualFix && <span className="bg-blue-100 text-blue-700 px-1 rounded ml-1">ידני</span>}
                                                                 {item.note}
                                                             </td>
