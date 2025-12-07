@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
-import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import { format, isSameMonth } from 'date-fns';
 import { he } from 'date-fns/locale';
 
 // UI Components
@@ -21,20 +21,14 @@ import {
 } from 'lucide-react';
 
 // --- הגדרות עמודות מהאקסל ---
-const INV_COL_ID = "c_folio_number";
-const INV_COL_NAME = "guest_name";
-const INV_COL_AMOUNT = "invoice_amount";
-const INV_COL_NUM = "c_invoice_number";
-
-// עמודות בדוח הזמנות (Silverbyte/Optima)
-const RES_COL_CLERK = "c_taken_clerk";
-const RES_COL_MASTER = "c_master_id";
-const RES_COL_PRICE = "price_local";
-const RES_COL_NAME = "guest_name";
-const RES_COL_PRICE_CODE = "c_price_code"; 
-const RES_COL_ARRIVAL_OPTIONS = ["c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
+// שמות טכניים נפוצים (אופטימה/סילברבייט) + שמות עבריים
+const RES_COL_ARRIVAL_OPTIONS = [
+    "c_arrival", "arrival", "checkin", "arrival_date", 
+    "תאריך הגעה", "מתאריך", "הגעה", "תאריך כניסה"
+];
 
 // --- פונקציות עזר ---
+
 function parseMoney(val) {
     if (!val) return 0;
     let cleanStr = val.toString().replace(/,/g, '').trim();
@@ -47,23 +41,46 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
+// ✨ פונקציה משופרת לזיהוי תאריכים מקבצי CSV ישראליים
 function findArrivalDate(row) {
-    // אם זו הזמנה מהמערכת שלנו (לא אקסל), התאריך כבר קיים בשדה eventDate
+    // 1. אם זו הזמנה מהמערכת (לא אקסל), התאריך כבר קיים
     if (row.eventDate) return new Date(row.eventDate);
 
+    // 2. חיפוש בעמודות האפשריות
     for (const col of RES_COL_ARRIVAL_OPTIONS) {
-        if (row[col]) {
+        if (row[col] !== undefined && row[col] !== null && row[col] !== "") {
             const val = row[col];
+
+            // א. אם זה מספר סידורי של אקסל
             if (typeof val === 'number') {
+                // המרת Excel Serial Date (מתחיל מ-1900)
                 return new Date(Math.round((val - 25569) * 86400 * 1000));
             }
-            const dateStr = val.toString();
+
+            // ב. אם זו מחרוזת
+            let dateStr = val.toString().trim();
+            
+            // טיפול בפורמט dd/mm/yyyy או dd.mm.yyyy
+            // מחליפים נקודות בלוכסנים כדי ליישר קו
+            dateStr = dateStr.replace(/\./g, '/');
+
             if (dateStr.includes('/')) {
                 const parts = dateStr.split('/');
+                // מניחים פורמט ישראלי: יום/חודש/שנה
                 if (parts.length === 3) {
-                    return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                    let day = parseInt(parts[0], 10);
+                    let month = parseInt(parts[1], 10);
+                    let year = parseInt(parts[2], 10);
+
+                    // תיקון שנים קצרות (23 -> 2023)
+                    if (year < 100) year += 2000;
+
+                    const d = new Date(year, month - 1, day);
+                    if (!isNaN(d.getTime())) return d;
                 }
             }
+
+            // ג. פורמט ISO או סטנדרטי
             const d = new Date(dateStr);
             if (!isNaN(d.getTime())) return d;
         }
@@ -212,6 +229,31 @@ function CommissionGenerator({ onReportGenerated }) {
         setSelectedRows(new Set());
     };
 
+    // ✨ פונקציה חכמה למציאת שורת הכותרות (מדלגת על לוגו/כותרות עליונות)
+    const findHeaderRow = (worksheet) => {
+        const range = XLSX.utils.decode_range(worksheet['!ref']);
+        // סורקים את 20 השורות הראשונות
+        for (let R = range.s.r; R <= Math.min(range.e.r, 20); ++R) {
+            const rowValues = [];
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell = worksheet[XLSX.utils.encode_cell({r: R, c: C})];
+                if (cell && cell.v) rowValues.push(cell.v.toString());
+            }
+            
+            // בדיקה אם זו שורת כותרות: האם היא מכילה מילות מפתח קריטיות?
+            const rowStr = rowValues.join(' ').toLowerCase();
+            // מילים שיכולות להופיע בכותרת דוח הזמנות או חשבוניות
+            if (
+                (rowStr.includes('c_taken_clerk') || rowStr.includes('פקיד')) || 
+                (rowStr.includes('c_folio_number') || rowStr.includes('חשבונית')) ||
+                (rowStr.includes('תאריך') && rowStr.includes('שם'))
+            ) {
+                return R; // מצאנו את האינדקס של שורת הכותרות
+            }
+        }
+        return 0; // ברירת מחדל: שורה ראשונה
+    };
+
     const handleFileUpload = (e, type) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -221,11 +263,21 @@ function CommissionGenerator({ onReportGenerated }) {
                 const data = new Uint8Array(evt.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheetName = workbook.SheetNames[0];
-                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+                const worksheet = workbook.Sheets[sheetName];
+                
+                // ✨ שימוש בזיהוי חכם של שורת הכותרות
+                const headerRowIndex = findHeaderRow(worksheet);
+                
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                    range: headerRowIndex, // מתחיל לקרוא רק מהשורה הזו ומטה
+                    defval: "" 
+                });
+
                 if (type === 'invoices') processInvoices(jsonData);
                 else processReservations(jsonData);
             } catch (error) {
-                toast.error("שגיאה בקריאת הקובץ");
+                console.error(error);
+                toast.error("שגיאה בקריאת הקובץ - וודא שזהו קובץ אקסל תקין");
             }
         };
         reader.readAsArrayBuffer(file);
@@ -235,10 +287,8 @@ function CommissionGenerator({ onReportGenerated }) {
     const handleLoadFromDB = async () => {
         const toastId = toast.loading('טוען הזמנות מהמערכת...');
         try {
-            // שואב את כל ההזמנות (זה קיים כבר ב-API)
             const { data: allOrders } = await api.get('/admin/orders');
             
-            // מסנן רק הזמנות שבוצעו ושלא שולמו עדיין
             const relevantOrders = allOrders.filter(order => 
                 order.status === 'בוצע' && 
                 !paidHistoryIds.includes(order.orderNumber.toString())
@@ -249,15 +299,14 @@ function CommissionGenerator({ onReportGenerated }) {
                 return toast.error('לא נמצאו הזמנות פתוחות (בוצעו ולא שולמו).');
             }
 
-            // המרה לפורמט שהמערכת מצפה לו (כמו מאקסל)
             const convertedData = relevantOrders.map(order => ({
                 "c_taken_clerk": order.salespersonName,
                 "c_reservation_status": "OK",
                 "c_master_id": order.orderNumber.toString(),
                 "price_local": order.total_price,
                 "guest_name": order.customerName,
-                "c_price_code": "REGULAR", // ברירת מחדל
-                "eventDate": order.eventDate // שומרים את התאריך המקורי
+                "c_price_code": "REGULAR", 
+                "eventDate": order.eventDate 
             }));
 
             processReservations(convertedData);
@@ -271,15 +320,30 @@ function CommissionGenerator({ onReportGenerated }) {
 
     const processInvoices = (data) => {
         const map = {};
+        // חיפוש דינמי של שמות עמודות (במקרה שהשם הוא בעברית או באנגלית)
+        const findCol = (row, options) => {
+            for (const opt of options) {
+                if (row[opt] !== undefined) return row[opt];
+            }
+            return undefined;
+        };
+
+        const idCols = ["c_folio_number", "מספר הזמנה", "master_id", "הזמנה"];
+        const nameCols = ["guest_name", "שם אורח", "שם", "guestname"];
+        const amountCols = ["invoice_amount", "סכום", "לתשלום", "amount"];
+        const numCols = ["c_invoice_number", "מספר חשבונית", "חשבונית"];
+
         data.forEach(row => {
-            let folioRaw = row[INV_COL_ID];
-            let nameRaw = row[INV_COL_NAME] || row["guestname"];
-            let amount = parseMoney(row[INV_COL_AMOUNT]);
-            let invNum = row[INV_COL_NUM];
+            let folioRaw = findCol(row, idCols);
+            let nameRaw = findCol(row, nameCols);
+            let amount = parseMoney(findCol(row, amountCols));
+            let invNum = findCol(row, numCols);
 
             if (folioRaw) {
                 let folioStr = folioRaw.toString().trim();
-                let masterId = folioStr.length > 6 ? folioStr.slice(0, -2) : folioStr;
+                // טיפול ב-Folio שיש לו סיומת (לפעמים מופיע כ 12345/1)
+                let masterId = folioStr.split('/')[0].split('.')[0]; 
+                
                 let key = "ID_" + masterId;
                 if (!map[key]) map[key] = { amount: 0, numbers: new Set() };
                 map[key].amount += amount;
@@ -302,8 +366,18 @@ function CommissionGenerator({ onReportGenerated }) {
     const processReservations = (data) => {
         setReservationsData(data);
         const clerksSet = new Set();
+        
+        // עמודות אפשריות לשם הפקיד
+        const clerkCols = ["c_taken_clerk", "פקיד", "clerk", "user"];
+
         data.forEach(row => {
-            const clerk = cleanStr(row["c_taken_clerk"]);
+            let clerk = "";
+            for (const col of clerkCols) {
+                if (row[col]) {
+                    clerk = cleanStr(row[col]);
+                    break;
+                }
+            }
             if (clerk) clerksSet.add(clerk);
         });
         const sortedClerks = Array.from(clerksSet).sort();
@@ -321,28 +395,41 @@ function CommissionGenerator({ onReportGenerated }) {
         const tempConsolidated = {};
         const newSelectedIds = new Set();
 
+        const idCols = ["c_master_id", "מספר הזמנה", "הזמנה", "res_no"];
+        const statusCols = ["c_reservation_status", "סטטוס", "status"];
+        const clerkCols = ["c_taken_clerk", "פקיד", "clerk"];
+        const priceCols = ["price_local", "מחיר", "סכום", "total"];
+        const nameCols = ["guest_name", "שם אורח", "שם"];
+        const codeCols = ["c_price_code", "קוד מחיר", "market"];
+
+        const findVal = (row, options) => {
+            for (const opt of options) if (row[opt] !== undefined) return row[opt];
+            return undefined;
+        };
+
         reservationsData.forEach(row => {
-            const rowClerk = cleanStr(row["c_taken_clerk"]);
+            const rowClerk = cleanStr(findVal(row, clerkCols));
             if (!selectedClerks.has(rowClerk)) return;
 
-            let status = (row["c_reservation_status"] || "").toString().toLowerCase();
-            if (status === "can") return;
+            let status = (findVal(row, statusCols) || "").toString().toLowerCase();
+            // סינון ביטולים נפוצים
+            if (status.includes("can") || status.includes("בוטל")) return;
 
-            let masterId = (row["c_master_id"] || "").toString().trim();
+            let masterId = (findVal(row, idCols) || "").toString().trim();
             if (!masterId) return;
 
             if (paidHistoryIds.includes(masterId)) return;
 
-            let price = parseMoney(row["price_local"]);
+            let price = parseMoney(findVal(row, priceCols));
             let arrivalDate = findArrivalDate(row);
 
             if (!tempConsolidated[masterId]) {
                 tempConsolidated[masterId] = {
                     masterId: masterId,
-                    guestName: cleanStr(row["guest_name"]),
-                    status: row["c_reservation_status"],
+                    guestName: cleanStr(findVal(row, nameCols)),
+                    status: status,
                     clerk: rowClerk,
-                    priceCode: cleanStr(row["c_price_code"] || ""), 
+                    priceCode: cleanStr(findVal(row, codeCols) || ""), 
                     totalOrderPrice: 0,
                     manualFix: false,
                     arrivalDate: arrivalDate
@@ -357,7 +444,7 @@ function CommissionGenerator({ onReportGenerated }) {
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
-            let isGroup = item.priceCode.includes("קבוצות");
+            let isGroup = item.priceCode.includes("קבוצות") || item.priceCode.includes("GROUP");
             let commissionRate = isGroup ? 0.015 : 0.03;
 
             let expectedWithVat = item.totalOrderPrice * 1.18;
