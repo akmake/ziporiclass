@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/Input.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import {
     FileSpreadsheet, AlertTriangle, Save, Filter,
-    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy
+    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar
 } from 'lucide-react';
 
 // --- הגדרות עמודות מהאקסל ---
@@ -23,6 +23,14 @@ const INV_COL_ID = "c_folio_number";
 const INV_COL_NAME = "guest_name";
 const INV_COL_AMOUNT = "invoice_amount";
 const INV_COL_NUM = "c_invoice_number";
+
+// עמודות בדוח הזמנות (Silverbyte/Optima)
+const RES_COL_CLERK = "c_taken_clerk";
+const RES_COL_MASTER = "c_master_id";
+const RES_COL_PRICE = "price_local";
+const RES_COL_NAME = "guest_name";
+// ✨ עמודות אפשריות לתאריך הגעה
+const RES_COL_ARRIVAL_OPTIONS = ["c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
 
 // --- פונקציות עזר ---
 function parseMoney(val) {
@@ -37,10 +45,37 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ חישוב סיכום לפי נציגים
+// ✨ חילוץ תאריך חכם מאקסל
+function findArrivalDate(row) {
+    for (const col of RES_COL_ARRIVAL_OPTIONS) {
+        if (row[col]) {
+            const val = row[col];
+            // 1. אם זה מספר סידורי של אקסל
+            if (typeof val === 'number') {
+                // המרת Excel Serial Date ל-JS Date
+                return new Date(Math.round((val - 25569) * 86400 * 1000));
+            }
+            // 2. אם זה מחרוזת
+            const dateStr = val.toString();
+            // פורמט DD/MM/YYYY
+            if (dateStr.includes('/')) {
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                    // הנחה: DD/MM/YYYY או MM/DD/YYYY - ננסה לפי ההקשר הישראלי (DD/MM)
+                    return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); 
+                }
+            }
+            // פורמט סטנדרטי
+            const d = new Date(dateStr);
+            if (!isNaN(d.getTime())) return d;
+        }
+    }
+    return null;
+}
+
+// ✨ חישוב סיכום לפי נציגים (קיים)
 function getReportSummary(items) {
     const summary = {};
-
     items.forEach(item => {
         const name = item.clerkName || 'לא ידוע';
         if (!summary[name]) {
@@ -56,7 +91,7 @@ function getReportSummary(items) {
         .sort((a, b) => b.totalCommission - a.totalCommission);
 }
 
-// ✨ קומפוננטת סיכום - RTL מתוקן
+// קומפוננטת סיכום
 function ReportSummaryTable({ items }) {
     const summaryData = useMemo(() => getReportSummary(items), [items]);
 
@@ -76,7 +111,7 @@ function ReportSummaryTable({ items }) {
                         </tr>
                     </thead>
                     <tbody className="divide-y">
-                        {summaryData.map((row, idx) => (
+                        {summaryData.map((row) => (
                             <tr key={row.name} className="hover:bg-slate-50">
                                 <td className="p-2 font-medium text-right">{row.name}</td>
                                 <td className="p-2 text-center">{row.count}</td>
@@ -84,7 +119,6 @@ function ReportSummaryTable({ items }) {
                                 <td className="p-2 font-bold text-purple-700 text-right">{row.totalCommission.toLocaleString()} ₪</td>
                             </tr>
                         ))}
-                        {/* שורת סיכום כללי */}
                         <tr className="bg-slate-50 font-bold border-t-2 border-slate-200">
                             <td className="p-2 text-right">סה"כ כללי</td>
                             <td className="p-2 text-center">{summaryData.reduce((sum, r) => sum + r.count, 0)}</td>
@@ -111,9 +145,10 @@ export default function CommissionsPage() {
             </header>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir="rtl">
-                <TabsList className="bg-white border p-1 grid w-full grid-cols-2 lg:w-[400px]">
+                <TabsList className="bg-white border p-1 grid w-full grid-cols-3 lg:w-[600px]">
                     <TabsTrigger value="generator">מחולל דוחות (חדש)</TabsTrigger>
                     <TabsTrigger value="history">היסטוריית דוחות</TabsTrigger>
+                    <TabsTrigger value="by-date">דוח לפי תאריכי הגעה</TabsTrigger> {/* ✨ הטאב החדש */}
                 </TabsList>
 
                 <TabsContent value="generator" className="mt-6">
@@ -122,6 +157,10 @@ export default function CommissionsPage() {
 
                 <TabsContent value="history" className="mt-6">
                     <ReportsHistory />
+                </TabsContent>
+
+                <TabsContent value="by-date" className="mt-6">
+                    <CommissionsByArrivalDate />
                 </TabsContent>
             </Tabs>
         </div>
@@ -137,9 +176,9 @@ function CommissionGenerator({ onReportGenerated }) {
     const [allClerks, setAllClerks] = useState([]);
     const [selectedClerks, setSelectedClerks] = useState(new Set());
 
-    const [processedRows, setProcessedRows] = useState([]); 
-    const [selectedRows, setSelectedRows] = useState(new Set()); 
-    const [step, setStep] = useState(1); 
+    const [processedRows, setProcessedRows] = useState([]);
+    const [selectedRows, setSelectedRows] = useState(new Set());
+    const [step, setStep] = useState(1);
 
     const [isFixDialogOpen, setIsFixDialogOpen] = useState(false);
     const [rowToFix, setRowToFix] = useState(null);
@@ -242,7 +281,7 @@ function CommissionGenerator({ onReportGenerated }) {
         if (selectedClerks.size === 0) return toast.error("בחר לפחות נציג אחד");
 
         const tempConsolidated = {};
-        const newSelectedIds = new Set(); 
+        const newSelectedIds = new Set();
 
         reservationsData.forEach(row => {
             const rowClerk = cleanStr(row["c_taken_clerk"]);
@@ -257,6 +296,9 @@ function CommissionGenerator({ onReportGenerated }) {
             if (paidHistoryIds.includes(masterId)) return;
 
             let price = parseMoney(row["price_local"]);
+            
+            // ✨ חילוץ תאריך ההגעה מהשורה
+            let arrivalDate = findArrivalDate(row);
 
             if (!tempConsolidated[masterId]) {
                 tempConsolidated[masterId] = {
@@ -266,7 +308,8 @@ function CommissionGenerator({ onReportGenerated }) {
                     clerk: rowClerk,
                     priceCode: cleanStr(row["c_price_code"] || ""),
                     totalOrderPrice: 0,
-                    manualFix: false
+                    manualFix: false,
+                    arrivalDate: arrivalDate // שומרים אותו
                 };
             }
             tempConsolidated[masterId].totalOrderPrice += price;
@@ -284,7 +327,7 @@ function CommissionGenerator({ onReportGenerated }) {
             let expectedWithVat = item.totalOrderPrice * 1.18;
             let diff = Math.abs(expectedWithVat - finalInvoiceAmount);
 
-            let colorStatus = 'red'; 
+            let colorStatus = 'red';
             if (expectedWithVat > 0 || finalInvoiceAmount > 0) {
                 if (diff < 5.0) colorStatus = 'green';
                 else if (expectedWithVat < finalInvoiceAmount) colorStatus = 'yellow';
@@ -311,7 +354,7 @@ function CommissionGenerator({ onReportGenerated }) {
 
         setProcessedRows(relevantRows);
         setSelectedRows(newSelectedIds);
-        setStep(3); 
+        setStep(3);
     };
 
     const openFixDialog = (row) => {
@@ -331,7 +374,7 @@ function CommissionGenerator({ onReportGenerated }) {
                 return {
                     ...r,
                     finalInvoiceAmount: newAmount,
-                    commissionToPay: newAmount * commissionRate, 
+                    commissionToPay: newAmount * commissionRate,
                     finalInvNum: fixNote || r.finalInvNum || 'תיקון ידני',
                     colorStatus: 'green',
                     manualFix: true
@@ -465,6 +508,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                             <th className="p-3 text-right">חשבונית</th>
                                             <th className="p-3 text-right">הזמנה</th>
                                             <th className="p-3 text-right">אורח</th>
+                                            <th className="p-3 text-right">ת. הגעה</th> {/* ✨ הצגת התאריך */}
                                             <th className="p-3 text-right">נציג</th>
                                             <th className="p-3 text-right">ללא מע"מ</th>
                                             <th className="p-3 text-right">צפוי (כולל)</th>
@@ -487,6 +531,9 @@ function CommissionGenerator({ onReportGenerated }) {
                                                 <td className="p-3 text-xs text-right">{row.finalInvNum}</td>
                                                 <td className="p-3 font-mono text-right">{row.masterId}</td>
                                                 <td className="p-3 text-right">{row.guestName}</td>
+                                                <td className="p-3 text-right text-xs">
+                                                    {row.arrivalDate ? format(row.arrivalDate, 'dd/MM/yy') : '-'}
+                                                </td>
                                                 <td className="p-3 text-right">{row.clerk}</td>
                                                 <td className="p-3 text-gray-500 text-right">{row.totalOrderPrice.toLocaleString()}</td>
                                                 <td className="p-3 font-medium text-right">{row.expectedWithVat.toLocaleString()}</td>
@@ -540,7 +587,7 @@ function CommissionGenerator({ onReportGenerated }) {
 }
 
 // ============================================================================
-// 🟡 קומפוננטה 2: היסטוריית דוחות (History) - ✨ מעודכן ל-RTL מלא
+// 🟡 קומפוננטה 2: היסטוריית דוחות
 // ============================================================================
 function ReportsHistory() {
     const { data: reports = [], isLoading } = useQuery({
@@ -549,10 +596,6 @@ function ReportsHistory() {
     });
 
     const [expandedReportId, setExpandedReportId] = useState(null);
-
-    const toggleExpand = (id) => {
-        setExpandedReportId(expandedReportId === id ? null : id);
-    };
 
     if (isLoading) return <div className="text-center p-10 text-gray-500">טוען היסטוריה...</div>;
 
@@ -566,7 +609,7 @@ function ReportsHistory() {
                             <div key={report._id} className="border rounded-lg overflow-hidden bg-white shadow-sm">
                                 <div
                                     className="p-4 bg-slate-50 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors"
-                                    onClick={() => toggleExpand(report._id)}
+                                    onClick={() => setExpandedReportId(expandedReportId === report._id ? null : report._id)}
                                 >
                                     <div className="flex gap-8 items-center">
                                         <div className="text-lg font-bold text-slate-800">
@@ -584,19 +627,16 @@ function ReportsHistory() {
 
                                 {expandedReportId === report._id && (
                                     <div className="p-4 border-t bg-white animate-in slide-in-from-top-2">
-                                        
-                                        {/* ✨ הטבלה המסכמת החדשה עם כיווניות נכונה */}
                                         <ReportSummaryTable items={report.items} />
-
-                                        {/* ✨ כותרת לפירוט */}
-                                        <h4 className="text-sm font-bold text-slate-500 uppercase mb-2 mt-6">פירוט מלא של ההזמנות</h4>
-
+                                        
+                                        <h4 className="text-sm font-bold text-slate-500 uppercase mb-2 mt-6">פירוט מלא</h4>
                                         <div className="max-h-[400px] overflow-y-auto border rounded-md">
                                             <table className="w-full text-sm text-right">
                                                 <thead className="text-gray-500 border-b bg-gray-50 sticky top-0">
                                                     <tr>
                                                         <th className="p-3 text-right">הזמנה</th>
                                                         <th className="p-3 text-right">אורח</th>
+                                                        <th className="p-3 text-right">ת. הגעה</th> {/* ✨ */}
                                                         <th className="p-3 text-right">נציג</th>
                                                         <th className="p-3 text-right">חשבוניות</th>
                                                         <th className="p-3 text-right">שווי הזמנה</th>
@@ -610,6 +650,9 @@ function ReportsHistory() {
                                                         <tr key={idx} className="hover:bg-slate-50">
                                                             <td className="p-3 font-mono text-right">{item.masterId}</td>
                                                             <td className="p-3 text-right">{item.guestName}</td>
+                                                            <td className="p-3 text-right text-xs text-gray-500">
+                                                                {item.arrivalDate ? format(new Date(item.arrivalDate), 'dd/MM/yy') : '-'}
+                                                            </td>
                                                             <td className="p-3 text-right">{item.clerkName}</td>
                                                             <td className="p-3 text-xs text-right">{item.invoiceNumbers?.join(', ')}</td>
                                                             <td className="p-3 text-gray-500 text-right">{item.orderAmount?.toLocaleString()}</td>
@@ -632,5 +675,128 @@ function ReportsHistory() {
                 )}
             </CardContent>
         </Card>
+    );
+}
+
+// ============================================================================
+// 🔵 קומפוננטה 3: דוח לפי תאריכי הגעה (החדש!)
+// ============================================================================
+function CommissionsByArrivalDate() {
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [showDetails, setShowDetails] = useState(false);
+
+    // שליפת כל הדוחות הקיימים כדי לבנות את המאגר
+    const { data: reports = [] } = useQuery({
+        queryKey: ['commissionReports'],
+        queryFn: async () => (await api.get('/admin/commissions/reports')).data
+    });
+
+    const { filteredItems, totalCommission } = useMemo(() => {
+        if (!startDate || !endDate) return { filteredItems: [], totalCommission: 0 };
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        // אוספים את כל השורות מכל הדוחות ההיסטוריים
+        const allItems = reports.flatMap(r => r.items || []);
+
+        const filtered = allItems.filter(item => {
+            if (!item.arrivalDate) return false;
+            const arrival = new Date(item.arrivalDate);
+            return arrival >= start && arrival <= end;
+        });
+
+        // מיון לפי תאריך הגעה
+        filtered.sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
+
+        const total = filtered.reduce((sum, item) => sum + (item.commission || 0), 0);
+        return { filteredItems: filtered, totalCommission: total };
+    }, [reports, startDate, endDate]);
+
+    return (
+        <div className="space-y-6 animate-in slide-in-from-top-2">
+            <Card className="bg-white border-blue-200">
+                <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="text-blue-600"/> סינון לפי תאריך הגעה</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="flex flex-col sm:flex-row gap-4 items-end">
+                        <div>
+                            <Label className="mb-1 block">מתאריך הגעה</Label>
+                            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                        </div>
+                        <div>
+                            <Label className="mb-1 block">עד תאריך הגעה</Label>
+                            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {startDate && endDate && (
+                <div className="space-y-6">
+                    {/* כרטיסי סיכום */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="bg-blue-50 border-blue-200 text-center shadow-sm">
+                            <CardContent className="p-6">
+                                <p className="text-gray-500 font-medium">סה"כ עמלות לתשלום (בטווח)</p>
+                                <p className="text-4xl font-bold text-blue-700">{totalCommission.toLocaleString()} ₪</p>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-white border-gray-200 text-center shadow-sm">
+                            <CardContent className="p-6">
+                                <p className="text-gray-500 font-medium">כמות עסקאות (לפי הגעה)</p>
+                                <p className="text-4xl font-bold text-gray-800">{filteredItems.length}</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* כפתור הרחבה */}
+                    <div className="text-center">
+                        <Button 
+                            variant="outline" 
+                            onClick={() => setShowDetails(!showDetails)}
+                            className="gap-2"
+                            disabled={filteredItems.length === 0}
+                        >
+                            {showDetails ? <>הסתר פירוט <ChevronUp/></> : <>הצג פירוט עסקאות <ChevronDown/></>}
+                        </Button>
+                    </div>
+
+                    {/* טבלה מפורטת */}
+                    {showDetails && (
+                        <Card className="overflow-hidden border-t-4 border-t-purple-500 animate-in zoom-in-95">
+                            <div className="max-h-[500px] overflow-y-auto">
+                                <table className="w-full text-sm text-right">
+                                    <thead className="bg-purple-50 text-purple-900 font-bold border-b sticky top-0 shadow-sm">
+                                        <tr>
+                                            <th className="p-3">ת. הגעה</th>
+                                            <th className="p-3">אורח</th>
+                                            <th className="p-3">נציג</th>
+                                            <th className="p-3">שולם בפועל</th>
+                                            <th className="p-3">עמלה</th>
+                                            <th className="p-3">הזמנה</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {filteredItems.map((item, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50">
+                                                <td className="p-3 font-medium text-slate-800">
+                                                    {item.arrivalDate ? format(new Date(item.arrivalDate), 'dd/MM/yyyy') : '-'}
+                                                </td>
+                                                <td className="p-3">{item.guestName}</td>
+                                                <td className="p-3">{item.clerkName}</td>
+                                                <td className="p-3 text-slate-600">{item.paidAmount?.toLocaleString()}</td>
+                                                <td className="p-3 font-bold text-purple-700">{item.commission?.toLocaleString()} ₪</td>
+                                                <td className="p-3 font-mono text-xs text-gray-400">{item.masterId}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    )}
+                </div>
+            )}
+        </div>
     );
 }

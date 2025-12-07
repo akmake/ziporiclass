@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from datetime import datetime
 
 # עומק מקסימלי
 MAX_DEPTH = 7
@@ -103,17 +104,38 @@ def main():
 
     structure_lines = scan_directory(folder_path, print_content=include_content)
 
-    print("\n📋 הסריקה הסתיימה. שומר לשולחן העבודה...")
+    print("\n📋 הסריקה הסתיימה. שומר קבצים...")
 
+    # יצירת שם קובץ דינמי לפי תאריך ושעה
+    timestamp = datetime.now().strftime("%d%m%y%H%M")
+    filename = f"{timestamp}.txt"
+
+    # נתיבי שמירה
     desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-    output_file = os.path.join(desktop_path, "directory_structure.txt")
+    custom_path = r"G:\האחסון שלי\update"
+
+    output_file_desktop = os.path.join(desktop_path, filename)
+    output_file_custom = os.path.join(custom_path, filename)
 
     try:
-        with open(output_file, "w", encoding="utf-8") as f:
+        # שמירה לשולחן עבודה
+        with open(output_file_desktop, "w", encoding="utf-8") as f:
             f.write("\n".join(structure_lines))
 
-        print(f"\n✅ נשמר בהצלחה:\n{output_file}")
-        messagebox.showinfo("הצלחה", f"הקובץ נשמר על שולחן העבודה:\n\n{output_file}")
+        # שמירה לתיקייה שהגדרת
+        with open(output_file_custom, "w", encoding="utf-8") as f:
+            f.write("\n".join(structure_lines))
+
+        print(f"\n✅ נשמר בהצלחה גם בשולחן העבודה וגם בתיקייה שלך:")
+        print(output_file_desktop)
+        print(output_file_custom)
+
+        messagebox.showinfo(
+            "הצלחה",
+            f"הקובץ נשמר בהצלחה:\n\n"
+            f"{output_file_desktop}\n"
+            f"{output_file_custom}"
+        )
 
     except Exception as e:
         print(f"\n❌ שגיאה בשמירה: {e}")

@@ -28,14 +28,18 @@ export const createCommissionReport = catchAsync(async (req, res) => {
       masterId: item.masterId,
       clerkName: item.clerk,
       guestName: item.guestName,
+      
+      // ✨ שמירת תאריך ההגעה
+      arrivalDate: item.arrivalDate ? new Date(item.arrivalDate) : null,
+
       // המרת מחרוזת החשבוניות למערך
       invoiceNumbers: item.finalInvNum ? item.finalInvNum.toString().split('|').map(s => s.trim()) : [],
-      
+
       orderAmount: item.totalOrderPrice || 0,
       expectedAmount: item.expectedWithVat || 0,
       paidAmount: item.finalInvoiceAmount || 0,
       commission: item.commissionToPay || 0,
-      
+
       isManualFix: item.manualFix || false,
       // אם זה תיקון ידני, ההערה היא מה שכתבת ב-finalInvNum או "תיקון ידני"
       note: item.manualFix ? (item.finalInvNum || 'תיקון ידני') : ''
@@ -47,12 +51,12 @@ export const createCommissionReport = catchAsync(async (req, res) => {
   const historyOperations = items.map(item => ({
     updateOne: {
       filter: { masterId: item.masterId },
-      update: { 
-        $set: { 
-            masterId: item.masterId, 
+      update: {
+        $set: {
+            masterId: item.masterId,
             reportId: newReport._id,
             paidAt: new Date()
-        } 
+        }
       },
       upsert: true // יוצר חדש אם לא קיים
     }
