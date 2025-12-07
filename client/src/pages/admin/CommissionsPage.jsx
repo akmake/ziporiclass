@@ -3,7 +3,8 @@ import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import { he } from 'date-fns/locale';
 
 // UI Components
 import { Button } from '@/components/ui/Button.jsx';
@@ -13,9 +14,10 @@ import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Input } from '@/components/ui/Input.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import {
     FileSpreadsheet, AlertTriangle, Save, Filter,
-    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar, Percent
+    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar, Percent, Database
 } from 'lucide-react';
 
 // --- הגדרות עמודות מהאקסל ---
@@ -29,7 +31,7 @@ const RES_COL_CLERK = "c_taken_clerk";
 const RES_COL_MASTER = "c_master_id";
 const RES_COL_PRICE = "price_local";
 const RES_COL_NAME = "guest_name";
-const RES_COL_PRICE_CODE = "c_price_code"; // קוד מחיר לזיהוי קבוצות
+const RES_COL_PRICE_CODE = "c_price_code"; 
 const RES_COL_ARRIVAL_OPTIONS = ["c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
 
 // --- פונקציות עזר ---
@@ -46,6 +48,9 @@ function cleanStr(val) {
 }
 
 function findArrivalDate(row) {
+    // אם זו הזמנה מהמערכת שלנו (לא אקסל), התאריך כבר קיים בשדה eventDate
+    if (row.eventDate) return new Date(row.eventDate);
+
     for (const col of RES_COL_ARRIVAL_OPTIONS) {
         if (row[col]) {
             const val = row[col];
@@ -139,7 +144,7 @@ export default function CommissionsPage() {
                 <TabsList className="bg-white border p-1 grid w-full grid-cols-3 lg:w-[600px]">
                     <TabsTrigger value="generator">מחולל דוחות (חדש)</TabsTrigger>
                     <TabsTrigger value="history">היסטוריית דוחות</TabsTrigger>
-                    <TabsTrigger value="by-date">דוח לפי תאריכי הגעה</TabsTrigger>
+                    <TabsTrigger value="by-date">דוח לפי חודשי הגעה</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="generator" className="mt-6">
@@ -175,7 +180,7 @@ function CommissionGenerator({ onReportGenerated }) {
     const [isFixDialogOpen, setIsFixDialogOpen] = useState(false);
     const [rowToFix, setRowToFix] = useState(null);
     const [fixAmount, setFixAmount] = useState('');
-    const [fixRate, setFixRate] = useState(''); // ✨ השינוי: שומר אחוזים ולא סכום סופי
+    const [fixRate, setFixRate] = useState(''); 
     const [fixNote, setFixNote] = useState('');
 
     const queryClient = useQueryClient();
@@ -226,6 +231,44 @@ function CommissionGenerator({ onReportGenerated }) {
         reader.readAsArrayBuffer(file);
     };
 
+    // ✨ הפונקציה החדשה: טעינת הזמנות מהדאטה-בייס
+    const handleLoadFromDB = async () => {
+        const toastId = toast.loading('טוען הזמנות מהמערכת...');
+        try {
+            // שואב את כל ההזמנות (זה קיים כבר ב-API)
+            const { data: allOrders } = await api.get('/admin/orders');
+            
+            // מסנן רק הזמנות שבוצעו ושלא שולמו עדיין
+            const relevantOrders = allOrders.filter(order => 
+                order.status === 'בוצע' && 
+                !paidHistoryIds.includes(order.orderNumber.toString())
+            );
+
+            if (relevantOrders.length === 0) {
+                toast.dismiss(toastId);
+                return toast.error('לא נמצאו הזמנות פתוחות (בוצעו ולא שולמו).');
+            }
+
+            // המרה לפורמט שהמערכת מצפה לו (כמו מאקסל)
+            const convertedData = relevantOrders.map(order => ({
+                "c_taken_clerk": order.salespersonName,
+                "c_reservation_status": "OK",
+                "c_master_id": order.orderNumber.toString(),
+                "price_local": order.total_price,
+                "guest_name": order.customerName,
+                "c_price_code": "REGULAR", // ברירת מחדל
+                "eventDate": order.eventDate // שומרים את התאריך המקורי
+            }));
+
+            processReservations(convertedData);
+            toast.success(`נטענו ${convertedData.length} הזמנות פתוחות!`, { id: toastId });
+
+        } catch (error) {
+            console.error(error);
+            toast.error('שגיאה בטעינת הנתונים', { id: toastId });
+        }
+    };
+
     const processInvoices = (data) => {
         const map = {};
         data.forEach(row => {
@@ -266,11 +309,13 @@ function CommissionGenerator({ onReportGenerated }) {
         const sortedClerks = Array.from(clerksSet).sort();
         setAllClerks(sortedClerks);
         setSelectedClerks(new Set(sortedClerks));
-        toast.success(`נטענו ${data.length} שורות הזמנות`);
     };
 
     const handleAnalyze = () => {
-        if (!invoicesMap || !reservationsData) return toast.error("חסרים קבצים");
+        // אם לא הועלו חשבוניות, יוצרים מפה ריקה כדי לאפשר עבודה ידנית
+        const currentInvoicesMap = invoicesMap || {}; 
+        
+        if (!reservationsData) return toast.error("אין נתוני הזמנות לניתוח");
         if (selectedClerks.size === 0) return toast.error("בחר לפחות נציג אחד");
 
         const tempConsolidated = {};
@@ -297,7 +342,7 @@ function CommissionGenerator({ onReportGenerated }) {
                     guestName: cleanStr(row["guest_name"]),
                     status: row["c_reservation_status"],
                     clerk: rowClerk,
-                    priceCode: cleanStr(row["c_price_code"] || ""), // שמירת קוד מחיר
+                    priceCode: cleanStr(row["c_price_code"] || ""), 
                     totalOrderPrice: 0,
                     manualFix: false,
                     arrivalDate: arrivalDate
@@ -307,13 +352,13 @@ function CommissionGenerator({ onReportGenerated }) {
         });
 
         const finalRows = Object.values(tempConsolidated).map(item => {
-            let foundData = invoicesMap["ID_" + item.masterId] || invoicesMap["NAME_" + item.guestName];
+            let foundData = currentInvoicesMap["ID_" + item.masterId] || currentInvoicesMap["NAME_" + item.guestName];
 
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
             let isGroup = item.priceCode.includes("קבוצות");
-            let commissionRate = isGroup ? 0.015 : 0.03; // ברירת המחדל באחוזים (0.03 = 3%)
+            let commissionRate = isGroup ? 0.015 : 0.03;
 
             let expectedWithVat = item.totalOrderPrice * 1.18;
             let diff = Math.abs(expectedWithVat - finalInvoiceAmount);
@@ -328,7 +373,6 @@ function CommissionGenerator({ onReportGenerated }) {
                 newSelectedIds.add(item.masterId);
             }
 
-            // חישוב הסכום בשקלים לפי האחוז
             let commissionToPay = finalInvoiceAmount * commissionRate;
 
             return {
@@ -339,7 +383,7 @@ function CommissionGenerator({ onReportGenerated }) {
                 expectedWithVat,
                 colorStatus,
                 isGroup,
-                commissionRate: commissionRate * 100 // שמירת האחוז (למשל 3 או 1.5) לתצוגה
+                commissionRate: commissionRate * 100
             };
         });
 
@@ -352,12 +396,8 @@ function CommissionGenerator({ onReportGenerated }) {
 
     const openFixDialog = (row) => {
         setRowToFix(row);
-        // טוען את הסכום בחשבונית
         setFixAmount(row.expectedWithVat > 0 ? Math.round(row.expectedWithVat) : row.finalInvoiceAmount);
         
-        // ✨ קביעת אחוז ברירת המחדל לתיקון:
-        // אם כבר בוצע תיקון ידני בעבר ויש שדה rate שמור - נשתמש בו.
-        // אחרת, נשתמש בברירת המחדל לפי קבוצה (1.5) או רגיל (3).
         const defaultRate = row.isGroup ? '1.5' : '3';
         setFixRate(row.manualRate ? row.manualRate.toString() : defaultRate);
         
@@ -369,9 +409,8 @@ function CommissionGenerator({ onReportGenerated }) {
         if (!rowToFix) return;
         
         const newAmount = parseFloat(fixAmount);
-        const rate = parseFloat(fixRate); // ✨ קריאת האחוז מהקלט
+        const rate = parseFloat(fixRate);
 
-        // ✨ הנוסחה: הסכום החדש * (האחוז / 100)
         const calculatedCommission = newAmount * (rate / 100);
 
         const updatedRows = processedRows.map(r => {
@@ -379,12 +418,9 @@ function CommissionGenerator({ onReportGenerated }) {
                 return {
                     ...r,
                     finalInvoiceAmount: newAmount,
-                    
-                    // שדות מעודכנים:
                     commissionToPay: calculatedCommission,
-                    commissionRate: rate, // לצורך תצוגה
-                    manualRate: rate,     // כדי לזכור שזה נקבע ידנית
-                    
+                    commissionRate: rate,
+                    manualRate: rate,
                     finalInvNum: fixNote || r.finalInvNum || 'תיקון ידני',
                     colorStatus: 'green',
                     manualFix: true
@@ -422,7 +458,6 @@ function CommissionGenerator({ onReportGenerated }) {
     const hiddenGreenCount = processedRows.length - visibleRows.length;
     const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.masterId)).reduce((sum, r) => sum + r.commissionToPay, 0);
 
-    // חישוב דינמי לתצוגה בדיאלוג בזמן אמת
     const previewCommission = (parseFloat(fixAmount || 0) * (parseFloat(fixRate || 0) / 100));
 
     return (
@@ -438,12 +473,23 @@ function CommissionGenerator({ onReportGenerated }) {
 
                     <Card className={`border-2 border-dashed ${reservationsData ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}>
                         <CardHeader><CardTitle>2. דו"ח הזמנות (250)</CardTitle></CardHeader>
-                        <CardContent className="text-center">
-                            <input type="file" onChange={(e) => handleFileUpload(e, 'reservations')} disabled={!invoicesMap} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/>
+                        <CardContent className="text-center space-y-4">
+                            <input type="file" onChange={(e) => handleFileUpload(e, 'reservations')} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/>
+                            
+                            <div className="relative flex py-2 items-center">
+                                <div className="flex-grow border-t border-gray-300"></div>
+                                <span className="flex-shrink-0 mx-4 text-gray-400 text-xs">או</span>
+                                <div className="flex-grow border-t border-gray-300"></div>
+                            </div>
+
+                            {/* ✨ הכפתור החדש לטעינת נתונים מהמערכת */}
+                            <Button variant="outline" onClick={handleLoadFromDB} className="w-full border-blue-200 text-blue-700 hover:bg-blue-50">
+                                <Database className="ml-2 h-4 w-4"/> טען הזמנות פתוחות מהמערכת
+                            </Button>
                         </CardContent>
                     </Card>
                     <div className="col-span-full">
-                        <Button onClick={() => setStep(2)} disabled={!invoicesMap || !reservationsData} className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700">המשך לבחירת נציגים</Button>
+                        <Button onClick={() => setStep(2)} disabled={!reservationsData} className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700">המשך לבחירת נציגים</Button>
                     </div>
                 </div>
             )}
@@ -523,7 +569,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                             <th className="p-3 text-right">חשבונית</th>
                                             <th className="p-3 text-right">הזמנה</th>
                                             <th className="p-3 text-right">אורח</th>
-                                            <th className="p-3 text-right">ת. הגעה</th> {/* ✨ הצגת התאריך */}
+                                            <th className="p-3 text-right">ת. הגעה</th>
                                             <th className="p-3 text-right">נציג</th>
                                             <th className="p-3 text-right">ללא מע"מ</th>
                                             <th className="p-3 text-right">צפוי (כולל)</th>
@@ -538,6 +584,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                                 <td className="p-3 text-center">
                                                     <Checkbox checked={selectedRows.has(row.masterId)} onCheckedChange={() => toggleRow(row.masterId)} />
                                                 </td>
+                                                {/* ✨ הנה כפתור העיפרון המבוקש ✨ */}
                                                 <td className="p-3 text-center">
                                                     <Button variant="ghost" size="icon" onClick={() => openFixDialog(row)} title="תיקון ידני / ח&quot;ן חיצונית">
                                                         <Pencil className="h-4 w-4 text-blue-600"/>
@@ -554,7 +601,6 @@ function CommissionGenerator({ onReportGenerated }) {
                                                 <td className="p-3 font-medium text-right">{row.expectedWithVat.toLocaleString()}</td>
                                                 <td className="p-3 font-bold text-right">{row.finalInvoiceAmount.toLocaleString()}</td>
                                                 <td className="p-3 text-purple-700 font-bold text-right">
-                                                    {/* מציג את העמלה, ולידה בסוגריים את האחוז */}
                                                     {row.commissionToPay.toLocaleString()}
                                                     <span className="text-xs text-gray-400 font-normal mr-1">
                                                         ({(row.commissionRate || (row.isGroup ? 1.5 : 3))}%)
@@ -593,7 +639,6 @@ function CommissionGenerator({ onReportGenerated }) {
                             <p className="text-xs text-gray-500 mt-1">סכום העסקה שנכנס לקופה.</p>
                         </div>
 
-                        {/* ✨ שדה אחוז עמלה ידני (החדש) */}
                         <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
                             <Label className="text-purple-900">אחוז עמלה (%)</Label>
                             <div className="flex items-center gap-2 mt-1">
@@ -605,7 +650,6 @@ function CommissionGenerator({ onReportGenerated }) {
                                 />
                                 <span className="text-purple-700 font-bold"><Percent size={18}/></span>
                                 
-                                {/* תצוגת הסימולציה בזמן אמת */}
                                 <div className="mr-auto text-left">
                                     <span className="text-xs text-gray-500 block">עמלה שתחושב:</span>
                                     <span className="font-bold text-lg text-purple-700">{previewCommission.toLocaleString(undefined, { maximumFractionDigits: 1 })} ₪</span>
@@ -724,11 +768,10 @@ function ReportsHistory() {
 }
 
 // ============================================================================
-// 🔵 קומפוננטה 3: דוח לפי תאריכי הגעה
+// 🔵 קומפוננטה 3: דוח לפי תאריכי הגעה (מנגנון חכם)
 // ============================================================================
 function CommissionsByArrivalDate() {
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [selectedMonth, setSelectedMonth] = useState('all');
     const [showDetails, setShowDetails] = useState(false);
 
     // שליפת כל הדוחות הקיימים כדי לבנות את המאגר
@@ -737,19 +780,32 @@ function CommissionsByArrivalDate() {
         queryFn: async () => (await api.get('/admin/commissions/reports')).data
     });
 
+    // ✨ לוגיקה חכמה 1: איסוף כל החודשים הזמינים מתוך הנתונים
+    const availableMonths = useMemo(() => {
+        const monthsSet = new Set();
+        reports.flatMap(r => r.items || []).forEach(item => {
+            if (item.arrivalDate) {
+                // מפתח: YYYY-MM
+                monthsSet.add(format(new Date(item.arrivalDate), 'yyyy-MM'));
+            }
+        });
+        // המרה חזרה למערך ומיון יורד (מהחדש לישן)
+        return Array.from(monthsSet).sort().reverse();
+    }, [reports]);
+
+    // ✨ לוגיקה חכמה 2: סינון לפי החודש הנבחר
     const { filteredItems, totalCommission } = useMemo(() => {
-        if (!startDate || !endDate) return { filteredItems: [], totalCommission: 0 };
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        if (selectedMonth === 'all') return { filteredItems: [], totalCommission: 0 };
+
+        const [year, month] = selectedMonth.split('-');
+        const targetDate = new Date(parseInt(year), parseInt(month) - 1, 1); // ה-1 לחודש הנבחר
 
         // אוספים את כל השורות מכל הדוחות ההיסטוריים
         const allItems = reports.flatMap(r => r.items || []);
 
         const filtered = allItems.filter(item => {
             if (!item.arrivalDate) return false;
-            const arrival = new Date(item.arrivalDate);
-            return arrival >= start && arrival <= end;
+            return isSameMonth(new Date(item.arrivalDate), targetDate);
         });
 
         // מיון לפי תאריך הגעה
@@ -757,33 +813,45 @@ function CommissionsByArrivalDate() {
 
         const total = filtered.reduce((sum, item) => sum + (item.commission || 0), 0);
         return { filteredItems: filtered, totalCommission: total };
-    }, [reports, startDate, endDate]);
+    }, [reports, selectedMonth]);
 
     return (
         <div className="space-y-6 animate-in slide-in-from-top-2">
             <Card className="bg-white border-blue-200">
-                <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="text-blue-600"/> סינון לפי תאריך הגעה</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="text-blue-600"/> סינון לפי חודש הגעה</CardTitle></CardHeader>
                 <CardContent>
                     <div className="flex flex-col sm:flex-row gap-4 items-end">
-                        <div>
-                            <Label className="mb-1 block">מתאריך הגעה</Label>
-                            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                        </div>
-                        <div>
-                            <Label className="mb-1 block">עד תאריך הגעה</Label>
-                            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        <div className="w-full sm:w-64">
+                            <Label className="mb-2 block">בחר חודש לפעילות (מתוך הקיים)</Label>
+                            
+                            {/* ✨ במקום תאריך - דרופדאון חכם */}
+                            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="בחר חודש..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableMonths.length === 0 ? 
+                                        <SelectItem value="none" disabled>אין נתונים היסטוריים</SelectItem> :
+                                        availableMonths.map(mStr => {
+                                            const [y, m] = mStr.split('-');
+                                            const label = format(new Date(parseInt(y), parseInt(m)-1, 1), 'MMMM yyyy', { locale: he });
+                                            return <SelectItem key={mStr} value={mStr}>{label}</SelectItem>;
+                                        })
+                                    }
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
-            {startDate && endDate && (
+            {selectedMonth !== 'all' && (
                 <div className="space-y-6">
                     {/* כרטיסי סיכום */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Card className="bg-blue-50 border-blue-200 text-center shadow-sm">
                             <CardContent className="p-6">
-                                <p className="text-gray-500 font-medium">סה"כ עמלות לתשלום (בטווח)</p>
+                                <p className="text-gray-500 font-medium">סה"כ עמלות לתשלום (בחודש זה)</p>
                                 <p className="text-4xl font-bold text-blue-700">{totalCommission.toLocaleString()} ₪</p>
                             </CardContent>
                         </Card>
