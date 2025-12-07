@@ -21,17 +21,14 @@ import {
 } from 'lucide-react';
 
 // --- הגדרות עמודות מהאקסל ---
-// שמות טכניים נפוצים (אופטימה/סילברבייט) + שמות עבריים
-const RES_COL_ARRIVAL_OPTIONS = [
-    "c_arrival", "arrival", "checkin", "arrival_date", 
-    "תאריך הגעה", "מתאריך", "הגעה", "תאריך כניסה"
-];
+// ✨ הוספנו את "מתאריך" בראש הרשימה - זה הקריטי לקובץ שלך!
+const ARRIVAL_KEYWORDS = ["מתאריך", "תאריך הגעה", "arrival", "checkin", "כניסה"];
 
 // --- פונקציות עזר ---
 
 function parseMoney(val) {
     if (!val) return 0;
-    let cleanStr = val.toString().replace(/,/g, '').trim();
+    let cleanStr = val.toString().replace(/[^0-9.-]/g, '');
     let num = parseFloat(cleanStr);
     return isNaN(num) ? 0 : num;
 }
@@ -41,48 +38,49 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ פונקציה משופרת לזיהוי תאריכים מקבצי CSV ישראליים
+// ✨ פונקציה אולטימטיבית לזיהוי תאריך
 function findArrivalDate(row) {
-    // 1. אם זו הזמנה מהמערכת (לא אקסל), התאריך כבר קיים
     if (row.eventDate) return new Date(row.eventDate);
 
-    // 2. חיפוש בעמודות האפשריות
-    for (const col of RES_COL_ARRIVAL_OPTIONS) {
-        if (row[col] !== undefined && row[col] !== null && row[col] !== "") {
-            const val = row[col];
+    const keys = Object.keys(row);
+    
+    for (const key of keys) {
+        const lowerKey = key.toLowerCase();
+        // בדיקה האם שם העמודה מכיל אחת ממילות המפתח
+        if (ARRIVAL_KEYWORDS.some(k => lowerKey.includes(k))) {
+            const val = row[key];
+            
+            // אופציה א': הספרייה המירה ל-Date
+            if (val instanceof Date && !isNaN(val)) return val;
 
-            // א. אם זה מספר סידורי של אקסל
-            if (typeof val === 'number') {
-                // המרת Excel Serial Date (מתחיל מ-1900)
+            // אופציה ב': מספר סידורי של אקסל
+            if (typeof val === 'number' && val > 20000) {
                 return new Date(Math.round((val - 25569) * 86400 * 1000));
             }
 
-            // ב. אם זו מחרוזת
-            let dateStr = val.toString().trim();
-            
-            // טיפול בפורמט dd/mm/yyyy או dd.mm.yyyy
-            // מחליפים נקודות בלוכסנים כדי ליישר קו
-            dateStr = dateStr.replace(/\./g, '/');
-
-            if (dateStr.includes('/')) {
-                const parts = dateStr.split('/');
-                // מניחים פורמט ישראלי: יום/חודש/שנה
-                if (parts.length === 3) {
-                    let day = parseInt(parts[0], 10);
-                    let month = parseInt(parts[1], 10);
-                    let year = parseInt(parts[2], 10);
-
-                    // תיקון שנים קצרות (23 -> 2023)
-                    if (year < 100) year += 2000;
-
-                    const d = new Date(year, month - 1, day);
-                    if (!isNaN(d.getTime())) return d;
+            // אופציה ג': מחרוזת (הכי נפוץ ב-CSV)
+            if (typeof val === 'string') {
+                const dateStr = val.trim().replace(/\./g, '/').replace(/-/g, '/');
+                
+                // טיפול בפורמט dd/mm/yy או dd/mm/yyyy
+                if (dateStr.includes('/')) {
+                    const parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        let day = parseInt(parts[0]);
+                        let month = parseInt(parts[1]);
+                        let year = parseInt(parts[2]);
+                        
+                        // השלמת שנה קצרה (24 -> 2024)
+                        if (year < 100) year += 2000;
+                        
+                        const d = new Date(year, month - 1, day);
+                        if (!isNaN(d.getTime())) return d;
+                    }
                 }
+                
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) return d;
             }
-
-            // ג. פורמט ISO או סטנדרטי
-            const d = new Date(dateStr);
-            if (!isNaN(d.getTime())) return d;
         }
     }
     return null;
@@ -229,29 +227,21 @@ function CommissionGenerator({ onReportGenerated }) {
         setSelectedRows(new Set());
     };
 
-    // ✨ פונקציה חכמה למציאת שורת הכותרות (מדלגת על לוגו/כותרות עליונות)
-    const findHeaderRow = (worksheet) => {
-        const range = XLSX.utils.decode_range(worksheet['!ref']);
-        // סורקים את 20 השורות הראשונות
-        for (let R = range.s.r; R <= Math.min(range.e.r, 20); ++R) {
-            const rowValues = [];
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cell = worksheet[XLSX.utils.encode_cell({r: R, c: C})];
-                if (cell && cell.v) rowValues.push(cell.v.toString());
-            }
+    // ✨ פונקציה חכמה למציאת שורת הכותרות - מותאמת לקובץ שלך
+    const findHeaderRow = (data) => {
+        for (let i = 0; i < Math.min(data.length, 50); i++) {
+            const row = data[i];
+            const rowStr = row.map(cell => String(cell).toLowerCase()).join(' ');
             
-            // בדיקה אם זו שורת כותרות: האם היא מכילה מילות מפתח קריטיות?
-            const rowStr = rowValues.join(' ').toLowerCase();
-            // מילים שיכולות להופיע בכותרת דוח הזמנות או חשבוניות
-            if (
-                (rowStr.includes('c_taken_clerk') || rowStr.includes('פקיד')) || 
-                (rowStr.includes('c_folio_number') || rowStr.includes('חשבונית')) ||
-                (rowStr.includes('תאריך') && rowStr.includes('שם'))
-            ) {
-                return R; // מצאנו את האינדקס של שורת הכותרות
+            // ✨ אנחנו מחפשים שורה שיש בה "הזמנה" וגם "מתאריך" (כמו בקובץ שלך)
+            const hasOrder = rowStr.includes('הזמנה') || rowStr.includes('order');
+            const hasDate = rowStr.includes('מתאריך') || rowStr.includes('תאריך') || rowStr.includes('date');
+            
+            if (hasOrder && hasDate) {
+                return i;
             }
         }
-        return 0; // ברירת מחדל: שורה ראשונה
+        return 0;
     };
 
     const handleFileUpload = (e, type) => {
@@ -261,15 +251,18 @@ function CommissionGenerator({ onReportGenerated }) {
         reader.onload = (evt) => {
             try {
                 const data = new Uint8Array(evt.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // שימוש ב-cellDates להמרה אוטומטית כשאפשר
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'dd/mm/yyyy' });
+                
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 
-                // ✨ שימוש בזיהוי חכם של שורת הכותרות
-                const headerRowIndex = findHeaderRow(worksheet);
+                const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                const headerRowIndex = findHeaderRow(rawData);
                 
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-                    range: headerRowIndex, // מתחיל לקרוא רק מהשורה הזו ומטה
+                    range: headerRowIndex,
                     defval: "" 
                 });
 
@@ -277,13 +270,12 @@ function CommissionGenerator({ onReportGenerated }) {
                 else processReservations(jsonData);
             } catch (error) {
                 console.error(error);
-                toast.error("שגיאה בקריאת הקובץ - וודא שזהו קובץ אקסל תקין");
+                toast.error("שגיאה בקריאת הקובץ");
             }
         };
         reader.readAsArrayBuffer(file);
     };
 
-    // ✨ הפונקציה החדשה: טעינת הזמנות מהדאטה-בייס
     const handleLoadFromDB = async () => {
         const toastId = toast.loading('טוען הזמנות מהמערכת...');
         try {
@@ -300,12 +292,12 @@ function CommissionGenerator({ onReportGenerated }) {
             }
 
             const convertedData = relevantOrders.map(order => ({
-                "c_taken_clerk": order.salespersonName,
-                "c_reservation_status": "OK",
-                "c_master_id": order.orderNumber.toString(),
-                "price_local": order.total_price,
-                "guest_name": order.customerName,
-                "c_price_code": "REGULAR", 
+                "פקיד": order.salespersonName,
+                "סטטוס": "OK",
+                "הזמנה": order.orderNumber.toString(),
+                "מחיר": order.total_price,
+                "שם": order.customerName,
+                "קוד מחיר": "REGULAR", 
                 "eventDate": order.eventDate 
             }));
 
@@ -320,18 +312,20 @@ function CommissionGenerator({ onReportGenerated }) {
 
     const processInvoices = (data) => {
         const map = {};
-        // חיפוש דינמי של שמות עמודות (במקרה שהשם הוא בעברית או באנגלית)
         const findCol = (row, options) => {
+            const keys = Object.keys(row);
             for (const opt of options) {
-                if (row[opt] !== undefined) return row[opt];
+                const foundKey = keys.find(k => k.toLowerCase().includes(opt.toLowerCase()));
+                if (foundKey) return row[foundKey];
             }
             return undefined;
         };
 
-        const idCols = ["c_folio_number", "מספר הזמנה", "master_id", "הזמנה"];
-        const nameCols = ["guest_name", "שם אורח", "שם", "guestname"];
-        const amountCols = ["invoice_amount", "סכום", "לתשלום", "amount"];
-        const numCols = ["c_invoice_number", "מספר חשבונית", "חשבונית"];
+        // מילות מפתח לחשבוניות
+        const idCols = ["folio", "הזמנה", "master"];
+        const nameCols = ["guest", "שם", "name"];
+        const amountCols = ["amount", "סכום", "לתשלום", "total", "בשקלים"];
+        const numCols = ["invoice", "חשבונית"];
 
         data.forEach(row => {
             let folioRaw = findCol(row, idCols);
@@ -341,7 +335,6 @@ function CommissionGenerator({ onReportGenerated }) {
 
             if (folioRaw) {
                 let folioStr = folioRaw.toString().trim();
-                // טיפול ב-Folio שיש לו סיומת (לפעמים מופיע כ 12345/1)
                 let masterId = folioStr.split('/')[0].split('.')[0]; 
                 
                 let key = "ID_" + masterId;
@@ -367,14 +360,15 @@ function CommissionGenerator({ onReportGenerated }) {
         setReservationsData(data);
         const clerksSet = new Set();
         
-        // עמודות אפשריות לשם הפקיד
-        const clerkCols = ["c_taken_clerk", "פקיד", "clerk", "user"];
+        // מילות מפתח לזיהוי עמודת הפקיד בקובץ
+        const clerkCols = ["clerk", "פקיד", "user", "agent"];
 
         data.forEach(row => {
             let clerk = "";
-            for (const col of clerkCols) {
-                if (row[col]) {
-                    clerk = cleanStr(row[col]);
+            const keys = Object.keys(row);
+            for (const key of keys) {
+                if (clerkCols.some(c => key.toLowerCase().includes(c))) {
+                    clerk = cleanStr(row[key]);
                     break;
                 }
             }
@@ -386,7 +380,6 @@ function CommissionGenerator({ onReportGenerated }) {
     };
 
     const handleAnalyze = () => {
-        // אם לא הועלו חשבוניות, יוצרים מפה ריקה כדי לאפשר עבודה ידנית
         const currentInvoicesMap = invoicesMap || {}; 
         
         if (!reservationsData) return toast.error("אין נתוני הזמנות לניתוח");
@@ -395,41 +388,37 @@ function CommissionGenerator({ onReportGenerated }) {
         const tempConsolidated = {};
         const newSelectedIds = new Set();
 
-        const idCols = ["c_master_id", "מספר הזמנה", "הזמנה", "res_no"];
-        const statusCols = ["c_reservation_status", "סטטוס", "status"];
-        const clerkCols = ["c_taken_clerk", "פקיד", "clerk"];
-        const priceCols = ["price_local", "מחיר", "סכום", "total"];
-        const nameCols = ["guest_name", "שם אורח", "שם"];
-        const codeCols = ["c_price_code", "קוד מחיר", "market"];
-
-        const findVal = (row, options) => {
-            for (const opt of options) if (row[opt] !== undefined) return row[opt];
+        const findVal = (row, keywords) => {
+            const keys = Object.keys(row);
+            for (const key of keys) {
+                if (keywords.some(k => key.toLowerCase().includes(k))) return row[key];
+            }
             return undefined;
         };
 
         reservationsData.forEach(row => {
-            const rowClerk = cleanStr(findVal(row, clerkCols));
+            // זיהוי עמודות דינמי לפי מילות מפתח
+            const rowClerk = cleanStr(findVal(row, ["clerk", "פקיד", "user"]));
             if (!selectedClerks.has(rowClerk)) return;
 
-            let status = (findVal(row, statusCols) || "").toString().toLowerCase();
-            // סינון ביטולים נפוצים
+            let status = (findVal(row, ["status", "סטטוס"]) || "").toString().toLowerCase();
             if (status.includes("can") || status.includes("בוטל")) return;
 
-            let masterId = (findVal(row, idCols) || "").toString().trim();
+            let masterId = (findVal(row, ["master", "הזמנה", "res_no"]) || "").toString().trim();
             if (!masterId) return;
 
             if (paidHistoryIds.includes(masterId)) return;
 
-            let price = parseMoney(findVal(row, priceCols));
+            let price = parseMoney(findVal(row, ["price", "מחיר", "סכום", "total"]));
             let arrivalDate = findArrivalDate(row);
 
             if (!tempConsolidated[masterId]) {
                 tempConsolidated[masterId] = {
                     masterId: masterId,
-                    guestName: cleanStr(findVal(row, nameCols)),
+                    guestName: cleanStr(findVal(row, ["guest", "שם", "name"])),
                     status: status,
                     clerk: rowClerk,
-                    priceCode: cleanStr(findVal(row, codeCols) || ""), 
+                    priceCode: cleanStr(findVal(row, ["code", "קוד", "market"]) || ""), 
                     totalOrderPrice: 0,
                     manualFix: false,
                     arrivalDate: arrivalDate
@@ -569,7 +558,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                 <div className="flex-grow border-t border-gray-300"></div>
                             </div>
 
-                            {/* ✨ הכפתור החדש לטעינת נתונים מהמערכת */}
+                            {/* ✨ כפתור טעינה מהמערכת - הוספנו אותו כאן ✨ */}
                             <Button variant="outline" onClick={handleLoadFromDB} className="w-full border-blue-200 text-blue-700 hover:bg-blue-50">
                                 <Database className="ml-2 h-4 w-4"/> טען הזמנות פתוחות מהמערכת
                             </Button>
@@ -671,7 +660,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                                 <td className="p-3 text-center">
                                                     <Checkbox checked={selectedRows.has(row.masterId)} onCheckedChange={() => toggleRow(row.masterId)} />
                                                 </td>
-                                                {/* ✨ הנה כפתור העיפרון המבוקש ✨ */}
+                                                {/* ✨ כפתור העיפרון לתיקון ידני */}
                                                 <td className="p-3 text-center">
                                                     <Button variant="ghost" size="icon" onClick={() => openFixDialog(row)} title="תיקון ידני / ח&quot;ן חיצונית">
                                                         <Pencil className="h-4 w-4 text-blue-600"/>
@@ -726,6 +715,7 @@ function CommissionGenerator({ onReportGenerated }) {
                             <p className="text-xs text-gray-500 mt-1">סכום העסקה שנכנס לקופה.</p>
                         </div>
 
+                        {/* ✨ אזור שליטה באחוז העמלה */}
                         <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
                             <Label className="text-purple-900">אחוז עמלה (%)</Label>
                             <div className="flex items-center gap-2 mt-1">
