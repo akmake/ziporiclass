@@ -1,3 +1,5 @@
+// client/src/pages/HomePage.jsx (הקוד המלא והמתוקן)
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -35,10 +37,10 @@ const fetchMyCommission = async () => {
     catch (error) { return { hasData: false }; }
 };
 
+// ✨ שינוי: קורא את הראוט החדש והמדויק (getMyOrderStats)
 const fetchMyStats = async () => {
     try { 
-        // Endpoint זה מיועד להחזיר את נתוני הסטטיסטיקה של המשתמש המחובר, כולל Pending
-        const { data } = await api.get('/orders/stats');
+        const { data } = await api.get('/orders/my-stats');
         return data; 
     } 
     catch (error) { return {}; }
@@ -122,7 +124,7 @@ export default function HomePage() {
         {/* === שורת KPIs עליונה (3 כרטיסים) === */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
-            {/* 1. כרטיס עמלות (הכרטיס הראשי הלבן החדש) */}
+            {/* 1. כרטיס עמלות (הכרטיס הראשי הלבן החדש) - רקע בהיר לפי בקשתך */}
             <motion.div variants={itemVariants} className="h-full">
                 <Card className="h-full bg-white text-slate-800 border border-slate-200 shadow-lg hover:shadow-xl transition-shadow relative">
                     <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: THEME.GOLD }}></div>
@@ -154,12 +156,12 @@ export default function HomePage() {
                 </Card>
             </motion.div>
 
-            {/* 2. כרטיס פוטנציאל (הזמנות פתוחות) */}
+            {/* 2. כרטיס פוטנציאל (הזמנות פתוחות) - עכשיו אמור להציג נתונים */}
             <motion.div variants={itemVariants} className="h-full">
-                <Card className="h-full bg-white border border-slate-200 shadow-md hover:border-blue-300 transition-colors">
+                <Card className="h-full bg-white border border-slate-200 shadow-md hover:border-slate-300 transition-colors">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-slate-500 text-sm font-medium uppercase tracking-wider flex justify-between">
-                            <span>פוטנציאל פתוח (צפי)</span>
+                            <span>**שווי הזמנות בהמתנה**</span> {/* הכותרת המדויקת */}
                             <Hourglass className="text-slate-400 h-5 w-5"/>
                         </CardTitle>
                     </CardHeader>
@@ -169,12 +171,12 @@ export default function HomePage() {
                                 {(statsData?.pending?.value || 0).toLocaleString()} ₪
                             </span>
                             <p className="text-slate-500 text-xs mt-1">
-                                שווי {statsData?.pending?.count || 0} הזמנות בהמתנה
+                                סה"כ {statsData?.pending?.count || 0} הזמנות פתוחות
                             </p>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100">
-                            <Link to="/orders-history" className="text-sm font-medium text-slate-700 flex items-center gap-2 hover:text-blue-600 transition-colors w-full justify-end">
+                            <Link to="/orders-history" className="text-sm font-medium text-slate-700 flex items-center gap-2 hover:text-slate-900 transition-colors w-full justify-end">
                                 <Users size={16}/> הזמנות בטיפול
                             </Link>
                         </div>
@@ -184,7 +186,7 @@ export default function HomePage() {
 
             {/* 3. כרטיס מכירות חודשיות */}
             <motion.div variants={itemVariants} className="h-full">
-                <Card className="h-full bg-white border border-slate-200 shadow-md hover:border-emerald-300 transition-colors">
+                <Card className="h-full bg-white border border-slate-200 shadow-md hover:border-slate-300 transition-colors">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-slate-500 text-sm font-medium uppercase tracking-wider flex justify-between">
                             <span>מכירות החודש (סכום)</span>
@@ -202,7 +204,7 @@ export default function HomePage() {
                         </div>
 
                         <div className="pt-4 border-t border-slate-100">
-                            <span className="text-sm font-medium text-slate-700 flex items-center gap-2 hover:text-emerald-600 transition-colors w-full justify-end">
+                            <span className="text-sm font-medium text-slate-700 flex items-center gap-2 hover:text-slate-900 transition-colors w-full justify-end">
                                 <TrendingUp size={16}/> ביצועים מצטברים
                             </span>
                         </div>
@@ -234,7 +236,7 @@ export default function HomePage() {
                                 <div className="text-xs text-gray-400 flex flex-col items-end min-w-[80px] border-r md:border-r-0 md:border-l pr-4 md:pr-0 md:pl-4 border-gray-100">
                                     <span className="font-medium text-gray-500">{msg.authorName}</span>
                                     <span className="flex items-center gap-1 mt-1">
-                                        <CalendarClock size={10} /> {format(new Date(msg.createdAt), 'dd/MM')} [cite: 320]
+                                        [cite_start]<CalendarClock size={10} /> {format(new Date(msg.createdAt), 'dd/MM')} [cite: 3902]
                                     </span>
                                 </div>
                             </CardContent>
@@ -250,10 +252,10 @@ export default function HomePage() {
                 <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
                     <DialogHeader className="p-6 pb-4 bg-slate-900 text-white">
                         <DialogTitle className="flex items-center gap-2 text-xl" style={{ color: THEME.GOLD }}>
-                            <Wallet size={24} style={{ color: THEME.GOLD }}/> פירוט תגמול לדוח האחרון
+                            [cite_start]<Wallet size={24} style={{ color: THEME.GOLD }}/> פירוט תגמול לדוח האחרון [cite: 3905]
                         </DialogTitle>
                         <p className="text-slate-400 text-sm font-normal">
-                            תאריך הפקה: {format(new Date(reportData.reportDate), 'dd/MM/yyyy')} [cite: 413]
+                            [cite_start]תאריך הפקה: {format(new Date(reportData.reportDate), 'dd/MM/yyyy')} [cite: 3905]
                         </p>
                     </DialogHeader>
                     
