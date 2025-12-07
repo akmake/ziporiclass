@@ -20,21 +20,23 @@ import {
     CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar, Percent, Database
 } from 'lucide-react';
 
-// --- הגדרות עמודות (קשיח מהקובץ המקורי שלך) ---
+// --- הגדרות עמודות קשיחות (בדיוק כמו בקובץ המקורי) ---
+// חשבוניות (442)
 const INV_COL_ID = "c_folio_number";
 const INV_COL_NAME = "guest_name";
 const INV_COL_AMOUNT = "invoice_amount";
 const INV_COL_NUM = "c_invoice_number";
 
+// הזמנות (250) - שמות עמודות קשיחים לדיוק מירבי
 const RES_COL_CLERK = "c_taken_clerk";
 const RES_COL_MASTER = "c_master_id";
-const RES_COL_PRICE = "price_local"; // מחיר נטו (לפני מע"מ)
+const RES_COL_PRICE = "price_local"; // זה המחיר הקובע (נטו)
 const RES_COL_NAME = "guest_name";
 const RES_COL_STATUS = "c_reservation_status";
 const RES_COL_CODE = "c_price_code";
 
-// עמודות אפשריות לתאריך הגעה (מהקובץ המקורי)
-const RES_COL_ARRIVAL_OPTIONS = ["c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה", "מתאריך"];
+// עמודות תאריך אפשריות (כולל "מתאריך" שביקשת)
+const ARRIVAL_KEYWORDS = ["מתאריך", "c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
 
 // --- פונקציות עזר ---
 
@@ -50,35 +52,52 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ פונקציית זיהוי תאריך (מהקובץ המקורי)
+// ✨ פונקציית זיהוי תאריך (הלוגיקה שביקשת)
 function findArrivalDate(row) {
     // תמיכה בטעינה מה-DB
     if (row.eventDate) return new Date(row.eventDate);
 
-    for (const col of RES_COL_ARRIVAL_OPTIONS) {
-        // בדיקה גם של ה-Key המדויק וגם Lowercase למקרה של שינוי באקסל
-        const val = row[col] || Object.entries(row).find(([k]) => k.toLowerCase() === col)?.[1];
-        
-        if (val) {
-            // 1. אם זה מספר סידורי של אקסל
-            if (typeof val === 'number') {
+    // סריקת המפתחות באובייקט השורה
+    const keys = Object.keys(row);
+    for (const key of keys) {
+        const lowerKey = key.toLowerCase();
+        // בדיקה אם שם העמודה מכיל את אחת ממילות המפתח
+        if (ARRIVAL_KEYWORDS.some(k => lowerKey.includes(k))) {
+            const val = row[key];
+            
+            if (!val) continue;
+
+            // אם זה כבר אובייקט תאריך
+            if (val instanceof Date && !isNaN(val)) return val;
+
+            // Excel Serial Date (מספרים מעל 20000)
+            if (typeof val === 'number' && val > 20000) {
                 return new Date(Math.round((val - 25569) * 86400 * 1000));
             }
-            // 2. אם זה מחרוזת
-            const dateStr = val.toString().trim();
-            if (dateStr.includes('/')) {
-                const parts = dateStr.split('/');
-                if (parts.length === 3) {
-                    // פורמט DD/MM/YYYY
-                    let day = parseInt(parts[0]);
-                    let month = parseInt(parts[1]);
-                    let year = parseInt(parts[2]);
-                    if (year < 100) year += 2000;
-                    return new Date(year, month - 1, day);
+
+            // מחרוזות
+            if (typeof val === 'string') {
+                const dateStr = val.trim().replace(/\./g, '/').replace(/-/g, '/');
+                
+                // פורמט עם לוכסנים: DD/MM/YYYY או DD/MM/YY
+                if (dateStr.includes('/')) {
+                    const parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        let day = parseInt(parts[0]);
+                        let month = parseInt(parts[1]);
+                        let year = parseInt(parts[2]);
+                        // השלמת שנה (24 -> 2024)
+                        if (year < 100) year += 2000;
+                        
+                        const d = new Date(year, month - 1, day);
+                        if (!isNaN(d.getTime())) return d;
+                    }
                 }
+                
+                // פורמט סטנדרטי אחר
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) return d;
             }
-            const d = new Date(dateStr);
-            if (!isNaN(d.getTime())) return d;
         }
     }
     return null;
@@ -177,7 +196,7 @@ export default function CommissionsPage() {
 }
 
 // ============================================================================
-// 🟢 קומפוננטה 1: המחולל (Generator)
+// 🟢 קומפוננטה 1: המחולל (Generator) - לוגיקה קשיחה
 // ============================================================================
 function CommissionGenerator({ onReportGenerated }) {
     const [invoicesMap, setInvoicesMap] = useState(null);
@@ -232,13 +251,15 @@ function CommissionGenerator({ onReportGenerated }) {
         reader.onload = (evt) => {
             try {
                 const data = new Uint8Array(evt.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'dd/mm/yyyy' });
+                
                 const sheetName = workbook.SheetNames[0];
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
                 
                 if (type === 'invoices') processInvoices(jsonData);
                 else processReservations(jsonData);
             } catch (error) {
+                console.error(error);
                 toast.error("שגיאה בקריאת הקובץ");
             }
         };
@@ -261,12 +282,12 @@ function CommissionGenerator({ onReportGenerated }) {
                 return toast.error('לא נמצאו הזמנות פתוחות (בוצעו ולא שולמו).');
             }
 
-            // המרה למבנה ש-processReservations מכיר
+            // יצירת מבנה שמתאים בדיוק לשדות הקשיחים
             const convertedData = relevantOrders.map(order => ({
                 [RES_COL_CLERK]: order.salespersonName,
                 [RES_COL_STATUS]: "OK",
                 [RES_COL_MASTER]: order.orderNumber.toString(),
-                [RES_COL_PRICE]: order.total_price / 1.18, // המרה לברוטו כדי שהלוגיקה תעבוד (כי במקור price_local זה נטו)
+                [RES_COL_PRICE]: order.total_price / 1.18, // המרה למחיר נטו (כי המערכת מחשבת מע"מ על זה)
                 [RES_COL_NAME]: order.customerName,
                 [RES_COL_CODE]: "REGULAR", 
                 "eventDate": order.eventDate 
@@ -284,8 +305,9 @@ function CommissionGenerator({ onReportGenerated }) {
     const processInvoices = (data) => {
         const map = {};
         data.forEach(row => {
+            // שימוש בקבועים המדויקים מהקובץ המקורי
             let folioRaw = row[INV_COL_ID];
-            let nameRaw = row[INV_COL_NAME] || row["guestname"]; // Fallback קטן לשם
+            let nameRaw = row[INV_COL_NAME] || row["guestname"];
             let amount = parseMoney(row[INV_COL_AMOUNT]);
             let invNum = row[INV_COL_NUM];
 
@@ -315,6 +337,7 @@ function CommissionGenerator({ onReportGenerated }) {
         setReservationsData(data);
         const clerksSet = new Set();
         data.forEach(row => {
+            // שימוש בקבוע RES_COL_CLERK בלבד
             const clerk = cleanStr(row[RES_COL_CLERK]);
             if (clerk) clerksSet.add(clerk);
         });
@@ -325,14 +348,16 @@ function CommissionGenerator({ onReportGenerated }) {
     };
 
     const handleAnalyze = () => {
-        if (!invoicesMap || !reservationsData) return toast.error("חסרים קבצים");
+        const currentInvoicesMap = invoicesMap || {}; 
+        
+        if (!reservationsData) return toast.error("אין נתוני הזמנות לניתוח");
         if (selectedClerks.size === 0) return toast.error("בחר לפחות נציג אחד");
 
         const tempConsolidated = {};
         const newSelectedIds = new Set();
 
         reservationsData.forEach(row => {
-            // שימוש בקבועים המקוריים בלבד!
+            // לוגיקה קשיחה: שימוש בקבועים המקוריים בלבד
             const rowClerk = cleanStr(row[RES_COL_CLERK]);
             if (!selectedClerks.has(rowClerk)) return;
 
@@ -344,7 +369,8 @@ function CommissionGenerator({ onReportGenerated }) {
 
             if (paidHistoryIds.includes(masterId)) return;
 
-            let price = parseMoney(row[RES_COL_PRICE]); // מחיר מקומי (נטו)
+            // הלוגיקה החשובה: שימוש ב-price_local
+            let price = parseMoney(row[RES_COL_PRICE]); 
 
             let arrivalDate = findArrivalDate(row);
 
@@ -352,7 +378,7 @@ function CommissionGenerator({ onReportGenerated }) {
                 tempConsolidated[masterId] = {
                     masterId: masterId,
                     guestName: cleanStr(row[RES_COL_NAME]),
-                    status: row[RES_COL_STATUS],
+                    status: status,
                     clerk: rowClerk,
                     priceCode: cleanStr(row[RES_COL_CODE] || ""), 
                     totalOrderPrice: 0,
@@ -364,7 +390,7 @@ function CommissionGenerator({ onReportGenerated }) {
         });
 
         const finalRows = Object.values(tempConsolidated).map(item => {
-            let foundData = invoicesMap["ID_" + item.masterId] || invoicesMap["NAME_" + item.guestName];
+            let foundData = currentInvoicesMap["ID_" + item.masterId] || currentInvoicesMap["NAME_" + item.guestName];
 
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
@@ -372,8 +398,8 @@ function CommissionGenerator({ onReportGenerated }) {
             let isGroup = item.priceCode.includes("קבוצות");
             let commissionRate = isGroup ? 0.015 : 0.03;
 
-            // הלוגיקה המקורית: המחיר באקסל הוא נטו, החשבונית היא ברוטו (כולל מע"מ)
-            let expectedWithVat = item.totalOrderPrice * 1.18; 
+            // חישוב המע"מ המקורי
+            let expectedWithVat = item.totalOrderPrice * 1.18;
             let diff = Math.abs(expectedWithVat - finalInvoiceAmount);
 
             let colorStatus = 'red';
