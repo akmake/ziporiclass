@@ -236,7 +236,7 @@ export default function HomePage() {
                                 <div className="text-xs text-gray-400 flex flex-col items-end min-w-[80px] border-r md:border-r-0 md:border-l pr-4 md:pr-0 md:pl-4 border-gray-100">
                                     <span className="font-medium text-gray-500">{msg.authorName}</span>
                                     <span className="flex items-center gap-1 mt-1">
-                                        [cite_start]<CalendarClock size={10} /> {format(new Date(msg.createdAt), 'dd/MM')} [cite: 3902]
+                                        <CalendarClock size={10} /> {format(new Date(msg.createdAt), 'dd/MM')} 
                                     </span>
                                 </div>
                             </CardContent>
@@ -252,10 +252,10 @@ export default function HomePage() {
                 <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
                     <DialogHeader className="p-6 pb-4 bg-slate-900 text-white">
                         <DialogTitle className="flex items-center gap-2 text-xl" style={{ color: THEME.GOLD }}>
-                            [cite_start]<Wallet size={24} style={{ color: THEME.GOLD }}/> פירוט תגמול לדוח האחרון [cite: 3905]
+                            <Wallet size={24} style={{ color: THEME.GOLD }}/> פירוט תגמול לדוח האחרון 
                         </DialogTitle>
                         <p className="text-slate-400 text-sm font-normal">
-                            [cite_start]תאריך הפקה: {format(new Date(reportData.reportDate), 'dd/MM/yyyy')} [cite: 3905]
+                            []תאריך הפקה: {format(new Date(reportData.reportDate), 'dd/MM/yyyy')} 
                         </p>
                     </DialogHeader>
                     
