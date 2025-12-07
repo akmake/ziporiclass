@@ -37,17 +37,20 @@ import AffiliateReportsPage from '@/pages/admin/AffiliateReportsPage.jsx';
 import ManageAnnouncementsPage from '@/pages/admin/ManageAnnouncementsPage.jsx';
 import ManageReferrersPage from '@/pages/admin/ManageReferrersPage.jsx';
 import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
-import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx"; // ✨ ייבוא החדש
+import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx"; 
 import CommissionsPage from "@/pages/admin/CommissionsPage.jsx";
 
-// ✨ ייבוא המנהל החדש
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
+// ✨ 1. ייבוא הרכיב החדש
+import AutoLogout from "@/components/AutoLogout.jsx";
 
 export default function App() {
   return (
     <>
-      {/* ✨ הפעלת מנהל ההתראות ברקע */}
       <PushNotificationManager />
+      
+      {/* ✨ 2. הפעלת מנגנון הניתוק האוטומטי */}
+      <AutoLogout />
 
       <Routes>
         <Route path="/quote/:orderId" element={<QuotePage />} />
@@ -71,7 +74,7 @@ export default function App() {
           </Route>
 
           <Route element={<PriceListManagerRoute />}>
-              <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
+            <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
           </Route>
 
           {/* --- Admin Panel --- */}
@@ -81,11 +84,9 @@ export default function App() {
             <Route path="maintenance" element={<AdminMaintenanceDashboard />} />
             <Route path="rooms/create" element={<ManagePhysicalRoomsPage />} />
 
-            {/* דפי תפעול וניהול חדרים */}
             <Route path="rooms-status" element={<RoomStatusPage />} />
             <Route path="daily-plan" element={<DailyPlanPage />} />
 
-            {/* שאר דפי הניהול */}
             <Route path="orders" element={<ManageOrdersPage />} />
             <Route path="users" element={<ManageUsersPage />} />
             <Route path="hotels" element={<ManageHotelsPage />} />
@@ -94,7 +95,7 @@ export default function App() {
             <Route path="referrers" element={<ManageReferrersPage />} />
             <Route path="commissions" element={<CommissionsPage />} />
             <Route path="announcements" element={<ManageAnnouncementsPage />} />
-            <Route path="audit-logs" element={<AuditLogsPage />} /> {/* ✨ הנתיב החדש */}
+            <Route path="audit-logs" element={<AuditLogsPage />} /> 
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

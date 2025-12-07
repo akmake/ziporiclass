@@ -1,14 +1,7 @@
 import axios from 'axios';
 
-// --- ✨ זהו החלק החשוב ✨ ---
-// 1. קבע את כתובת ה-API המלאה מתוך משתנה הסביבה
-//    אם המשתנה הוא '.../api', אז API_URL יהיה '.../api'
-//    אם המשתנה לא קיים (למשל ב-build), ה-URL יהיה '/api'
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
-// 2. הדפס ל-console כדי לוודא שזה עובד
 console.log(`Connecting to API at: ${API_URL}`);
-// ----------------------
 
 let authStoreApi = {
   login: () => console.error('Auth store not initialized for API utility.'),
@@ -20,8 +13,7 @@ export function injectAuthStore(store) {
 }
 
 const api = axios.create({
-  // 3. השתמש בכתובת המלאה (שכבר כוללת /api)
-  baseURL: API_URL, 
+  baseURL: API_URL,
   withCredentials: true,
 });
 
@@ -29,8 +21,6 @@ let csrfTokenPromise = null;
 
 const getCsrfToken = () => {
   if (!csrfTokenPromise) {
-    // הקריאה הזו תוסיף '/csrf-token' ל-baseURL
-    // וייצר: https://zipori.onrender.com/api/csrf-token
     csrfTokenPromise = api.get('/csrf-token')
       .then(response => {
         const csrfToken = response.data.csrfToken;
@@ -69,17 +59,16 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // ----------------------------------------------------------------
-    // 🎯 התיקון נמצא כאן 🎯
-    // הוספנו תנאי שמוודא שהבקשה שנכשלה היא *לא* בקשת הלוגין.
-    // אם בקשת הלוגין נכשלת עם 401, זה אומר שהסיסמה שגויה,
-    // ואנחנו לא רוצים לנסות "לרענן" טוקן במצב כזה.
-    // ----------------------------------------------------------------
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry &&
-      originalRequest.url !== '/auth/login' // <-- 🎯 זו השורה שהוספנו
-    ) {
+    // ✨✨✨ טיפול בשגיאת 401 (לא מורשה / שעות פעילות הסתיימו) ✨✨✨
+    if (error.response?.status === 401 && originalRequest.url !== '/auth/login') {
+      
+      // אם זה ניסיון לרענון שנכשל, או שהשרת אמר מפורשות שהזמן עבר
+      if (originalRequest._retry || error.response.data?.message?.includes('שעות הפעילות')) {
+          authStoreApi.logout();
+          window.location.href = '/login'; // זריקה חזקה לדף ההתחברות
+          return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -97,6 +86,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError);
         authStoreApi.logout();
+        window.location.href = '/login'; // זריקה לדף ההתחברות במקרה של כישלון
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
