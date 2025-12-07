@@ -6,9 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button.jsx';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/Card.jsx';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog"; // ✨ Dialog
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog"; 
 import api from '@/utils/api.js';
-import { Megaphone, CalendarClock, Wallet, FileSpreadsheet } from 'lucide-react'; // ✨ Icons
+import { Megaphone, CalendarClock, Wallet, Eye } from 'lucide-react'; 
 import { format } from 'date-fns';
 import { useAuthStore } from '@/stores/authStore.js';
 
@@ -17,7 +17,6 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 const SERVER_ROOT = API_BASE.replace(/\/api$/, '');
 const LOGO_URL = `${SERVER_ROOT}/uploads/company-logo.png?t=${Date.now()}`;
 
-// הגדרת צבעי המיתוג החדשים
 const BRAND_COLOR = '#bfa15f';
 const BRAND_COLOR_HOVER = '#a28e4d';
 
@@ -31,20 +30,19 @@ const fetchMyAnnouncements = async () => {
   }
 };
 
-// ✨ פונקציה חדשה לשליפת עמלות
-const fetchMyCommission = async () => {
-  try {
-    const { data } = await api.get('/admin/commissions/my-latest');
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch commission", error);
-    return null;
-  }
+const fetchMyReportSummary = async () => {
+    try {
+        const { data } = await api.get('/admin/commissions/my-summary');
+        return data;
+    } catch (error) {
+        console.error("Failed to fetch summary", error);
+        return { hasData: false };
+    }
 };
 
 export default function HomePage() {
-  const { isAuthenticated, user } = useAuthStore();
-  const [showCommissionDetails, setShowCommissionDetails] = useState(false);
+  const { isAuthenticated } = useAuthStore();
+  const [showDetails, setShowDetails] = useState(false);
 
   const { data: announcements = [], isLoading } = useQuery({
     queryKey: ['myAnnouncements'],
@@ -53,12 +51,11 @@ export default function HomePage() {
     enabled: isAuthenticated
   });
 
-  // ✨ שליפת עמלה אחרונה - רק אם מחובר ויש הרשאה
-  const { data: commissionData } = useQuery({
-    queryKey: ['myLatestCommission'],
-    queryFn: fetchMyCommission,
-    enabled: isAuthenticated && (user?.role === 'sales' || user?.canViewCommissions),
-    staleTime: 1000 * 60 * 10 // לשמור בזיכרון ל-10 דקות
+  const { data: reportData } = useQuery({
+    queryKey: ['myReportSummary'],
+    queryFn: fetchMyReportSummary,
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 10
   });
 
   return (
@@ -92,55 +89,49 @@ export default function HomePage() {
         <span style={{ color: BRAND_COLOR }}>ניהול ומעקב אחרי לידים ופניות</span>
       </motion.h1>
 
-      {/* ✨✨✨ כרטיסיית עמלה אחרונה (מופיעה מעל ההודעות) ✨✨✨ */}
-      {isAuthenticated && commissionData?.found && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="w-full max-w-2xl mb-8"
+      {/* ✨✨✨ הווידג'ט החדש ✨✨✨ */}
+      {isAuthenticated && reportData?.hasData && (
+        <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-2xl mb-8 px-4"
         >
-          <Card className="border-t-4 border-t-purple-600 shadow-md bg-white overflow-hidden text-right">
-            <CardHeader className="bg-purple-50/50 pb-3 border-b border-purple-100">
-              <div className="flex justify-between items-center">
-                <CardTitle className="flex items-center gap-2 text-purple-900 text-lg">
-                  <Wallet className="h-5 w-5" /> עדכון עמלות אחרון
-                </CardTitle>
-                <span className="text-xs text-purple-700 bg-white px-2 py-1 rounded-full border border-purple-200 font-medium">
-                  נכון לתאריך: {format(new Date(commissionData.reportDate), 'dd/MM/yyyy')}
-                </span>
-              </div>
+          <Card className="border-t-4 border-purple-600 shadow-lg bg-white overflow-hidden">
+            <CardHeader className="bg-purple-50 pb-2 border-b border-purple-100">
+                <div className="flex justify-between items-center">
+                    <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <Wallet className="text-purple-600" /> סיכום עמלות אחרון
+                    </CardTitle>
+                    <span className="text-sm text-gray-500 font-medium bg-white px-2 py-1 rounded border">
+                        נכון לתאריך: {format(new Date(reportData.reportDate), 'dd/MM/yyyy')}
+                    </span>
+                </div>
             </CardHeader>
-            <CardContent className="pt-6 pb-2">
-              <div className="flex justify-around items-center text-center">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-3 gap-4 text-center py-4 bg-slate-50 rounded-xl mb-4 border border-slate-100">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">מספר עסקאות</p>
-                  <p className="text-2xl font-bold text-gray-800">{commissionData.itemsCount}</p>
+                  <span className="block text-sm text-gray-500 mb-1">כמות עסקאות</span>
+                  <span className="block text-2xl font-bold text-slate-800">{reportData.stats.count}</span>
                 </div>
-                <div className="border-l h-12 border-gray-200"></div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">סה"כ לתשלום</p>
-                  <p className="text-4xl font-extrabold text-purple-700">
-                    {commissionData.totalCommission.toLocaleString()} ₪
-                  </p>
+                <div className="border-r border-gray-300"> 
+                  <span className="block text-sm text-gray-500 mb-1">סך הכנסות</span>
+                  <span className="block text-2xl font-bold text-slate-800">{reportData.stats.totalRevenue.toLocaleString()} ₪</span>
+                </div>
+                <div className="border-r border-gray-300">
+                  <span className="block text-sm text-purple-600 font-bold mb-1">עמלה לתשלום</span>
+                  <span className="block text-3xl font-extrabold text-purple-700">{reportData.stats.totalCommission.toLocaleString()} ₪</span>
                 </div>
               </div>
-            </CardContent>
-            <CardFooter className="bg-gray-50 p-3 justify-center border-t border-gray-100 mt-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-purple-700 hover:text-purple-900 hover:bg-purple-100 w-full gap-2 transition-colors"
-                onClick={() => setShowCommissionDetails(true)}
-              >
-                <FileSpreadsheet size={16}/> לחץ לפירוט מלא
+
+              <Button variant="outline" className="w-full border-purple-200 text-purple-700 hover:bg-purple-50" onClick={() => setShowDetails(true)}>
+                <Eye className="ml-2 h-4 w-4"/> צפה בפירוט מלא
               </Button>
-            </CardFooter>
+            </CardContent>
           </Card>
         </motion.div>
       )}
 
-      {/* --- אזור ההודעות (מוצג רק למחוברים) --- */}
+      {/* --- הודעות --- */}
       {isAuthenticated && (
           <div className="w-full max-w-2xl mb-10">
             <AnimatePresence>
@@ -157,10 +148,7 @@ export default function HomePage() {
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: 0.3 + (idx * 0.1) }}
                       >
-                          <Card
-                            className="bg-white shadow-sm hover:shadow-md transition-all border-l-4"
-                            style={{ borderLeftColor: BRAND_COLOR }}
-                          >
+                          <Card className="bg-white shadow-sm hover:shadow-md transition-all border-l-4" style={{ borderLeftColor: BRAND_COLOR }}>
                               <CardHeader className="pb-2">
                                   <div className="flex justify-between items-start">
                                       <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
@@ -175,10 +163,7 @@ export default function HomePage() {
                                   <CardDescription className="text-xs mt-1">מאת: {msg.authorName}</CardDescription>
                               </CardHeader>
                               <CardContent>
-                                  <div
-                                     className="text-slate-600 text-sm leading-relaxed prose prose-sm max-w-none"
-                                     dangerouslySetInnerHTML={{ __html: msg.content }}
-                                 />
+                                  <div className="text-slate-600 text-sm leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: msg.content }} />
                               </CardContent>
                           </Card>
                       </motion.div>
@@ -189,18 +174,7 @@ export default function HomePage() {
           </div>
       )}
 
-      {/* --- טקסט וכפתור --- */}
-      <motion.p
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4, duration: 0.6 }}
-        className="text-lg sm:text-xl text-gray-600 max-w-2xl mb-10"
-      >
-        כל הכלים לניהול הצעות מחיר, מעקב אחר הזמנות וחישוב עמלות במקום אחד.
-        <br />
-        פשוט, מהיר ויעיל.
-      </motion.p>
-
+      {/* --- כפתור יצירת הזמנה --- */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -221,45 +195,37 @@ export default function HomePage() {
         </Button>
       </motion.div>
 
-      {/* ✨ דיאלוג פירוט עמלות (המופיע בלחיצה) */}
-      <Dialog open={showCommissionDetails} onOpenChange={setShowCommissionDetails}>
+      {/* ✨ דיאלוג הפירוט */}
+      <Dialog open={showDetails} onOpenChange={setShowDetails}>
         <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-2 bg-slate-50 border-b">
-            <DialogTitle>פירוט תגמול לדוח הנוכחי</DialogTitle>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto p-0">
-            <table className="w-full text-sm text-right border-collapse">
-              <thead className="bg-slate-100 text-slate-700 sticky top-0 shadow-sm font-semibold">
-                <tr>
-                  <th className="p-3 border-b w-1/4">שם האורח</th>
-                  <th className="p-3 border-b text-center">תאריך הגעה</th>
-                  <th className="p-3 border-b">סכום עסקה</th>
-                  <th className="p-3 border-b text-purple-700">עמלה</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {commissionData?.items?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-purple-50/30 transition-colors">
-                    <td className="p-3 font-medium text-slate-800">{item.guestName}</td>
-                    <td className="p-3 text-slate-500 text-center">
-                      {item.arrivalDate ? format(new Date(item.arrivalDate), 'dd/MM/yy') : '-'}
-                    </td>
-                    <td className="p-3 text-slate-600">{item.paidAmount?.toLocaleString()} ₪</td>
-                    <td className="p-3 font-bold text-purple-700">{item.commission?.toLocaleString()} ₪</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="p-4 bg-slate-50 border-t flex justify-between items-center text-sm font-medium">
-            <div className="text-gray-500">* הנתונים מבוססים על דוחות שאושרו ונסגרו</div>
-            <div className="flex gap-4">
-                <span>סה"כ מכירות: <span className="text-slate-800">{commissionData?.totalSales?.toLocaleString()} ₪</span></span>
-                <span className="text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded">סה"כ לתשלום: {commissionData?.totalCommission?.toLocaleString()} ₪</span>
+            <DialogHeader className="p-6 pb-2 bg-slate-50 border-b">
+                <DialogTitle>פירוט תגמול חודשי</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+                <table className="w-full text-sm text-right">
+                    <thead className="bg-slate-100 text-slate-700 sticky top-0 shadow-sm font-semibold">
+                        <tr>
+                            <th className="p-3 border-b">שם האורח</th>
+                            <th className="p-3 border-b">תאריך הגעה</th>
+                            <th className="p-3 border-b">סכום ששולם</th>
+                            <th className="p-3 border-b text-purple-700">עמלה</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {reportData?.items?.map((item, i) => (
+                            <tr key={i} className="hover:bg-purple-50/30 transition-colors">
+                                <td className="p-3 font-medium text-slate-800">{item.guestName}</td>
+                                <td className="p-3 text-slate-500">{item.arrivalDate ? format(new Date(item.arrivalDate), 'dd/MM/yy') : '-'}</td>
+                                <td className="p-3 text-slate-600">{item.paidAmount?.toLocaleString()} ₪</td>
+                                <td className="p-3 font-bold text-purple-700">{item.commission?.toLocaleString()} ₪</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
-          </div>
+            <div className="p-4 bg-slate-50 border-t text-center text-xs text-gray-400">
+                * הנתונים מבוססים על דוחות שאושרו ונסגרו במערכת
+            </div>
         </DialogContent>
       </Dialog>
 

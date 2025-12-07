@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/Switch';
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/Dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Users, Trash2, PlusCircle, Briefcase, Wrench, Shield, Edit } from 'lucide-react';
+import { Badge } from '@/components/ui/Badge.jsx'; // ודא שקיים
+import { Users, Trash2, PlusCircle, Briefcase, Wrench, Shield, Edit, X } from 'lucide-react';
 
 // API Functions
 const fetchUsers = async () => (await api.get('/admin/users')).data;
@@ -17,7 +18,9 @@ const updateUser = (userData) => api.put(`/admin/users/${userData._id}`, userDat
 const createUser = (userData) => api.post('/admin/users', userData);
 const deleteUser = (userId) => api.delete(`/admin/users/${userId}`);
 
-// מילון תצוגה לתפקידים
+// ✨ פונקציה חדשה: שליפת שמות מהדוחות
+const fetchReportNames = async () => (await api.get('/admin/commissions/names')).data;
+
 const roleLabels = {
     admin: 'מנהל מערכת',
     sales: 'איש מכירות',
@@ -29,14 +32,19 @@ export default function ManageUsersPage() {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-    // State ליצירה
+    // ✨ שליפת השמות מהדוחות עבור ה-Select
+    const { data: availableReportNames = [] } = useQuery({
+        queryKey: ['commissionNames'],
+        queryFn: fetchReportNames,
+        staleTime: 1000 * 60 * 5 // לשמור ל-5 דקות
+    });
+
     const [newUserForm, setNewUserForm] = useState({
         name: '', email: '', password: '', role: 'sales',
         canManagePriceLists: false, canViewCommissions: false,
-        aliasesString: '' // ✨ מחרוזת קלט לכינויים
+        reportNames: [] // ✨ מערך לשמות הנבחרים
     });
 
-    // State לעריכה
     const [editingUser, setEditingUser] = useState(null);
 
     const { data: users = [], isLoading, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
@@ -49,7 +57,7 @@ export default function ManageUsersPage() {
     const updateUserMutation = useMutation({
         mutationFn: updateUser,
         onSuccess: () => {
-            toast.success('פרטי משתמש עודכנו!');
+            toast.success('פרטי המשתמש עודכנו!');
             setIsEditDialogOpen(false);
             setEditingUser(null);
             commonMutationOptions.onSuccess();
@@ -63,44 +71,63 @@ export default function ManageUsersPage() {
         onSuccess: () => {
             commonMutationOptions.onSuccess();
             setIsCreateDialogOpen(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false, aliasesString: '' });
+            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false, reportNames: [] });
             toast.success('משתמש נוצר בהצלחה!');
         },
     });
     
     const deleteUserMutation = useMutation({ ...commonMutationOptions, mutationFn: deleteUser });
 
-    // שינוי הרשאות מהיר (Switch)
     const handlePermissionChange = (user, field, value) => {
         updateUserMutation.mutate({ ...user, [field]: value });
     };
 
+    // --- לוגיקה לניהול התגיות (בחירה מהרשימה) ---
+
+    // הוספה בטופס יצירה
+    const addReportNameCreate = (name) => {
+        if (!newUserForm.reportNames.includes(name)) {
+            setNewUserForm(prev => ({ ...prev, reportNames: [...prev.reportNames, name] }));
+        }
+    };
+    // הסרה בטופס יצירה
+    const removeReportNameCreate = (name) => {
+        setNewUserForm(prev => ({ ...prev, reportNames: prev.reportNames.filter(n => n !== name) }));
+    };
+
+    // הוספה בטופס עריכה
+    const addReportNameEdit = (name) => {
+        if (!editingUser.reportNames.includes(name)) {
+            setEditingUser(prev => ({ ...prev, reportNames: [...prev.reportNames, name] }));
+        }
+    };
+    // הסרה בטופס עריכה
+    const removeReportNameEdit = (name) => {
+        setEditingUser(prev => ({ ...prev, reportNames: prev.reportNames.filter(n => n !== name) }));
+    };
+
     const handleCreateUser = (e) => {
         e.preventDefault();
-        // המרת מחרוזת הכינויים למערך
-        const commissionAliases = newUserForm.aliasesString.split(',').map(s => s.trim()).filter(Boolean);
-        createUserMutation.mutate({ ...newUserForm, commissionAliases });
+        createUserMutation.mutate(newUserForm);
     };
 
     const handleEditUserSubmit = (e) => {
         e.preventDefault();
         if (!editingUser) return;
-        // המרת מחרוזת הכינויים למערך
-        const commissionAliases = editingUser.aliasesString.split(',').map(s => s.trim()).filter(Boolean);
         
         updateUserMutation.mutate({
             _id: editingUser._id,
             role: editingUser.role,
             canManagePriceLists: editingUser.canManagePriceLists,
             canViewCommissions: editingUser.canViewCommissions,
-            commissionAliases
+            reportNames: editingUser.reportNames
         });
     };
 
     const openEditDialog = (user) => {
         setEditingUser({
             ...user,
-            aliasesString: user.commissionAliases ? user.commissionAliases.join(', ') : ''
+            reportNames: user.reportNames || []
         });
         setIsEditDialogOpen(true);
     };
@@ -116,7 +143,7 @@ export default function ManageUsersPage() {
             <header className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3"><Users /> ניהול משתמשים</h1>
-                    <p className="mt-2 text-gray-600">צפייה, הרשאות, כינויים ודוחות.</p>
+                    <p className="mt-2 text-gray-600">צפייה, הרשאות והגדרת שמות לדוחות.</p>
                 </div>
                 <Button onClick={() => setIsCreateDialogOpen(true)}><PlusCircle className="ml-2" /> צור משתמש חדש</Button>
             </header>
@@ -129,9 +156,9 @@ export default function ManageUsersPage() {
                                 <th className="px-4 py-3 text-right font-medium">שם</th>
                                 <th className="px-4 py-3 text-right font-medium">אימייל</th>
                                 <th className="px-4 py-3 text-right font-medium">תפקיד</th>
-                                <th className="px-4 py-3 text-right font-medium">כינויים (בדוחות)</th> {/* ✨ */}
+                                <th className="px-4 py-3 text-right font-medium">שמות מקושרים (בדוחות)</th> {/* ✨ */}
                                 <th className="px-4 py-3 text-right font-medium">ניהול מחירונים</th>
-                                <th className="px-4 py-3 text-right font-medium">צפייה בעמלות</th>
+                                <th className="px-4 py-3 text-right font-medium">עמלות</th>
                                 <th className="px-4 py-3"></th>
                             </tr>
                         </thead>
@@ -147,18 +174,25 @@ export default function ManageUsersPage() {
                                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
                                          ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
                                             user.role === 'maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                                            {user.role === 'admin' && <Shield size={12}/>}
-                                            {user.role === 'maintenance' && <Wrench size={12}/>}
-                                            {user.role === 'sales' && <Briefcase size={12}/>}
                                             {roleLabels[user.role] || user.role}
                                         </span>
                                     </td>
-                                    {/* ✨ הצגת הכינויים */}
-                                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[150px] truncate" title={user.commissionAliases?.join(', ')}>
-                                        {user.commissionAliases && user.commissionAliases.length > 0 ? user.commissionAliases.join(', ') : '-'}
+                                    
+                                    {/* ✨ הצגת התגיות בטבלה */}
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-wrap gap-1">
+                                            {user.reportNames && user.reportNames.length > 0 ? (
+                                                user.reportNames.map(name => (
+                                                    <Badge key={name} variant="outline" className="text-xs bg-slate-50 font-normal">
+                                                        {name}
+                                                    </Badge>
+                                                ))
+                                            ) : (
+                                                <span className="text-slate-400 text-xs">-</span>
+                                            )}
+                                        </div>
                                     </td>
 
-                                    {/* הרשאות */}
                                     <td className="px-4 py-3">
                                         <Switch
                                             checked={user.canManagePriceLists}
@@ -175,11 +209,9 @@ export default function ManageUsersPage() {
                                     </td>
 
                                     <td className="px-4 py-3 text-left flex gap-2 justify-end">
-                                        {/* כפתור עריכה */}
                                         <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
                                             <Edit className="h-4 w-4 text-slate-500" />
                                         </Button>
-                                        
                                         <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user._id)} disabled={user.role === 'admin'}>
                                             <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
@@ -212,15 +244,34 @@ export default function ManageUsersPage() {
                             </Select>
                         </div>
 
-                        {/* ✨ שדה כינויים */}
-                        <div>
-                            <Label className="mb-1 block">שמות נרדפים בדוחות (מופרד בפסיקים)</Label>
-                            <Input 
-                                placeholder='למשל: רבקה, רבקה כ, Rivka' 
-                                value={newUserForm.aliasesString} 
-                                onChange={(e) => setNewUserForm(p => ({...p, aliasesString: e.target.value}))} 
-                            />
-                            <p className="text-xs text-gray-500 mt-1">אלו השמות שהמערכת תחפש בקבצי האקסל כדי לשייך עמלות.</p>
+                        {/* ✨ אזור בחירת שמות מהדוחות */}
+                        <div className="bg-slate-50 p-3 rounded border space-y-2">
+                            <Label className="block">שיוך שמות מדוחות עמלות</Label>
+                            <Select onValueChange={addReportNameCreate}>
+                                <SelectTrigger className="bg-white border-slate-300">
+                                    <SelectValue placeholder="בחר שם מהרשימה..." />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                    {availableReportNames.length > 0 ? (
+                                        availableReportNames.map(name => (
+                                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                                        ))
+                                    ) : (
+                                        <SelectItem value="none" disabled>אין שמות זמינים בדוחות</SelectItem>
+                                    )}
+                                </SelectContent>
+                            </Select>
+                            
+                            {/* תצוגת התגיות שנבחרו */}
+                            <div className="flex flex-wrap gap-2 mt-2 min-h-[30px]">
+                                {newUserForm.reportNames.map(name => (
+                                    <Badge key={name} className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200 flex items-center gap-1 pl-1 pr-2 cursor-default">
+                                        <X size={14} className="cursor-pointer hover:text-red-600 mr-1" onClick={() => removeReportNameCreate(name)}/>
+                                        {name}
+                                    </Badge>
+                                ))}
+                                {newUserForm.reportNames.length === 0 && <span className="text-xs text-gray-400">לא נבחרו שמות</span>}
+                            </div>
                         </div>
 
                         {/* הרשאות נוספות */}
@@ -264,12 +315,33 @@ export default function ManageUsersPage() {
                                 </Select>
                             </div>
 
-                            <div>
-                                <Label className="mb-1 block">שמות נרדפים בדוחות</Label>
-                                <Input 
-                                    value={editingUser.aliasesString} 
-                                    onChange={(e) => setEditingUser(p => ({...p, aliasesString: e.target.value}))} 
-                                />
+                            {/* ✨ אזור עריכת שמות מהדוחות */}
+                            <div className="bg-slate-50 p-3 rounded border space-y-2">
+                                <Label className="block">שיוך שמות מדוחות עמלות</Label>
+                                <Select onValueChange={addReportNameEdit}>
+                                    <SelectTrigger className="bg-white border-slate-300">
+                                        <SelectValue placeholder="בחר שם מהרשימה..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-60">
+                                        {availableReportNames.length > 0 ? (
+                                            availableReportNames.map(name => (
+                                                <SelectItem key={name} value={name}>{name}</SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem value="none" disabled>אין שמות זמינים בדוחות</SelectItem>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                
+                                <div className="flex flex-wrap gap-2 mt-2 min-h-[30px]">
+                                    {(editingUser.reportNames || []).map(name => (
+                                        <Badge key={name} className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200 flex items-center gap-1 pl-1 pr-2 cursor-default">
+                                            <X size={14} className="cursor-pointer hover:text-red-600 mr-1" onClick={() => removeReportNameEdit(name)}/>
+                                            {name}
+                                        </Badge>
+                                    ))}
+                                    {(!editingUser.reportNames || editingUser.reportNames.length === 0) && <span className="text-xs text-gray-400">לא שויכו שמות</span>}
+                                </div>
                             </div>
 
                             {editingUser.role !== 'admin' && (

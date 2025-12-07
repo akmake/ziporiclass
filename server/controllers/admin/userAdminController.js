@@ -10,9 +10,8 @@ export const getAllUsers = async (req, res) => {
     }
 };
 
-// עדכון משתמש (כולל הרשאות ושמות נרדפים)
 export const updateUserPermissions = async (req, res) => {
-    const { role, canManagePriceLists, canViewCommissions, commissionAliases } = req.body;
+    const { role, canManagePriceLists, canViewCommissions, reportNames } = req.body;
     try {
         const user = await User.findById(req.params.id);
         if (user) {
@@ -20,9 +19,9 @@ export const updateUserPermissions = async (req, res) => {
             if (canManagePriceLists !== undefined) user.canManagePriceLists = canManagePriceLists;
             if (canViewCommissions !== undefined) user.canViewCommissions = canViewCommissions;
             
-            // ✨ עדכון שמות נרדפים
-            if (commissionAliases !== undefined) {
-                user.commissionAliases = Array.isArray(commissionAliases) ? commissionAliases : [];
+            // ✨ עדכון שמות לדוח
+            if (reportNames !== undefined) {
+                user.reportNames = Array.isArray(reportNames) ? reportNames : [];
             }
 
             await user.save();
@@ -37,7 +36,7 @@ export const updateUserPermissions = async (req, res) => {
 };
 
 export const createUser = async (req, res) => {
-    const { name, email, password, role, canManagePriceLists, canViewCommissions, commissionAliases } = req.body;
+    const { name, email, password, role, canManagePriceLists, canViewCommissions, reportNames } = req.body;
 
     if (!name || !email || !password) {
         return res.status(400).json({ message: 'שם, אימייל וסיסמה הם שדות חובה' });
@@ -63,8 +62,8 @@ export const createUser = async (req, res) => {
             role: finalRole,
             canManagePriceLists: canManagePriceLists || false,
             canViewCommissions: canViewCommissions || false,
-            // ✨ שמירת שמות נרדפים ביצירה
-            commissionAliases: Array.isArray(commissionAliases) ? commissionAliases : []
+            // ✨ שמירת השם לדוח ביצירה
+            reportNames: Array.isArray(reportNames) ? reportNames : [] 
         });
 
         res.status(201).json({

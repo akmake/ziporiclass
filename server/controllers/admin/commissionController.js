@@ -2,14 +2,14 @@ import CommissionReport from '../../models/CommissionReport.js';
 import CommissionHistory from '../../models/CommissionHistory.js';
 import { catchAsync } from '../../middlewares/errorHandler.js';
 
-// 1. שליפת רשימת IDs שכבר שולמו (לצורך סינון בקליינט)
+// 1. שליפת רשימת IDs שכבר שולמו
 export const getPaidCommissionIds = catchAsync(async (req, res) => {
   const paid = await CommissionHistory.find({}, 'masterId').lean();
   const ids = paid.map(p => p.masterId);
   res.json(ids);
 });
 
-// 2. הפקת דוח חדש (שמירה ב-DB)
+// 2. הפקת דוח חדש
 export const createCommissionReport = catchAsync(async (req, res) => {
   const { items } = req.body;
 
@@ -17,10 +17,8 @@ export const createCommissionReport = catchAsync(async (req, res) => {
     return res.status(400).json({ message: 'לא נבחרו שורות לדוח.' });
   }
 
-  // חישוב סה"כ לתשלום בדוח הזה
   const totalAmount = items.reduce((sum, item) => sum + (item.commissionToPay || 0), 0);
 
-  // יצירת אובייקט הדוח
   const newReport = await CommissionReport.create({
     totalAmount,
     itemsCount: items.length,
@@ -28,26 +26,17 @@ export const createCommissionReport = catchAsync(async (req, res) => {
       masterId: item.masterId,
       clerkName: item.clerk,
       guestName: item.guestName,
-
-      // שמירת תאריך ההגעה
       arrivalDate: item.arrivalDate ? new Date(item.arrivalDate) : null,
-
-      // המרת מחרוזת החשבוניות למערך
       invoiceNumbers: item.finalInvNum ? item.finalInvNum.toString().split('|').map(s => s.trim()) : [],
-
       orderAmount: item.totalOrderPrice || 0,
       expectedAmount: item.expectedWithVat || 0,
       paidAmount: item.finalInvoiceAmount || 0,
       commission: item.commissionToPay || 0,
-
       isManualFix: item.manualFix || false,
-      // אם זה תיקון ידני, ההערה היא מה שכתבת ב-finalInvNum או "תיקון ידני"
       note: item.manualFix ? (item.finalInvNum || 'תיקון ידני') : ''
     }))
   });
 
-  // עדכון טבלת ההיסטוריה (כדי שלא יופיעו שוב)
-  // משתמשים ב-bulkWrite ליעילות
   const historyOperations = items.map(item => ({
     updateOne: {
       filter: { masterId: item.masterId },
@@ -58,7 +47,7 @@ export const createCommissionReport = catchAsync(async (req, res) => {
             paidAt: new Date()
         }
       },
-      upsert: true // יוצר חדש אם לא קיים
+      upsert: true
     }
   }));
 
@@ -75,39 +64,49 @@ export const getAllReports = catchAsync(async (req, res) => {
   res.json(reports);
 });
 
-// ✨ 4. קבלת נתוני העמלה האחרונה למשתמש המחובר (דף הבית)
-export const getMyLatestCommission = catchAsync(async (req, res) => {
+// 4. ✨ פונקציה חדשה: שליפת כל השמות שנמצאו בדוחות (עבור המנהל)
+export const getCommissionClerkNames = catchAsync(async (req, res) => {
+    // מונגו שולף את כל הערכים הייחודיים מהשדה clerkName בתוך מערך ה-items
+    const names = await CommissionReport.distinct('items.clerkName');
+    // מסננים ערכים ריקים וממיינים לפי א-ב
+    const sortedNames = names.filter(n => n && n.trim().length > 0).sort();
+    res.json(sortedNames);
+});
+
+// 5. ✨ פונקציה חדשה: שליפת סיכום אישי למשתמש (עבור דף הבית)
+export const getMyReportSummary = catchAsync(async (req, res) => {
   const user = req.user;
   
-  // בניית רשימת שמות לחיפוש: השם הרשמי + הכינויים שהוגדרו
-  const searchNames = [user.name, ...(user.commissionAliases || [])];
+  // השמות לחיפוש: השם הרשמי + השמות שהוגדרו בניהול
+  const myNames = [user.name, ...(user.reportNames || [])].map(s => s.trim());
 
-  // שליפת הדוח האחרון ביותר
+  // שליפת הדוח האחרון
   const lastReport = await CommissionReport.findOne({}).sort({ createdAt: -1 });
 
   if (!lastReport) {
-    return res.json({ found: false, message: 'טרם הופקו דוחות עמלה.' });
+    return res.json({ hasData: false, message: 'לא נמצאו דוחות במערכת.' });
   }
 
-  // סינון השורות בדוח ששייכות למשתמש הזה (לפי השמות)
+  // סינון השורות בדוח ששייכות למשתמש הזה
   const myItems = lastReport.items.filter(item => 
-    searchNames.some(alias => alias.trim() === item.clerkName?.trim())
+    item.clerkName && myNames.includes(item.clerkName.trim())
   );
 
   if (myItems.length === 0) {
-    return res.json({ found: false, message: 'לא נמצאו עמלות בדוח האחרון.' });
+    return res.json({ hasData: false, message: 'לא נמצאו עסקאות על שמך בדוח האחרון.' });
   }
 
-  // חישוב סה"כ
-  const totalCommission = myItems.reduce((sum, item) => sum + (item.commission || 0), 0);
-  const totalSales = myItems.reduce((sum, item) => sum + (item.paidAmount || 0), 0);
+  // חישוב סיכום
+  const stats = {
+    count: myItems.length,
+    totalRevenue: myItems.reduce((sum, item) => sum + (item.paidAmount || 0), 0),
+    totalCommission: myItems.reduce((sum, item) => sum + (item.commission || 0), 0)
+  };
 
   res.json({
-    found: true,
+    hasData: true,
     reportDate: lastReport.createdAt,
-    totalCommission,
-    totalSales,
-    itemsCount: myItems.length,
-    items: myItems // שולחים את הפירוט לקליינט
+    stats,
+    items: myItems
   });
 });

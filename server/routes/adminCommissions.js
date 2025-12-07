@@ -4,22 +4,25 @@ import {
   getPaidCommissionIds,
   createCommissionReport,
   getAllReports,
-  getMyLatestCommission // ✨ ייבוא הפונקציה החדשה
+  getMyReportSummary,
+  getCommissionClerkNames // ✨ ייבוא
 } from '../controllers/admin/commissionController.js';
 
 const router = express.Router();
 
-// כל הנתיבים דורשים חיבור ראשוני
 router.use(requireAuth);
 
-// ✨ נתיב פתוח למשתמש רגיל (לצפייה בנתונים של עצמו)
-router.get('/my-latest', getMyLatestCommission);
+// נתיב פתוח למשתמש (סיכום אישי)
+router.get('/my-summary', getMyReportSummary);
 
-// --- מכאן והלאה: רק למנהלים ---
+// נתיבים למנהל בלבד
 router.use(requireAdmin);
 
 router.get('/paid-ids', getPaidCommissionIds);
 router.get('/reports', getAllReports);
 router.post('/generate', createCommissionReport);
+
+// ✨ נתיב למנהל: קבלת רשימת השמות מהדוחות
+router.get('/names', getCommissionClerkNames);
 
 export default router;
