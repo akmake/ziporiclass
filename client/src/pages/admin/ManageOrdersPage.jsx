@@ -5,32 +5,96 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '@/utils/api.js';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
+
+// UI Components
 import { Input } from '@/components/ui/Input.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Button } from '@/components/ui/Button.jsx';
-import { Search, SlidersHorizontal, Trash2, Edit, Hotel, AlertTriangle } from 'lucide-react';
-import toast from 'react-hot-toast';
+// ✨ רכיבי דיאלוג חדשים
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
+// ✨ אייקונים (הוספנו UserCog)
+import { Search, SlidersHorizontal, Trash2, Edit, Hotel, AlertTriangle, UserCog } from 'lucide-react';
 
 // --- API Functions ---
 const fetchAllOrders = async () => (await api.get('/admin/orders')).data;
 const fetchHotels = async () => (await api.get('/admin/hotels')).data;
+// ✨ פונקציה לשליפת רשימת המשתמשים
+const fetchUsers = async () => (await api.get('/admin/users')).data; 
+
 const updateOrderStatus = ({ orderId, newStatus }) => api.put(`/admin/orders/${orderId}`, { status: newStatus });
+// ✨ פונקציה לעדכון שיוך ההזמנה
+const updateOrderOwner = ({ orderId, newUserId }) => api.put(`/admin/orders/${orderId}`, { newUserId });
+
 const deleteOrderById = (orderId) => api.delete(`/admin/orders/${orderId}`);
 const deleteOrdersByStatus = (status) => api.delete('/admin/orders/by-status', { data: { status } });
 
-const OrderRow = ({ order, onStatusChange, onDelete }) => {
+// --- קומפוננטת דיאלוג לשינוי שיוך ---
+const ReassignDialog = ({ order, isOpen, onClose, onConfirm, allUsers }) => {
+    const [selectedUser, setSelectedUser] = useState(order?.user?._id || '');
+
+    const handleSave = () => {
+        if (selectedUser && selectedUser !== order?.user?._id) {
+            onConfirm(order._id, selectedUser);
+        }
+        onClose();
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>שינוי שיוך הזמנה #{order?.orderNumber}</DialogTitle>
+                    <DialogDescription>
+                        בחר את הנציג החדש שאליו תשויך ההזמנה. הפעולה תעדכן את הדוחות וההרשאות.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <label className="text-sm font-medium mb-2 block">בחר נציג:</label>
+                    <Select value={selectedUser} onValueChange={setSelectedUser}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="בחר משתמש..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[200px]">
+                            {allUsers?.map(u => (
+                                <SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>ביטול</Button>
+                    <Button onClick={handleSave}>שמור שינויים</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+// --- שורת הזמנה (טבלה) ---
+const OrderRow = ({ order, onStatusChange, onDelete, onReassignClick }) => {
     const statusStyles = { 'בהמתנה': 'bg-yellow-100 text-yellow-800', 'בוצע': 'bg-green-100 text-green-800', 'לא רלוונטי': 'bg-red-100 text-red-800' };
 
     return (
-        <div className="grid grid-cols-12 gap-4 items-center px-4 py-3 border-b hover:bg-slate-50 text-sm">
-            {/* ✨ עמודות עודכנו כדי לפנות מקום למלון */}
+        <div className="grid grid-cols-12 gap-4 items-center px-4 py-3 border-b hover:bg-slate-50 text-sm group">
             <div className="col-span-2">
                 <p className="font-bold text-slate-800">{order.customerName}</p>
                 <p className="text-slate-500">{order.customerPhone}</p>
             </div>
-            {/* ✨ עמודת מלון חדשה */}
             <div className="col-span-2 text-slate-600 font-medium">{order.hotel?.name || 'N/A'}</div>
-            <div className="col-span-2 text-slate-600">{order.salespersonName}</div>
+            
+            {/* ✨ עמודת איש מכירות עם כפתור עריכה מוסתר שמופיע בהובר */}
+            <div className="col-span-2 text-slate-600 flex items-center gap-2 relative">
+                <span className="truncate font-medium">{order.salespersonName}</span>
+                <button 
+                    onClick={() => onReassignClick(order)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-blue-50 rounded-full text-blue-600"
+                    title="שנה שיוך נציג"
+                >
+                    <UserCog size={16} />
+                </button>
+            </div>
+
             <div className="col-span-2 text-slate-600">{format(new Date(order.createdAt), 'dd/MM/yy HH:mm')}</div>
             <div className="col-span-1 font-semibold">{order.total_price.toLocaleString('he-IL')}₪</div>
             <div className="col-span-2">
@@ -57,15 +121,22 @@ const OrderRow = ({ order, onStatusChange, onDelete }) => {
     );
 };
 
-
+// --- הדף הראשי ---
 export default function ManageOrdersPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [hotelFilter, setHotelFilter] = useState('all');
+    
+    // ✨ סטייט לדיאלוג שיוך מחדש
+    const [reassignOrder, setReassignOrder] = useState(null);
+
     const queryClient = useQueryClient();
 
     const { data: orders = [], isLoading: isLoadingOrders, isError: isOrdersError, error: ordersError } = useQuery({ queryKey: ['adminAllOrders'], queryFn: fetchAllOrders });
     const { data: hotels = [] } = useQuery({ queryKey: ['hotels'], queryFn: fetchHotels });
+    
+    // ✨ שליפת משתמשים (עבור הדיאלוג)
+    const { data: users = [] } = useQuery({ queryKey: ['usersList'], queryFn: fetchUsers });
 
     const commonMutationOptions = {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['adminAllOrders'] }),
@@ -73,6 +144,17 @@ export default function ManageOrdersPage() {
     };
 
     const updateStatusMutation = useMutation({ ...commonMutationOptions, mutationFn: updateOrderStatus });
+    
+    // ✨ המוטציה לשינוי שיוך
+    const reassignMutation = useMutation({
+        ...commonMutationOptions,
+        mutationFn: updateOrderOwner,
+        onSuccess: () => {
+            toast.success('שיוך ההזמנה שונה בהצלחה!');
+            queryClient.invalidateQueries({ queryKey: ['adminAllOrders'] });
+        }
+    });
+
     const deleteOrderMutation = useMutation({ ...commonMutationOptions, mutationFn: deleteOrderById });
     const bulkDeleteMutation = useMutation({
         ...commonMutationOptions,
@@ -84,9 +166,7 @@ export default function ManageOrdersPage() {
     });
 
     const filteredOrders = useMemo(() => {
-        // ✨ סידרנו מחדש את ההזמנות לפי התאריך העדכני ביותר
         const sortedOrders = orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
         return sortedOrders.filter(order => {
             const nameMatch = order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
             const statusMatch = statusFilter === 'all' || order.status === statusFilter;
@@ -119,7 +199,6 @@ export default function ManageOrdersPage() {
                         <SelectItem value="לא רלוונטי">לא רלוונטי</SelectItem>
                     </SelectContent>
                 </Select>
-                {/* ✨ פילטר המלונות ממוקם כאן */}
                 <Select value={hotelFilter} onValueChange={setHotelFilter}>
                     <SelectTrigger><Hotel className="ml-2 h-4 w-4" /><SelectValue placeholder="סנן לפי מלון" /></SelectTrigger>
                     <SelectContent>
@@ -149,7 +228,6 @@ export default function ManageOrdersPage() {
             )}
 
             <div className="bg-white rounded-lg shadow-md border overflow-hidden">
-                 {/* ✨ כותרות טבלה מעודכנות */}
                 <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-slate-50 font-medium text-slate-600 text-sm border-b">
                     <div className="col-span-2">לקוח</div>
                     <div className="col-span-2">מלון</div>
@@ -168,6 +246,8 @@ export default function ManageOrdersPage() {
                                 order={order}
                                 onStatusChange={(orderId, newStatus) => updateStatusMutation.mutate({ orderId, newStatus })}
                                 onDelete={(orderId) => { if (window.confirm('האם למחוק את ההזמנה?')) deleteOrderMutation.mutate(orderId) }}
+                                // ✨ חיבור ללחיצה על שינוי שיוך
+                                onReassignClick={setReassignOrder}
                             />
                         )
                     ) : (
@@ -175,6 +255,17 @@ export default function ManageOrdersPage() {
                     )}
                 </div>
             </div>
+
+            {/* ✨ הדיאלוג החדש לשינוי שיוך */}
+            {reassignOrder && (
+                <ReassignDialog
+                    isOpen={!!reassignOrder}
+                    order={reassignOrder}
+                    allUsers={users}
+                    onClose={() => setReassignOrder(null)}
+                    onConfirm={(orderId, newUserId) => reassignMutation.mutate({ orderId, newUserId })}
+                />
+            )}
         </div>
     );
 }
