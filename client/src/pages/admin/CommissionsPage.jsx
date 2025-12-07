@@ -21,8 +21,8 @@ import {
 } from 'lucide-react';
 
 // --- הגדרות עמודות מהאקסל ---
-// הוספתי את "מתאריך" לרשימת החיפוש עבור הקובץ שלך
-const RES_COL_ARRIVAL_OPTIONS = ["מתאריך", "c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
+// הוספנו את "מתאריך" כדי לזהות את התאריך בקובץ שלך, אבל הלוגיקה העסקית נשמרת
+const ARRIVAL_KEYWORDS = ["מתאריך", "c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
 
 // --- פונקציות עזר ---
 
@@ -38,40 +38,31 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ פונקציה משופרת לזיהוי תאריך (כולל תמיכה בפורמט CSV ישראלי)
+// ✨ פונקציה לזיהוי תאריך (נשאר התיקון היחיד כדי שהתצוגה תעבוד)
 function findArrivalDate(row) {
     if (row.eventDate) return new Date(row.eventDate);
 
-    // חיפוש חכם בכל העמודות
     const keys = Object.keys(row);
     for (const key of keys) {
         const lowerKey = key.toLowerCase();
-        if (RES_COL_ARRIVAL_OPTIONS.some(k => lowerKey.includes(k))) {
+        if (ARRIVAL_KEYWORDS.some(k => lowerKey.includes(k))) {
             const val = row[key];
             
-            // אופציה א': תאריך אמיתי (מאקסל תקין)
             if (val instanceof Date && !isNaN(val)) return val;
 
-            // אופציה ב': מספר סידורי של אקסל
             if (typeof val === 'number' && val > 20000) {
                 return new Date(Math.round((val - 25569) * 86400 * 1000));
             }
 
-            // אופציה ג': מחרוזת (CSV)
             if (typeof val === 'string') {
-                // מנקים נקודות והופכים ללוכסנים (23.10.24 -> 23/10/24)
                 const dateStr = val.trim().replace(/\./g, '/').replace(/-/g, '/');
-                
                 if (dateStr.includes('/')) {
                     const parts = dateStr.split('/');
                     if (parts.length === 3) {
                         let day = parseInt(parts[0]);
                         let month = parseInt(parts[1]);
                         let year = parseInt(parts[2]);
-                        
-                        // השלמת שנה קצרה
                         if (year < 100) year += 2000;
-                        
                         const d = new Date(year, month - 1, day);
                         if (!isNaN(d.getTime())) return d;
                     }
@@ -193,7 +184,7 @@ function CommissionGenerator({ onReportGenerated }) {
     const [isFixDialogOpen, setIsFixDialogOpen] = useState(false);
     const [rowToFix, setRowToFix] = useState(null);
     const [fixAmount, setFixAmount] = useState('');
-    const [fixRate, setFixRate] = useState(''); // אחוז ידני
+    const [fixRate, setFixRate] = useState(''); 
     const [fixNote, setFixNote] = useState('');
 
     const queryClient = useQueryClient();
@@ -225,13 +216,12 @@ function CommissionGenerator({ onReportGenerated }) {
         setSelectedRows(new Set());
     };
 
-    // זיהוי שורת כותרת חכם (סורק עד שורה 50)
+    // זיהוי כותרות
     const findHeaderRow = (data) => {
         for (let i = 0; i < Math.min(data.length, 50); i++) {
             const row = data[i];
             const rowStr = row.map(cell => String(cell).toLowerCase()).join(' ');
             
-            // חיפוש מילים מזהות שקיימות בקבצים שלך
             const hasOrder = rowStr.includes('הזמנה') || rowStr.includes('order');
             const hasDate = rowStr.includes('מתאריך') || rowStr.includes('תאריך') || rowStr.includes('date');
             
@@ -273,7 +263,6 @@ function CommissionGenerator({ onReportGenerated }) {
         reader.readAsArrayBuffer(file);
     };
 
-    // ✨ טעינת הזמנות מהמערכת
     const handleLoadFromDB = async () => {
         const toastId = toast.loading('טוען הזמנות מהמערכת...');
         try {
@@ -310,8 +299,6 @@ function CommissionGenerator({ onReportGenerated }) {
 
     const processInvoices = (data) => {
         const map = {};
-        
-        // עזר למציאת עמודה לפי מילות מפתח
         const findCol = (row, options) => {
             const keys = Object.keys(row);
             for (const opt of options) {
@@ -335,8 +322,8 @@ function CommissionGenerator({ onReportGenerated }) {
             if (folioRaw) {
                 let folioStr = folioRaw.toString().trim();
                 
-                // 🔥🔥🔥 חזרנו ללוגיקה המקורית והמדויקת שלך! 🔥🔥🔥
-                // אם המספר ארוך מ-6, חותכים את 2 הספרות האחרונות
+                // 🔥🔥🔥 לוגיקה מקורית (החזרתי אותה במדויק): 🔥🔥🔥
+                // אם המספר ארוך מ-6 ספרות, אנחנו מניחים שיש סיומת וחותכים את ה-2 האחרונות.
                 let masterId = folioStr.length > 6 ? folioStr.slice(0, -2) : folioStr;
                 
                 let key = "ID_" + masterId;
@@ -433,8 +420,7 @@ function CommissionGenerator({ onReportGenerated }) {
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
-            // 🔥🔥🔥 חזרנו ללוגיקה המקורית והמחמירה יותר 🔥🔥🔥
-            // רק המילה "קבוצות" בעברית תגרום להורדת עמלה
+            // 🔥🔥🔥 לוגיקה מקורית: רק "קבוצות" בעברית מוריד עמלה 🔥🔥🔥
             let isGroup = item.priceCode.includes("קבוצות");
             let commissionRate = isGroup ? 0.015 : 0.03;
 
