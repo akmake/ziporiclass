@@ -36,10 +36,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // ✨ שדה חדש: האם המשתמש רשאי לראות עמלות
+    // האם המשתמש רשאי לראות עמלות
     canViewCommissions: {
       type: Boolean,
       default: false,
+    },
+    // ✨ שדה חדש: שמות נרדפים לזיהוי בדוחות עמלות (למשל: ["רבקה", "רבקה כ."])
+    commissionAliases: {
+      type: [String],
+      default: []
     },
     cart: {
       type: [cartItemSchema],

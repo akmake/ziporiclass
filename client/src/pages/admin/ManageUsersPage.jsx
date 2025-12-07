@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/Switch';
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/Dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Users, Trash2, PlusCircle, Briefcase, Wrench, Shield } from 'lucide-react';
+import { Users, Trash2, PlusCircle, Briefcase, Wrench, Shield, Edit } from 'lucide-react';
 
 // API Functions
 const fetchUsers = async () => (await api.get('/admin/users')).data;
@@ -27,12 +27,17 @@ const roleLabels = {
 export default function ManageUsersPage() {
     const queryClient = useQueryClient();
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-    
-    // ✨ הוספנו את canViewCommissions לסטייט ההתחלתי
-    const [newUserForm, setNewUserForm] = useState({ 
-        name: '', email: '', password: '', role: 'sales', 
-        canManagePriceLists: false, canViewCommissions: false 
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+    // State ליצירה
+    const [newUserForm, setNewUserForm] = useState({
+        name: '', email: '', password: '', role: 'sales',
+        canManagePriceLists: false, canViewCommissions: false,
+        aliasesString: '' // ✨ מחרוזת קלט לכינויים
     });
+
+    // State לעריכה
+    const [editingUser, setEditingUser] = useState(null);
 
     const { data: users = [], isLoading, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
 
@@ -41,27 +46,63 @@ export default function ManageUsersPage() {
         onError: (err) => toast.error(err.response?.data?.message || 'אירעה שגיאה'),
     };
 
-    const updateUserMutation = useMutation({ ...commonMutationOptions, mutationFn: updateUser });
+    const updateUserMutation = useMutation({
+        mutationFn: updateUser,
+        onSuccess: () => {
+            toast.success('פרטי משתמש עודכנו!');
+            setIsEditDialogOpen(false);
+            setEditingUser(null);
+            commonMutationOptions.onSuccess();
+        },
+        onError: commonMutationOptions.onError
+    });
+
     const createUserMutation = useMutation({
         ...commonMutationOptions,
         mutationFn: createUser,
         onSuccess: () => {
             commonMutationOptions.onSuccess();
             setIsCreateDialogOpen(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false });
+            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false, aliasesString: '' });
             toast.success('משתמש נוצר בהצלחה!');
         },
     });
+    
     const deleteUserMutation = useMutation({ ...commonMutationOptions, mutationFn: deleteUser });
 
-    // ✨ פונקציה גנרית לשינוי הרשאות
+    // שינוי הרשאות מהיר (Switch)
     const handlePermissionChange = (user, field, value) => {
         updateUserMutation.mutate({ ...user, [field]: value });
     };
 
     const handleCreateUser = (e) => {
         e.preventDefault();
-        createUserMutation.mutate(newUserForm);
+        // המרת מחרוזת הכינויים למערך
+        const commissionAliases = newUserForm.aliasesString.split(',').map(s => s.trim()).filter(Boolean);
+        createUserMutation.mutate({ ...newUserForm, commissionAliases });
+    };
+
+    const handleEditUserSubmit = (e) => {
+        e.preventDefault();
+        if (!editingUser) return;
+        // המרת מחרוזת הכינויים למערך
+        const commissionAliases = editingUser.aliasesString.split(',').map(s => s.trim()).filter(Boolean);
+        
+        updateUserMutation.mutate({
+            _id: editingUser._id,
+            role: editingUser.role,
+            canManagePriceLists: editingUser.canManagePriceLists,
+            canViewCommissions: editingUser.canViewCommissions,
+            commissionAliases
+        });
+    };
+
+    const openEditDialog = (user) => {
+        setEditingUser({
+            ...user,
+            aliasesString: user.commissionAliases ? user.commissionAliases.join(', ') : ''
+        });
+        setIsEditDialogOpen(true);
     };
 
     const handleDeleteUser = (userId) => {
@@ -75,7 +116,7 @@ export default function ManageUsersPage() {
             <header className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3"><Users /> ניהול משתמשים</h1>
-                    <p className="mt-2 text-gray-600">צפייה, הרשאות ויצירת משתמשים חדשים.</p>
+                    <p className="mt-2 text-gray-600">צפייה, הרשאות, כינויים ודוחות.</p>
                 </div>
                 <Button onClick={() => setIsCreateDialogOpen(true)}><PlusCircle className="ml-2" /> צור משתמש חדש</Button>
             </header>
@@ -88,14 +129,15 @@ export default function ManageUsersPage() {
                                 <th className="px-4 py-3 text-right font-medium">שם</th>
                                 <th className="px-4 py-3 text-right font-medium">אימייל</th>
                                 <th className="px-4 py-3 text-right font-medium">תפקיד</th>
+                                <th className="px-4 py-3 text-right font-medium">כינויים (בדוחות)</th> {/* ✨ */}
                                 <th className="px-4 py-3 text-right font-medium">ניהול מחירונים</th>
-                                <th className="px-4 py-3 text-right font-medium">צפייה בעמלות</th> {/* ✨ עמודה חדשה */}
+                                <th className="px-4 py-3 text-right font-medium">צפייה בעמלות</th>
                                 <th className="px-4 py-3"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {isLoading && <tr><td colSpan="6" className="p-8 text-center">טוען משתמשים...</td></tr>}
-                            {isError && <tr><td colSpan="6" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
+                            {isLoading && <tr><td colSpan="7" className="p-8 text-center">טוען משתמשים...</td></tr>}
+                            {isError && <tr><td colSpan="7" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
 
                             {users.map(user => (
                                 <tr key={user._id} className="hover:bg-gray-50/50">
@@ -103,7 +145,7 @@ export default function ManageUsersPage() {
                                     <td className="px-4 py-3 text-gray-600">{user.email}</td>
                                     <td className="px-4 py-3">
                                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
-                                            ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
+                                         ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
                                             user.role === 'maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                                             {user.role === 'admin' && <Shield size={12}/>}
                                             {user.role === 'maintenance' && <Wrench size={12}/>}
@@ -111,25 +153,33 @@ export default function ManageUsersPage() {
                                             {roleLabels[user.role] || user.role}
                                         </span>
                                     </td>
-                                    {/* ניהול מחירונים */}
+                                    {/* ✨ הצגת הכינויים */}
+                                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[150px] truncate" title={user.commissionAliases?.join(', ')}>
+                                        {user.commissionAliases && user.commissionAliases.length > 0 ? user.commissionAliases.join(', ') : '-'}
+                                    </td>
+
+                                    {/* הרשאות */}
                                     <td className="px-4 py-3">
                                         <Switch
                                             checked={user.canManagePriceLists}
                                             onCheckedChange={(checked) => handlePermissionChange(user, 'canManagePriceLists', checked)}
                                             disabled={updateUserMutation.isPending || user.role === 'admin'}
-                                            aria-label="ניהול מחירונים"
                                         />
                                     </td>
-                                    {/* ✨ צפייה בעמלות */}
                                     <td className="px-4 py-3">
                                         <Switch
                                             checked={user.canViewCommissions}
                                             onCheckedChange={(checked) => handlePermissionChange(user, 'canViewCommissions', checked)}
                                             disabled={updateUserMutation.isPending || user.role === 'admin'}
-                                            aria-label="צפייה בעמלות"
                                         />
                                     </td>
-                                    <td className="px-4 py-3 text-left">
+
+                                    <td className="px-4 py-3 text-left flex gap-2 justify-end">
+                                        {/* כפתור עריכה */}
+                                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
+                                            <Edit className="h-4 w-4 text-slate-500" />
+                                        </Button>
+                                        
                                         <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user._id)} disabled={user.role === 'admin'}>
                                             <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
@@ -162,6 +212,17 @@ export default function ManageUsersPage() {
                             </Select>
                         </div>
 
+                        {/* ✨ שדה כינויים */}
+                        <div>
+                            <Label className="mb-1 block">שמות נרדפים בדוחות (מופרד בפסיקים)</Label>
+                            <Input 
+                                placeholder='למשל: רבקה, רבקה כ, Rivka' 
+                                value={newUserForm.aliasesString} 
+                                onChange={(e) => setNewUserForm(p => ({...p, aliasesString: e.target.value}))} 
+                            />
+                            <p className="text-xs text-gray-500 mt-1">אלו השמות שהמערכת תחפש בקבצי האקסל כדי לשייך עמלות.</p>
+                        </div>
+
                         {/* הרשאות נוספות */}
                         {newUserForm.role !== 'admin' && newUserForm.role !== 'maintenance' && (
                             <div className="space-y-3">
@@ -169,7 +230,6 @@ export default function ManageUsersPage() {
                                     <Switch id="canManage" checked={newUserForm.canManagePriceLists} onCheckedChange={(c) => setNewUserForm(p => ({...p, canManagePriceLists: c}))} />
                                     <Label htmlFor="canManage">הרשאה לניהול מחירונים</Label>
                                 </div>
-                                {/* ✨ מתג חדש ליצירה */}
                                 <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
                                     <Switch id="canViewComm" checked={newUserForm.canViewCommissions} onCheckedChange={(c) => setNewUserForm(p => ({...p, canViewCommissions: c}))} />
                                     <Label htmlFor="canViewComm">הרשאה לצפייה בעמלות</Label>
@@ -181,6 +241,55 @@ export default function ManageUsersPage() {
                         <DialogClose asChild><Button variant="outline">ביטול</Button></DialogClose>
                         <Button type="submit" form="createUserForm" disabled={createUserMutation.isPending}>
                             {createUserMutation.isPending ? 'יוצר...' : 'שמור משתמש'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ✨ Edit User Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>עריכת משתמש - {editingUser?.name}</DialogTitle></DialogHeader>
+                    {editingUser && (
+                        <form id="editUserForm" onSubmit={handleEditUserSubmit} className="space-y-4 pt-4">
+                            <div>
+                                <Label className="mb-2 block">תפקיד</Label>
+                                <Select value={editingUser.role} onValueChange={(v) => setEditingUser(p => ({...p, role: v}))}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="sales">איש מכירות</SelectItem>
+                                        <SelectItem value="maintenance">תחזוקה</SelectItem>
+                                        <SelectItem value="admin">מנהל</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="mb-1 block">שמות נרדפים בדוחות</Label>
+                                <Input 
+                                    value={editingUser.aliasesString} 
+                                    onChange={(e) => setEditingUser(p => ({...p, aliasesString: e.target.value}))} 
+                                />
+                            </div>
+
+                            {editingUser.role !== 'admin' && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
+                                        <Switch checked={editingUser.canManagePriceLists} onCheckedChange={(c) => setEditingUser(p => ({...p, canManagePriceLists: c}))} />
+                                        <Label>ניהול מחירונים</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
+                                        <Switch checked={editingUser.canViewCommissions} onCheckedChange={(c) => setEditingUser(p => ({...p, canViewCommissions: c}))} />
+                                        <Label>צפייה בעמלות</Label>
+                                    </div>
+                                </div>
+                            )}
+                        </form>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>ביטול</Button>
+                        <Button type="submit" form="editUserForm" disabled={updateUserMutation.isPending}>
+                            {updateUserMutation.isPending ? 'מעדכן...' : 'שמור שינויים'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

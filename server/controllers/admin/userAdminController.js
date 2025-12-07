@@ -10,18 +10,23 @@ export const getAllUsers = async (req, res) => {
     }
 };
 
+// עדכון משתמש (כולל הרשאות ושמות נרדפים)
 export const updateUserPermissions = async (req, res) => {
-    // ✨ הוספנו את canViewCommissions
-    const { role, canManagePriceLists, canViewCommissions } = req.body;
+    const { role, canManagePriceLists, canViewCommissions, commissionAliases } = req.body;
     try {
         const user = await User.findById(req.params.id);
         if (user) {
             if (role) user.role = role;
             if (canManagePriceLists !== undefined) user.canManagePriceLists = canManagePriceLists;
-            if (canViewCommissions !== undefined) user.canViewCommissions = canViewCommissions; // ✨ עדכון
+            if (canViewCommissions !== undefined) user.canViewCommissions = canViewCommissions;
             
+            // ✨ עדכון שמות נרדפים
+            if (commissionAliases !== undefined) {
+                user.commissionAliases = Array.isArray(commissionAliases) ? commissionAliases : [];
+            }
+
             await user.save();
-            res.json({ message: 'הרשאות עודכנו בהצלחה' });
+            res.json({ message: 'פרטי משתמש עודכנו בהצלחה' });
         } else {
             res.status(404).json({ message: 'משתמש לא נמצא' });
         }
@@ -32,8 +37,7 @@ export const updateUserPermissions = async (req, res) => {
 };
 
 export const createUser = async (req, res) => {
-    // ✨ הוספנו את canViewCommissions
-    const { name, email, password, role, canManagePriceLists, canViewCommissions } = req.body;
+    const { name, email, password, role, canManagePriceLists, canViewCommissions, commissionAliases } = req.body;
 
     if (!name || !email || !password) {
         return res.status(400).json({ message: 'שם, אימייל וסיסמה הם שדות חובה' });
@@ -58,7 +62,9 @@ export const createUser = async (req, res) => {
             passwordHash,
             role: finalRole,
             canManagePriceLists: canManagePriceLists || false,
-            canViewCommissions: canViewCommissions || false, // ✨ שמירה
+            canViewCommissions: canViewCommissions || false,
+            // ✨ שמירת שמות נרדפים ביצירה
+            commissionAliases: Array.isArray(commissionAliases) ? commissionAliases : []
         });
 
         res.status(201).json({

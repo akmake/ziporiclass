@@ -28,8 +28,8 @@ export const createCommissionReport = catchAsync(async (req, res) => {
       masterId: item.masterId,
       clerkName: item.clerk,
       guestName: item.guestName,
-      
-      // ✨ שמירת תאריך ההגעה
+
+      // שמירת תאריך ההגעה
       arrivalDate: item.arrivalDate ? new Date(item.arrivalDate) : null,
 
       // המרת מחרוזת החשבוניות למערך
@@ -69,8 +69,45 @@ export const createCommissionReport = catchAsync(async (req, res) => {
   res.status(201).json(newReport);
 });
 
-// 3. קבלת היסטוריית דוחות (עבור הטאב השני באתר)
+// 3. קבלת היסטוריית דוחות
 export const getAllReports = catchAsync(async (req, res) => {
   const reports = await CommissionReport.find({}).sort({ createdAt: -1 });
   res.json(reports);
+});
+
+// ✨ 4. קבלת נתוני העמלה האחרונה למשתמש המחובר (דף הבית)
+export const getMyLatestCommission = catchAsync(async (req, res) => {
+  const user = req.user;
+  
+  // בניית רשימת שמות לחיפוש: השם הרשמי + הכינויים שהוגדרו
+  const searchNames = [user.name, ...(user.commissionAliases || [])];
+
+  // שליפת הדוח האחרון ביותר
+  const lastReport = await CommissionReport.findOne({}).sort({ createdAt: -1 });
+
+  if (!lastReport) {
+    return res.json({ found: false, message: 'טרם הופקו דוחות עמלה.' });
+  }
+
+  // סינון השורות בדוח ששייכות למשתמש הזה (לפי השמות)
+  const myItems = lastReport.items.filter(item => 
+    searchNames.some(alias => alias.trim() === item.clerkName?.trim())
+  );
+
+  if (myItems.length === 0) {
+    return res.json({ found: false, message: 'לא נמצאו עמלות בדוח האחרון.' });
+  }
+
+  // חישוב סה"כ
+  const totalCommission = myItems.reduce((sum, item) => sum + (item.commission || 0), 0);
+  const totalSales = myItems.reduce((sum, item) => sum + (item.paidAmount || 0), 0);
+
+  res.json({
+    found: true,
+    reportDate: lastReport.createdAt,
+    totalCommission,
+    totalSales,
+    itemsCount: myItems.length,
+    items: myItems // שולחים את הפירוט לקליינט
+  });
 });
