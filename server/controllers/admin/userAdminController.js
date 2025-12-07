@@ -11,7 +11,8 @@ export const getAllUsers = async (req, res) => {
 };
 
 export const updateUserPermissions = async (req, res) => {
-    const { role, canManagePriceLists, canViewCommissions, reportNames } = req.body;
+    // ✨ הוספנו את forcedLogoutTime לחילוץ
+    const { role, canManagePriceLists, canViewCommissions, reportNames, forcedLogoutTime } = req.body;
     try {
         const user = await User.findById(req.params.id);
         if (user) {
@@ -19,7 +20,9 @@ export const updateUserPermissions = async (req, res) => {
             if (canManagePriceLists !== undefined) user.canManagePriceLists = canManagePriceLists;
             if (canViewCommissions !== undefined) user.canViewCommissions = canViewCommissions;
             
-            // ✨ עדכון שמות לדוח
+            // ✨ עדכון שעת ניתוק (או איפוס אם נשלח null/מחרוזת ריקה)
+            if (forcedLogoutTime !== undefined) user.forcedLogoutTime = forcedLogoutTime || null;
+
             if (reportNames !== undefined) {
                 user.reportNames = Array.isArray(reportNames) ? reportNames : [];
             }
@@ -36,7 +39,8 @@ export const updateUserPermissions = async (req, res) => {
 };
 
 export const createUser = async (req, res) => {
-    const { name, email, password, role, canManagePriceLists, canViewCommissions, reportNames } = req.body;
+    // ✨ הוספנו את forcedLogoutTime לחילוץ
+    const { name, email, password, role, canManagePriceLists, canViewCommissions, reportNames, forcedLogoutTime } = req.body;
 
     if (!name || !email || !password) {
         return res.status(400).json({ message: 'שם, אימייל וסיסמה הם שדות חובה' });
@@ -62,8 +66,9 @@ export const createUser = async (req, res) => {
             role: finalRole,
             canManagePriceLists: canManagePriceLists || false,
             canViewCommissions: canViewCommissions || false,
-            // ✨ שמירת השם לדוח ביצירה
-            reportNames: Array.isArray(reportNames) ? reportNames : [] 
+            reportNames: Array.isArray(reportNames) ? reportNames : [],
+            // ✨ שמירת שעת ניתוק ביצירה
+            forcedLogoutTime: forcedLogoutTime || null
         });
 
         res.status(201).json({

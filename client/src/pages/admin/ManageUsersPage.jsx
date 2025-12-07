@@ -9,16 +9,14 @@ import { Switch } from '@/components/ui/Switch';
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/Dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Badge } from '@/components/ui/Badge.jsx'; // ודא שקיים
-import { Users, Trash2, PlusCircle, Briefcase, Wrench, Shield, Edit, X } from 'lucide-react';
+import { Badge } from '@/components/ui/Badge.jsx';
+import { Users, Trash2, PlusCircle, Edit, X, Clock } from 'lucide-react';
 
 // API Functions
 const fetchUsers = async () => (await api.get('/admin/users')).data;
 const updateUser = (userData) => api.put(`/admin/users/${userData._id}`, userData);
 const createUser = (userData) => api.post('/admin/users', userData);
 const deleteUser = (userId) => api.delete(`/admin/users/${userId}`);
-
-// ✨ פונקציה חדשה: שליפת שמות מהדוחות
 const fetchReportNames = async () => (await api.get('/admin/commissions/names')).data;
 
 const roleLabels = {
@@ -32,17 +30,17 @@ export default function ManageUsersPage() {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-    // ✨ שליפת השמות מהדוחות עבור ה-Select
     const { data: availableReportNames = [] } = useQuery({
         queryKey: ['commissionNames'],
         queryFn: fetchReportNames,
-        staleTime: 1000 * 60 * 5 // לשמור ל-5 דקות
+        staleTime: 1000 * 60 * 5 
     });
 
+    // ✨ הוספנו את forcedLogoutTime לסטייט
     const [newUserForm, setNewUserForm] = useState({
         name: '', email: '', password: '', role: 'sales',
         canManagePriceLists: false, canViewCommissions: false,
-        reportNames: [] // ✨ מערך לשמות הנבחרים
+        reportNames: [], forcedLogoutTime: '' 
     });
 
     const [editingUser, setEditingUser] = useState(null);
@@ -71,37 +69,32 @@ export default function ManageUsersPage() {
         onSuccess: () => {
             commonMutationOptions.onSuccess();
             setIsCreateDialogOpen(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false, reportNames: [] });
+            // ✨ איפוס הטופס כולל השדה החדש
+            setNewUserForm({ name: '', email: '', password: '', role: 'sales', canManagePriceLists: false, canViewCommissions: false, reportNames: [], forcedLogoutTime: '' });
             toast.success('משתמש נוצר בהצלחה!');
         },
     });
-    
+
     const deleteUserMutation = useMutation({ ...commonMutationOptions, mutationFn: deleteUser });
 
     const handlePermissionChange = (user, field, value) => {
         updateUserMutation.mutate({ ...user, [field]: value });
     };
 
-    // --- לוגיקה לניהול התגיות (בחירה מהרשימה) ---
-
-    // הוספה בטופס יצירה
     const addReportNameCreate = (name) => {
         if (!newUserForm.reportNames.includes(name)) {
             setNewUserForm(prev => ({ ...prev, reportNames: [...prev.reportNames, name] }));
         }
     };
-    // הסרה בטופס יצירה
     const removeReportNameCreate = (name) => {
         setNewUserForm(prev => ({ ...prev, reportNames: prev.reportNames.filter(n => n !== name) }));
     };
 
-    // הוספה בטופס עריכה
     const addReportNameEdit = (name) => {
         if (!editingUser.reportNames.includes(name)) {
             setEditingUser(prev => ({ ...prev, reportNames: [...prev.reportNames, name] }));
         }
     };
-    // הסרה בטופס עריכה
     const removeReportNameEdit = (name) => {
         setEditingUser(prev => ({ ...prev, reportNames: prev.reportNames.filter(n => n !== name) }));
     };
@@ -114,20 +107,22 @@ export default function ManageUsersPage() {
     const handleEditUserSubmit = (e) => {
         e.preventDefault();
         if (!editingUser) return;
-        
+
         updateUserMutation.mutate({
             _id: editingUser._id,
             role: editingUser.role,
             canManagePriceLists: editingUser.canManagePriceLists,
             canViewCommissions: editingUser.canViewCommissions,
-            reportNames: editingUser.reportNames
+            reportNames: editingUser.reportNames,
+            forcedLogoutTime: editingUser.forcedLogoutTime // ✨ שליחת השעה לעדכון
         });
     };
 
     const openEditDialog = (user) => {
         setEditingUser({
             ...user,
-            reportNames: user.reportNames || []
+            reportNames: user.reportNames || [],
+            forcedLogoutTime: user.forcedLogoutTime || '' // ✨ טעינת השעה הקיימת
         });
         setIsEditDialogOpen(true);
     };
@@ -143,7 +138,7 @@ export default function ManageUsersPage() {
             <header className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3"><Users /> ניהול משתמשים</h1>
-                    <p className="mt-2 text-gray-600">צפייה, הרשאות והגדרת שמות לדוחות.</p>
+                    <p className="mt-2 text-gray-600">צפייה, הרשאות, שעות פעילות והגדרת שמות לדוחות.</p>
                 </div>
                 <Button onClick={() => setIsCreateDialogOpen(true)}><PlusCircle className="ml-2" /> צור משתמש חדש</Button>
             </header>
@@ -156,15 +151,16 @@ export default function ManageUsersPage() {
                                 <th className="px-4 py-3 text-right font-medium">שם</th>
                                 <th className="px-4 py-3 text-right font-medium">אימייל</th>
                                 <th className="px-4 py-3 text-right font-medium">תפקיד</th>
-                                <th className="px-4 py-3 text-right font-medium">שמות מקושרים (בדוחות)</th> {/* ✨ */}
+                                <th className="px-4 py-3 text-right font-medium">שעת ניתוק</th> {/* ✨ עמודה חדשה */}
+                                <th className="px-4 py-3 text-right font-medium">שמות מקושרים</th>
                                 <th className="px-4 py-3 text-right font-medium">ניהול מחירונים</th>
                                 <th className="px-4 py-3 text-right font-medium">עמלות</th>
                                 <th className="px-4 py-3"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {isLoading && <tr><td colSpan="7" className="p-8 text-center">טוען משתמשים...</td></tr>}
-                            {isError && <tr><td colSpan="7" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
+                            {isLoading && <tr><td colSpan="8" className="p-8 text-center">טוען משתמשים...</td></tr>}
+                            {isError && <tr><td colSpan="8" className="p-8 text-center text-red-600">שגיאה בטעינת משתמשים</td></tr>}
 
                             {users.map(user => (
                                 <tr key={user._id} className="hover:bg-gray-50/50">
@@ -172,13 +168,21 @@ export default function ManageUsersPage() {
                                     <td className="px-4 py-3 text-gray-600">{user.email}</td>
                                     <td className="px-4 py-3">
                                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
-                                         ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
+                                            ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
                                             user.role === 'maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                                             {roleLabels[user.role] || user.role}
                                         </span>
                                     </td>
-                                    
-                                    {/* ✨ הצגת התגיות בטבלה */}
+
+                                    {/* ✨ הצגת שעת ניתוק */}
+                                    <td className="px-4 py-3 font-mono text-gray-600">
+                                        {user.forcedLogoutTime ? (
+                                            <span className="flex items-center gap-1 bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs">
+                                                <Clock size={12}/> {user.forcedLogoutTime}
+                                            </span>
+                                        ) : '-'}
+                                    </td>
+
                                     <td className="px-4 py-3">
                                         <div className="flex flex-wrap gap-1">
                                             {user.reportNames && user.reportNames.length > 0 ? (
@@ -232,19 +236,31 @@ export default function ManageUsersPage() {
                         <Input name="email" type="email" placeholder="אימייל" value={newUserForm.email} onChange={(e) => setNewUserForm(p => ({...p, email: e.target.value}))} required />
                         <Input name="password" type="password" placeholder="סיסמה" value={newUserForm.password} onChange={(e) => setNewUserForm(p => ({...p, password: e.target.value}))} required />
 
-                        <div>
-                            <Label className="mb-2 block">תפקיד במערכת</Label>
-                            <Select value={newUserForm.role} onValueChange={(v) => setNewUserForm(p => ({...p, role: v}))}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="sales">איש מכירות (רגיל)</SelectItem>
-                                    <SelectItem value="maintenance">עובד תחזוקה/נקיון</SelectItem>
-                                    <SelectItem value="admin">מנהל מערכת (Admin)</SelectItem>
-                                </SelectContent>
-                            </Select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label className="mb-2 block">תפקיד במערכת</Label>
+                                <Select value={newUserForm.role} onValueChange={(v) => setNewUserForm(p => ({...p, role: v}))}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="sales">איש מכירות (רגיל)</SelectItem>
+                                        <SelectItem value="maintenance">עובד תחזוקה/נקיון</SelectItem>
+                                        <SelectItem value="admin">מנהל מערכת (Admin)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            
+                            {/* ✨ שדה שעת ניתוק חדש */}
+                            <div>
+                                <Label className="mb-2 block">שעת ניתוק אוטומטי</Label>
+                                <Input 
+                                    type="time" 
+                                    value={newUserForm.forcedLogoutTime} 
+                                    onChange={(e) => setNewUserForm(p => ({...p, forcedLogoutTime: e.target.value}))}
+                                    className="ltr-input" // אם יש לך מחלקה ליישור משמאל
+                                />
+                            </div>
                         </div>
 
-                        {/* ✨ אזור בחירת שמות מהדוחות */}
                         <div className="bg-slate-50 p-3 rounded border space-y-2">
                             <Label className="block">שיוך שמות מדוחות עמלות</Label>
                             <Select onValueChange={addReportNameCreate}>
@@ -261,8 +277,7 @@ export default function ManageUsersPage() {
                                     )}
                                 </SelectContent>
                             </Select>
-                            
-                            {/* תצוגת התגיות שנבחרו */}
+
                             <div className="flex flex-wrap gap-2 mt-2 min-h-[30px]">
                                 {newUserForm.reportNames.map(name => (
                                     <Badge key={name} className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200 flex items-center gap-1 pl-1 pr-2 cursor-default">
@@ -274,7 +289,6 @@ export default function ManageUsersPage() {
                             </div>
                         </div>
 
-                        {/* הרשאות נוספות */}
                         {newUserForm.role !== 'admin' && newUserForm.role !== 'maintenance' && (
                             <div className="space-y-3">
                                 <div className="flex items-center space-x-2 space-x-reverse bg-slate-50 p-3 rounded border">
@@ -297,25 +311,37 @@ export default function ManageUsersPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* ✨ Edit User Dialog */}
+            {/* Edit User Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent>
                     <DialogHeader><DialogTitle>עריכת משתמש - {editingUser?.name}</DialogTitle></DialogHeader>
                     {editingUser && (
                         <form id="editUserForm" onSubmit={handleEditUserSubmit} className="space-y-4 pt-4">
-                            <div>
-                                <Label className="mb-2 block">תפקיד</Label>
-                                <Select value={editingUser.role} onValueChange={(v) => setEditingUser(p => ({...p, role: v}))}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="sales">איש מכירות</SelectItem>
-                                        <SelectItem value="maintenance">תחזוקה</SelectItem>
-                                        <SelectItem value="admin">מנהל</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label className="mb-2 block">תפקיד</Label>
+                                    <Select value={editingUser.role} onValueChange={(v) => setEditingUser(p => ({...p, role: v}))}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="sales">איש מכירות</SelectItem>
+                                            <SelectItem value="maintenance">תחזוקה</SelectItem>
+                                            <SelectItem value="admin">מנהל</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* ✨ שדה שעת ניתוק בעריכה */}
+                                <div>
+                                    <Label className="mb-2 block">שעת ניתוק אוטומטי</Label>
+                                    <Input 
+                                        type="time" 
+                                        value={editingUser.forcedLogoutTime || ''} 
+                                        onChange={(e) => setEditingUser(p => ({...p, forcedLogoutTime: e.target.value}))}
+                                        className="ltr-input"
+                                    />
+                                </div>
                             </div>
 
-                            {/* ✨ אזור עריכת שמות מהדוחות */}
                             <div className="bg-slate-50 p-3 rounded border space-y-2">
                                 <Label className="block">שיוך שמות מדוחות עמלות</Label>
                                 <Select onValueChange={addReportNameEdit}>
@@ -332,7 +358,7 @@ export default function ManageUsersPage() {
                                         )}
                                     </SelectContent>
                                 </Select>
-                                
+
                                 <div className="flex flex-wrap gap-2 mt-2 min-h-[30px]">
                                     {(editingUser.reportNames || []).map(name => (
                                         <Badge key={name} className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200 flex items-center gap-1 pl-1 pr-2 cursor-default">

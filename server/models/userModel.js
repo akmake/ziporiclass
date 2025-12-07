@@ -40,7 +40,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // ✨ השדה החדש: שמות נרדפים לזיהוי בדוחות (למשל: ["כשר", "רבקה כ"])
+    // ✨✨✨ השדה החדש: שעת ניתוק אוטומטי (למשל "23:00") ✨✨✨
+    forcedLogoutTime: {
+      type: String,
+      default: null 
+    },
     reportNames: {
       type: [String],
       default: []
