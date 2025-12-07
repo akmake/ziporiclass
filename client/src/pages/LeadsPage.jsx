@@ -1,6 +1,6 @@
 // client/src/pages/LeadsPage.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/Button.jsx';
 import { Input } from "@/components/ui/Input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { LoaderCircle, Trash2, Phone, User, Calendar, MapPin, StickyNote } from 'lucide-react';
+// ✨ הוספנו את ArrowUp לאייקונים
+import { LoaderCircle, Trash2, Phone, User, Calendar, MapPin, StickyNote, ArrowUp } from 'lucide-react';
 
 // צבעים
 const GOLD_COLOR = '#bfa15f';
@@ -41,12 +42,36 @@ export default function LeadsPage() {
   const [noteToView, setNoteToView] = useState(null);
   const [rejectionDialogLeadId, setRejectionDialogLeadId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  
+  // ✨ State למיון - האם להקפיץ חדשים?
+  const [showNewFirst, setShowNewFirst] = useState(false);
 
   const { data: leads, isLoading, isError, error } = useQuery({
     queryKey: ['leads'],
     queryFn: fetchLeads,
     refetchInterval: 15000
   });
+
+  // ✨ לוגיקת המיון הדינמית
+  const displayedLeads = useMemo(() => {
+      if (!leads) return [];
+      
+      // אם הכפתור לא לחוץ - מחזירים את הרשימה כמו שהיא (לפי תאריך)
+      if (!showNewFirst) return leads;
+
+      // אם הכפתור לחוץ - יוצרים עותק וממיינים
+      return [...leads].sort((a, b) => {
+          const isANew = a.status === 'new';
+          const isBNew = b.status === 'new';
+
+          // אם a חדש ו-b לא -> a עולה למעלה (-1)
+          if (isANew && !isBNew) return -1;
+          // אם b חדש ו-a לא -> b עולה למעלה (1)
+          if (!isANew && isBNew) return 1;
+          // אם שניהם אותו דבר -> שומרים על הסדר המקורי (0)
+          return 0;
+      });
+  }, [leads, showNewFirst]);
 
   const updateStatusMutation = useMutation({
     mutationFn: updateLeadStatusApi,
@@ -93,8 +118,18 @@ export default function LeadsPage() {
 
   return (
     <div className="container mx-auto p-4 space-y-6">
-      <header>
+      <header className="flex flex-col md:flex-row justify-between items-center gap-4">
         <h1 className="text-3xl font-bold text-gray-900">ניהול פניות</h1>
+        
+        {/* ✨ כפתור הקפצה */}
+        <Button 
+            variant={showNewFirst ? "default" : "outline"} 
+            onClick={() => setShowNewFirst(!showNewFirst)}
+            className={`gap-2 ${showNewFirst ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}
+        >
+            <ArrowUp size={16} className={showNewFirst ? "text-white" : "text-blue-600"}/>
+            {showNewFirst ? 'מציג חדשים תחילה' : 'הקפץ פניות שלא נענו'}
+        </Button>
       </header>
 
       <div>
@@ -103,7 +138,8 @@ export default function LeadsPage() {
 
         {!isLoading && leads && (
             <div className="space-y-2" dir="rtl">
-                {leads.map(lead => (
+                {/* ✨ שימוש ב-displayedLeads הממוין */}
+                {displayedLeads.map(lead => (
                   <LeadStrip
                     key={lead._id}
                     lead={lead}
@@ -146,6 +182,7 @@ export default function LeadsPage() {
                       ))}
                   </div>
               </div>
+
               <DialogFooter>
                   <Button variant="outline" onClick={() => setRejectionDialogLeadId(null)}>ביטול</Button>
                   <Button onClick={submitRejection} className="bg-red-600 hover:bg-red-700 text-white">אישור</Button>
@@ -154,9 +191,9 @@ export default function LeadsPage() {
       </Dialog>
 
       <Dialog open={!!selectedLead} onOpenChange={(o) => !o && setSelectedLead(null)}>
-        <DialogContent className="max-w-xl max-h-[80vh] overflow-auto"><pre className="text-xs whitespace-pre-wrap" dir="ltr">{selectedLead?.body}</pre></DialogContent>
+          <DialogContent className="max-w-xl max-h-[80vh] overflow-auto"><pre className="text-xs whitespace-pre-wrap" dir="ltr">{selectedLead?.body}</pre></DialogContent>
       </Dialog>
-      
+
       <Dialog open={!!noteToView} onOpenChange={(o) => !o && setNoteToView(null)}>
         <DialogContent>
             <DialogHeader><DialogTitle>פרטים מלאים</DialogTitle></DialogHeader>
@@ -170,24 +207,19 @@ export default function LeadsPage() {
   );
 }
 
-// --- הרכיב המעוצב ---
+// --- הרכיב המעוצב (ללא שינוי, נשאר אותו דבר) ---
 const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) => {
 
   const isNew = lead.status === 'new';
 
-  // הגדרת צבעים לפי סטטוס
   const statusStyles = {
-      // ✨ כחול ל"לא נענה"
       'new': 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 font-bold',
       'in_progress': 'bg-amber-50 border-amber-200 text-amber-700',
       'closed': 'bg-green-50 border-green-200 text-green-700 font-bold',
       'not_relevant': 'bg-gray-100 border-gray-200 text-gray-400 decoration-slice'
   };
 
-  // ✨ קביעת צבע הפס הצידי: כחול לחדשים, זהב לכל השאר
   const sideBorderColor = isNew ? BLUE_COLOR : GOLD_COLOR;
-  
-  // ✨ רקע שורה: כחלחל עדין מאוד לחדשים, לבן לאחרים
   const rowBackground = isNew ? 'bg-blue-50/30' : 'bg-white';
 
   const handlePhoneClick = () => {
@@ -197,16 +229,16 @@ const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) =>
   };
 
   return (
-    <div 
+    <div
         className={`
             flex flex-col md:flex-row items-center gap-4 p-3 border-b border-gray-100 hover:bg-gray-50/80 transition-all group
             ${rowBackground}
         `}
-        style={{ borderRight: `4px solid ${sideBorderColor}` }} // הפס הצבעוני המשתנה
+        style={{ borderRight: `4px solid ${sideBorderColor}` }}
     >
         {/* 1. אזור שם ותאריך */}
         <div className="w-full md:w-[180px] flex flex-col justify-center min-w-[180px]">
-            <div 
+            <div
                 className={`font-bold text-sm md:text-base truncate cursor-pointer hover:text-blue-600 flex items-center gap-2 ${isNew ? 'text-black' : 'text-gray-700'}`}
                 onClick={onViewRaw}
                 title={lead.parsedName}
@@ -222,10 +254,10 @@ const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) =>
         {/* 2. טלפון */}
         <div className="w-full md:w-[130px] flex items-center min-w-[130px]">
             {lead.parsedPhone ? (
-                <a 
-                    href={`https://wa.me/${lead.parsedPhone}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
+                <a
+                    href={`https://wa.me/${lead.parsedPhone}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className={`text-sm font-medium hover:text-blue-600 transition-colors flex items-center gap-2 ${isNew ? 'text-blue-700' : 'text-gray-600'}`}
                     onClick={handlePhoneClick}
                     dir="ltr"
@@ -239,7 +271,7 @@ const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) =>
         </div>
 
         {/* 3. מלון והערה */}
-        <div 
+        <div
             className="w-full md:flex-1 flex flex-col justify-center min-w-0 cursor-pointer pr-4 border-r md:border-r-0 border-gray-100"
             onClick={onViewNote}
         >
@@ -257,10 +289,10 @@ const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) =>
 
         {/* 4. סטטוס ומחיקה */}
         <div className="w-full md:w-[200px] flex items-center gap-3 justify-between md:justify-end min-w-[200px]">
-            
+
             <div className="flex-grow md:flex-grow-0 w-full md:w-[160px]">
-                <Select 
-                    value={lead.status} 
+                <Select
+                    value={lead.status}
                     onValueChange={(val) => onStatusChange(lead._id, val)}
                 >
                     <SelectTrigger className={`h-8 text-xs shadow-sm ${statusStyles[lead.status] || 'bg-white border-gray-200'}`}>
@@ -273,8 +305,7 @@ const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) =>
                         <SelectItem value="not_relevant">לא רלוונטי</SelectItem>
                     </SelectContent>
                 </Select>
-                
-                {/* סיבת דחייה קטנה מתחת */}
+
                 {lead.rejectionReason && lead.status === 'not_relevant' && (
                     <p className="text-[10px] text-gray-400 truncate mt-1 text-center md:text-right w-full">
                         {lead.rejectionReason}
