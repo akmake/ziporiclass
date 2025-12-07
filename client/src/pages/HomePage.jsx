@@ -6,15 +6,15 @@ import { Button } from '@/components/ui/Button.jsx';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/Card.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import api from '@/utils/api.js';
-import { 
-    Megaphone, CalendarClock, Wallet, FileSpreadsheet, 
-    TrendingUp, AlertCircle, CheckCircle2, PlusCircle, ArrowLeft, Eye 
+import {
+    Megaphone, CalendarClock, Wallet, FileSpreadsheet,
+    TrendingUp, AlertCircle, CheckCircle2, PlusCircle, ArrowLeft, Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/stores/authStore.js';
 
 // --- הגדרות עיצוב ---
-const BRAND_COLOR = '#bfa15f'; 
+const BRAND_COLOR = '#bfa15f';
 const BRAND_BG_LIGHT = '#fcfbf8'; // רקע כמעט לבן עם נגיעת בז'
 const SERVER_ROOT = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/api$/, '');
 const LOGO_URL = `${SERVER_ROOT}/uploads/company-logo.png?t=${Date.now()}`;
@@ -90,10 +90,10 @@ export default function HomePage() {
 
         {/* --- כותרת אישית ולוגו --- */}
         <div className="text-center space-y-2 mb-8">
-            <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }} 
-                animate={{ opacity: 1, scale: 1 }} 
-                transition={{ duration: 0.6 }} 
+            <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6 }}
                 className="mb-6 flex justify-center"
             >
                 <img
@@ -113,7 +113,7 @@ export default function HomePage() {
         {isAuthenticated && (
             <>
                 {/* --- שורת המדדים (Stats Row) - המניע לפעולה --- */}
-                <motion.div 
+                <motion.div
                     initial="hidden" animate="visible" variants={cardVariants} transition={{ duration: 0.4 }}
                     className="grid grid-cols-1 md:grid-cols-3 gap-4"
                 >
@@ -164,13 +164,13 @@ export default function HomePage() {
 
                 {/* --- אזור העמלות (השכר) --- */}
                 {commissionData?.hasData && (
-                    <motion.div 
+                    <motion.div
                         initial="hidden" animate="visible" variants={cardVariants} transition={{ duration: 0.5, delay: 0.1 }}
                     >
                         <Card className="shadow-lg border-none bg-white overflow-hidden relative">
                             {/* פס קישוטי צדדי */}
                             <div className="absolute right-0 top-0 bottom-0 w-2" style={{ backgroundColor: BRAND_COLOR }}></div>
-                            
+
                             <CardHeader className="pb-2 border-b border-gray-100 bg-amber-50/30 pr-8">
                                 <div className="flex justify-between items-center">
                                     <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -195,8 +195,8 @@ export default function HomePage() {
                                         <p className="text-xl font-bold text-gray-800">{commissionData.stats.count}</p>
                                     </div>
                                     <div className="h-px sm:h-12 w-full sm:w-px bg-gray-200"></div>
-                                    <Button 
-                                        variant="outline" 
+                                    <Button
+                                        variant="outline"
                                         onClick={() => setShowCommissionDetails(true)}
                                         className="gap-2 border-amber-200 text-amber-800 hover:bg-amber-50"
                                     >
@@ -210,7 +210,7 @@ export default function HomePage() {
 
                 {/* --- אזור הודעות --- */}
                 {announcements.length > 0 && (
-                    <motion.div 
+                    <motion.div
                         initial="hidden" animate="visible" variants={cardVariants} transition={{ duration: 0.5, delay: 0.2 }}
                         className="space-y-4"
                     >
@@ -229,7 +229,7 @@ export default function HomePage() {
                                     <CardDescription className="text-xs">מאת: {msg.authorName}</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none" 
+                                    <div className="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none"
                                          dangerouslySetInnerHTML={{ __html: msg.content }} />
                                 </CardContent>
                             </Card>
