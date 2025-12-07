@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/Input.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import {
     FileSpreadsheet, AlertTriangle, Save, Filter,
-    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar
+    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar, Percent
 } from 'lucide-react';
 
 // --- הגדרות עמודות מהאקסל ---
@@ -29,7 +29,7 @@ const RES_COL_CLERK = "c_taken_clerk";
 const RES_COL_MASTER = "c_master_id";
 const RES_COL_PRICE = "price_local";
 const RES_COL_NAME = "guest_name";
-// ✨ עמודות אפשריות לתאריך הגעה
+const RES_COL_PRICE_CODE = "c_price_code"; // קוד מחיר לזיהוי קבוצות
 const RES_COL_ARRIVAL_OPTIONS = ["c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
 
 // --- פונקציות עזר ---
@@ -45,27 +45,20 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ חילוץ תאריך חכם מאקסל
 function findArrivalDate(row) {
     for (const col of RES_COL_ARRIVAL_OPTIONS) {
         if (row[col]) {
             const val = row[col];
-            // 1. אם זה מספר סידורי של אקסל
             if (typeof val === 'number') {
-                // המרת Excel Serial Date ל-JS Date
                 return new Date(Math.round((val - 25569) * 86400 * 1000));
             }
-            // 2. אם זה מחרוזת
             const dateStr = val.toString();
-            // פורמט DD/MM/YYYY
             if (dateStr.includes('/')) {
                 const parts = dateStr.split('/');
                 if (parts.length === 3) {
-                    // הנחה: DD/MM/YYYY או MM/DD/YYYY - ננסה לפי ההקשר הישראלי (DD/MM)
-                    return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); 
+                    return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
                 }
             }
-            // פורמט סטנדרטי
             const d = new Date(dateStr);
             if (!isNaN(d.getTime())) return d;
         }
@@ -73,7 +66,6 @@ function findArrivalDate(row) {
     return null;
 }
 
-// ✨ חישוב סיכום לפי נציגים (קיים)
 function getReportSummary(items) {
     const summary = {};
     items.forEach(item => {
@@ -91,7 +83,6 @@ function getReportSummary(items) {
         .sort((a, b) => b.totalCommission - a.totalCommission);
 }
 
-// קומפוננטת סיכום
 function ReportSummaryTable({ items }) {
     const summaryData = useMemo(() => getReportSummary(items), [items]);
 
@@ -148,7 +139,7 @@ export default function CommissionsPage() {
                 <TabsList className="bg-white border p-1 grid w-full grid-cols-3 lg:w-[600px]">
                     <TabsTrigger value="generator">מחולל דוחות (חדש)</TabsTrigger>
                     <TabsTrigger value="history">היסטוריית דוחות</TabsTrigger>
-                    <TabsTrigger value="by-date">דוח לפי תאריכי הגעה</TabsTrigger> {/* ✨ הטאב החדש */}
+                    <TabsTrigger value="by-date">דוח לפי תאריכי הגעה</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="generator" className="mt-6">
@@ -180,9 +171,11 @@ function CommissionGenerator({ onReportGenerated }) {
     const [selectedRows, setSelectedRows] = useState(new Set());
     const [step, setStep] = useState(1);
 
+    // --- State לדיאלוג התיקון ---
     const [isFixDialogOpen, setIsFixDialogOpen] = useState(false);
     const [rowToFix, setRowToFix] = useState(null);
     const [fixAmount, setFixAmount] = useState('');
+    const [fixRate, setFixRate] = useState(''); // ✨ השינוי: שומר אחוזים ולא סכום סופי
     const [fixNote, setFixNote] = useState('');
 
     const queryClient = useQueryClient();
@@ -296,8 +289,6 @@ function CommissionGenerator({ onReportGenerated }) {
             if (paidHistoryIds.includes(masterId)) return;
 
             let price = parseMoney(row["price_local"]);
-            
-            // ✨ חילוץ תאריך ההגעה מהשורה
             let arrivalDate = findArrivalDate(row);
 
             if (!tempConsolidated[masterId]) {
@@ -306,10 +297,10 @@ function CommissionGenerator({ onReportGenerated }) {
                     guestName: cleanStr(row["guest_name"]),
                     status: row["c_reservation_status"],
                     clerk: rowClerk,
-                    priceCode: cleanStr(row["c_price_code"] || ""),
+                    priceCode: cleanStr(row["c_price_code"] || ""), // שמירת קוד מחיר
                     totalOrderPrice: 0,
                     manualFix: false,
-                    arrivalDate: arrivalDate // שומרים אותו
+                    arrivalDate: arrivalDate
                 };
             }
             tempConsolidated[masterId].totalOrderPrice += price;
@@ -322,7 +313,7 @@ function CommissionGenerator({ onReportGenerated }) {
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
             let isGroup = item.priceCode.includes("קבוצות");
-            let commissionRate = isGroup ? 0.015 : 0.03;
+            let commissionRate = isGroup ? 0.015 : 0.03; // ברירת המחדל באחוזים (0.03 = 3%)
 
             let expectedWithVat = item.totalOrderPrice * 1.18;
             let diff = Math.abs(expectedWithVat - finalInvoiceAmount);
@@ -337,6 +328,7 @@ function CommissionGenerator({ onReportGenerated }) {
                 newSelectedIds.add(item.masterId);
             }
 
+            // חישוב הסכום בשקלים לפי האחוז
             let commissionToPay = finalInvoiceAmount * commissionRate;
 
             return {
@@ -346,7 +338,8 @@ function CommissionGenerator({ onReportGenerated }) {
                 commissionToPay,
                 expectedWithVat,
                 colorStatus,
-                isGroup
+                isGroup,
+                commissionRate: commissionRate * 100 // שמירת האחוז (למשל 3 או 1.5) לתצוגה
             };
         });
 
@@ -359,22 +352,39 @@ function CommissionGenerator({ onReportGenerated }) {
 
     const openFixDialog = (row) => {
         setRowToFix(row);
+        // טוען את הסכום בחשבונית
         setFixAmount(row.expectedWithVat > 0 ? Math.round(row.expectedWithVat) : row.finalInvoiceAmount);
+        
+        // ✨ קביעת אחוז ברירת המחדל לתיקון:
+        // אם כבר בוצע תיקון ידני בעבר ויש שדה rate שמור - נשתמש בו.
+        // אחרת, נשתמש בברירת המחדל לפי קבוצה (1.5) או רגיל (3).
+        const defaultRate = row.isGroup ? '1.5' : '3';
+        setFixRate(row.manualRate ? row.manualRate.toString() : defaultRate);
+        
         setFixNote('');
         setIsFixDialogOpen(true);
     };
 
     const applyFix = () => {
         if (!rowToFix) return;
+        
         const newAmount = parseFloat(fixAmount);
+        const rate = parseFloat(fixRate); // ✨ קריאת האחוז מהקלט
+
+        // ✨ הנוסחה: הסכום החדש * (האחוז / 100)
+        const calculatedCommission = newAmount * (rate / 100);
 
         const updatedRows = processedRows.map(r => {
             if (r.masterId === rowToFix.masterId) {
-                const commissionRate = r.isGroup ? 0.015 : 0.03;
                 return {
                     ...r,
                     finalInvoiceAmount: newAmount,
-                    commissionToPay: newAmount * commissionRate,
+                    
+                    // שדות מעודכנים:
+                    commissionToPay: calculatedCommission,
+                    commissionRate: rate, // לצורך תצוגה
+                    manualRate: rate,     // כדי לזכור שזה נקבע ידנית
+                    
                     finalInvNum: fixNote || r.finalInvNum || 'תיקון ידני',
                     colorStatus: 'green',
                     manualFix: true
@@ -389,7 +399,7 @@ function CommissionGenerator({ onReportGenerated }) {
         setSelectedRows(newSelected);
 
         setIsFixDialogOpen(false);
-        toast.success("העסקה תוקנה ואושרה!");
+        toast.success(`העסקה עודכנה לפי ${rate}%!`);
     };
 
     const handleGenerateReport = () => {
@@ -412,6 +422,9 @@ function CommissionGenerator({ onReportGenerated }) {
     const hiddenGreenCount = processedRows.length - visibleRows.length;
     const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.masterId)).reduce((sum, r) => sum + r.commissionToPay, 0);
 
+    // חישוב דינמי לתצוגה בדיאלוג בזמן אמת
+    const previewCommission = (parseFloat(fixAmount || 0) * (parseFloat(fixRate || 0) / 100));
+
     return (
         <div className="space-y-6 animate-in fade-in text-right">
             {step === 1 && (
@@ -422,6 +435,7 @@ function CommissionGenerator({ onReportGenerated }) {
                             <input type="file" onChange={(e) => handleFileUpload(e, 'invoices')} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/>
                         </CardContent>
                     </Card>
+
                     <Card className={`border-2 border-dashed ${reservationsData ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}>
                         <CardHeader><CardTitle>2. דו"ח הזמנות (250)</CardTitle></CardHeader>
                         <CardContent className="text-center">
@@ -456,6 +470,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                 </div>
                             ))}
                         </div>
+
                         <div className="mt-6 flex justify-between">
                             <Button variant="outline" onClick={() => setStep(1)}>חזור</Button>
                             <Button onClick={handleAnalyze} className="bg-purple-700 hover:bg-purple-800 gap-2 w-48"><Filter size={18}/> בצע ניתוח</Button>
@@ -538,7 +553,13 @@ function CommissionGenerator({ onReportGenerated }) {
                                                 <td className="p-3 text-gray-500 text-right">{row.totalOrderPrice.toLocaleString()}</td>
                                                 <td className="p-3 font-medium text-right">{row.expectedWithVat.toLocaleString()}</td>
                                                 <td className="p-3 font-bold text-right">{row.finalInvoiceAmount.toLocaleString()}</td>
-                                                <td className="p-3 text-purple-700 font-bold text-right">{row.commissionToPay.toLocaleString()}</td>
+                                                <td className="p-3 text-purple-700 font-bold text-right">
+                                                    {/* מציג את העמלה, ולידה בסוגריים את האחוז */}
+                                                    {row.commissionToPay.toLocaleString()}
+                                                    <span className="text-xs text-gray-400 font-normal mr-1">
+                                                        ({(row.commissionRate || (row.isGroup ? 1.5 : 3))}%)
+                                                    </span>
+                                                </td>
                                                 <td className="p-3 text-right">
                                                     {row.manualFix ?
                                                         <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">תוקן ידנית</span> :
@@ -562,15 +583,39 @@ function CommissionGenerator({ onReportGenerated }) {
                     <DialogHeader>
                         <DialogTitle>תיקון עסקה - {rowToFix?.guestName}</DialogTitle>
                         <DialogDescription>
-                            השתמש באפשרות זו אם הכסף שולם בחשבונית חיצונית או במזומן שלא עודכן בדוח.
+                            עדכון סכום לתשלום ואחוז עמלה.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div>
                             <Label>סכום לתשלום בפועל (כולל מע"מ)</Label>
                             <Input type="number" value={fixAmount} onChange={(e) => setFixAmount(e.target.value)} className="mt-1 font-bold text-lg"/>
-                            <p className="text-xs text-gray-500 mt-1">העמלה תחושב מחדש לפי סכום זה.</p>
+                            <p className="text-xs text-gray-500 mt-1">סכום העסקה שנכנס לקופה.</p>
                         </div>
+
+                        {/* ✨ שדה אחוז עמלה ידני (החדש) */}
+                        <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
+                            <Label className="text-purple-900">אחוז עמלה (%)</Label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Input
+                                    type="number"
+                                    value={fixRate}
+                                    onChange={(e) => setFixRate(e.target.value)}
+                                    className="font-bold text-lg border-purple-300 text-purple-800 w-24"
+                                />
+                                <span className="text-purple-700 font-bold"><Percent size={18}/></span>
+                                
+                                {/* תצוגת הסימולציה בזמן אמת */}
+                                <div className="mr-auto text-left">
+                                    <span className="text-xs text-gray-500 block">עמלה שתחושב:</span>
+                                    <span className="font-bold text-lg text-purple-700">{previewCommission.toLocaleString(undefined, { maximumFractionDigits: 1 })} ₪</span>
+                                </div>
+                            </div>
+                            <p className="text-xs text-purple-600/70 mt-1">
+                                שנה את האחוז במידת הצורך (ברירת מחדל: 3% או 1.5%).
+                            </p>
+                        </div>
+
                         <div>
                             <Label>הערה / אסמכתא</Label>
                             <Input placeholder="למשל: חשבונית ידנית 305" value={fixNote} onChange={(e) => setFixNote(e.target.value)} className="mt-1"/>
@@ -628,7 +673,7 @@ function ReportsHistory() {
                                 {expandedReportId === report._id && (
                                     <div className="p-4 border-t bg-white animate-in slide-in-from-top-2">
                                         <ReportSummaryTable items={report.items} />
-                                        
+
                                         <h4 className="text-sm font-bold text-slate-500 uppercase mb-2 mt-6">פירוט מלא</h4>
                                         <div className="max-h-[400px] overflow-y-auto border rounded-md">
                                             <table className="w-full text-sm text-right">
@@ -636,7 +681,7 @@ function ReportsHistory() {
                                                     <tr>
                                                         <th className="p-3 text-right">הזמנה</th>
                                                         <th className="p-3 text-right">אורח</th>
-                                                        <th className="p-3 text-right">ת. הגעה</th> {/* ✨ */}
+                                                        <th className="p-3 text-right">ת. הגעה</th>
                                                         <th className="p-3 text-right">נציג</th>
                                                         <th className="p-3 text-right">חשבוניות</th>
                                                         <th className="p-3 text-right">שווי הזמנה</th>
@@ -679,7 +724,7 @@ function ReportsHistory() {
 }
 
 // ============================================================================
-// 🔵 קומפוננטה 3: דוח לפי תאריכי הגעה (החדש!)
+// 🔵 קומפוננטה 3: דוח לפי תאריכי הגעה
 // ============================================================================
 function CommissionsByArrivalDate() {
     const [startDate, setStartDate] = useState('');
@@ -752,8 +797,8 @@ function CommissionsByArrivalDate() {
 
                     {/* כפתור הרחבה */}
                     <div className="text-center">
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             onClick={() => setShowDetails(!showDetails)}
                             className="gap-2"
                             disabled={filteredItems.length === 0}
