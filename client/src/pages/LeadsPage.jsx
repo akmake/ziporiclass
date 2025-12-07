@@ -1,5 +1,3 @@
-// client/src/pages/LeadsPage.jsx
-
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
@@ -13,7 +11,7 @@ import { Button } from '@/components/ui/Button.jsx';
 import { Input } from "@/components/ui/Input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 // ✨ הוספנו את ArrowUp לאייקונים
-import { LoaderCircle, Trash2, Phone, User, Calendar, MapPin, StickyNote, ArrowUp } from 'lucide-react';
+import { LoaderCircle, Trash2, Phone, User, ArrowUp } from 'lucide-react';
 
 // צבעים
 const GOLD_COLOR = '#bfa15f';
@@ -43,7 +41,7 @@ export default function LeadsPage() {
   const [rejectionDialogLeadId, setRejectionDialogLeadId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   
-  // ✨ State למיון - האם להקפיץ חדשים?
+  // ✨ State למיון
   const [showNewFirst, setShowNewFirst] = useState(false);
 
   const { data: leads, isLoading, isError, error } = useQuery({
@@ -51,27 +49,6 @@ export default function LeadsPage() {
     queryFn: fetchLeads,
     refetchInterval: 15000
   });
-
-  // ✨ לוגיקת המיון הדינמית
-  const displayedLeads = useMemo(() => {
-      if (!leads) return [];
-      
-      // אם הכפתור לא לחוץ - מחזירים את הרשימה כמו שהיא (לפי תאריך)
-      if (!showNewFirst) return leads;
-
-      // אם הכפתור לחוץ - יוצרים עותק וממיינים
-      return [...leads].sort((a, b) => {
-          const isANew = a.status === 'new';
-          const isBNew = b.status === 'new';
-
-          // אם a חדש ו-b לא -> a עולה למעלה (-1)
-          if (isANew && !isBNew) return -1;
-          // אם b חדש ו-a לא -> b עולה למעלה (1)
-          if (!isANew && isBNew) return 1;
-          // אם שניהם אותו דבר -> שומרים על הסדר המקורי (0)
-          return 0;
-      });
-  }, [leads, showNewFirst]);
 
   const updateStatusMutation = useMutation({
     mutationFn: updateLeadStatusApi,
@@ -116,19 +93,33 @@ export default function LeadsPage() {
     }
   };
 
+  // ✨ לוגיקת המיון הדינמית
+  const displayedLeads = useMemo(() => {
+      if (!leads) return [];
+      if (!showNewFirst) return leads;
+
+      return [...leads].sort((a, b) => {
+          const isANew = a.status === 'new';
+          const isBNew = b.status === 'new';
+          if (isANew && !isBNew) return -1;
+          if (!isANew && isBNew) return 1;
+          return 0;
+      });
+  }, [leads, showNewFirst]);
+
   return (
     <div className="container mx-auto p-4 space-y-6">
-      <header className="flex flex-col md:flex-row justify-between items-center gap-4">
+      {/* ✨ Header מעודכן עם הכפתור, שומר על העיצוב הקיים */}
+      <header className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">ניהול פניות</h1>
         
-        {/* ✨ כפתור הקפצה */}
         <Button 
-            variant={showNewFirst ? "default" : "outline"} 
+            variant="outline"
             onClick={() => setShowNewFirst(!showNewFirst)}
-            className={`gap-2 ${showNewFirst ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}
+            className={`gap-2 transition-colors ${showNewFirst ? 'bg-blue-50 border-blue-300 text-blue-700' : ''}`}
         >
-            <ArrowUp size={16} className={showNewFirst ? "text-white" : "text-blue-600"}/>
-            {showNewFirst ? 'מציג חדשים תחילה' : 'הקפץ פניות שלא נענו'}
+            <ArrowUp size={16} className={showNewFirst ? "text-blue-700" : "text-gray-500"}/>
+            {showNewFirst ? 'מציג: חדשים תחילה' : 'הקפץ לא נענו'}
         </Button>
       </header>
 
@@ -138,7 +129,6 @@ export default function LeadsPage() {
 
         {!isLoading && leads && (
             <div className="space-y-2" dir="rtl">
-                {/* ✨ שימוש ב-displayedLeads הממוין */}
                 {displayedLeads.map(lead => (
                   <LeadStrip
                     key={lead._id}
@@ -156,7 +146,7 @@ export default function LeadsPage() {
         )}
       </div>
 
-      {/* דיאלוג דחייה */}
+      {/* דיאלוגים (ללא שינוי) */}
       <Dialog open={!!rejectionDialogLeadId} onOpenChange={(o) => !o && setRejectionDialogLeadId(null)}>
           <DialogContent>
               <DialogHeader>
@@ -207,11 +197,12 @@ export default function LeadsPage() {
   );
 }
 
-// --- הרכיב המעוצב (ללא שינוי, נשאר אותו דבר) ---
+// --- הרכיב המעוצב (זהה לחלוטין למקור) ---
 const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) => {
 
   const isNew = lead.status === 'new';
 
+  // הגדרת צבעים לפי סטטוס
   const statusStyles = {
       'new': 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 font-bold',
       'in_progress': 'bg-amber-50 border-amber-200 text-amber-700',
@@ -219,7 +210,10 @@ const LeadStrip = ({ lead, onStatusChange, onViewRaw, onViewNote, onDelete }) =>
       'not_relevant': 'bg-gray-100 border-gray-200 text-gray-400 decoration-slice'
   };
 
+  // קביעת צבע הפס הצידי: כחול לחדשים, זהב לכל השאר
   const sideBorderColor = isNew ? BLUE_COLOR : GOLD_COLOR;
+
+  // רקע שורה: כחלחל עדין מאוד לחדשים, לבן לאחרים
   const rowBackground = isNew ? 'bg-blue-50/30' : 'bg-white';
 
   const handlePhoneClick = () => {
