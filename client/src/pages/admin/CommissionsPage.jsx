@@ -20,8 +20,8 @@ import {
     CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar, Percent, Database
 } from 'lucide-react';
 
-// --- הגדרות עמודות מהאקסל ---
-// הוספנו את "מתאריך" כדי לזהות את התאריך בקובץ שלך, אבל הלוגיקה העסקית נשמרת
+// --- הגדרות עמודות ---
+// הוספנו את "מתאריך" כדי לזהות את התאריך בקובץ שלך
 const ARRIVAL_KEYWORDS = ["מתאריך", "c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
 
 // --- פונקציות עזר ---
@@ -38,7 +38,7 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ פונקציה לזיהוי תאריך (נשאר התיקון היחיד כדי שהתצוגה תעבוד)
+// ✨ פונקציה לזיהוי תאריך (התיקון היחיד שנוגע ללוגיקת קריאה)
 function findArrivalDate(row) {
     if (row.eventDate) return new Date(row.eventDate);
 
@@ -62,6 +62,7 @@ function findArrivalDate(row) {
                         let day = parseInt(parts[0]);
                         let month = parseInt(parts[1]);
                         let year = parseInt(parts[2]);
+                        // השלמת שנה (24 -> 2024)
                         if (year < 100) year += 2000;
                         const d = new Date(year, month - 1, day);
                         if (!isNaN(d.getTime())) return d;
@@ -322,8 +323,7 @@ function CommissionGenerator({ onReportGenerated }) {
             if (folioRaw) {
                 let folioStr = folioRaw.toString().trim();
                 
-                // 🔥🔥🔥 לוגיקה מקורית (החזרתי אותה במדויק): 🔥🔥🔥
-                // אם המספר ארוך מ-6 ספרות, אנחנו מניחים שיש סיומת וחותכים את ה-2 האחרונות.
+                // 🔥🔥🔥 לוגיקה מקורית: חיתוך לפי אורך בלבד 🔥🔥🔥
                 let masterId = folioStr.length > 6 ? folioStr.slice(0, -2) : folioStr;
                 
                 let key = "ID_" + masterId;
