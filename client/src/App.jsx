@@ -6,6 +6,7 @@ import AdminRoute from "@/components/routes/AdminRoute.jsx";
 import SalesRoute from "@/components/routes/SalesRoute.jsx";
 import MaintenanceRoute from "@/components/routes/MaintenanceRoute.jsx";
 import PriceListManagerRoute from "@/components/routes/PriceListManagerRoute.jsx";
+import ShiftManagerRoute from "@/components/routes/ShiftManagerRoute.jsx"; // ✨ חדש
 
 /* Public Pages */
 import HomePage from "@/pages/HomePage.jsx";
@@ -37,19 +38,17 @@ import AffiliateReportsPage from '@/pages/admin/AffiliateReportsPage.jsx';
 import ManageAnnouncementsPage from '@/pages/admin/ManageAnnouncementsPage.jsx';
 import ManageReferrersPage from '@/pages/admin/ManageReferrersPage.jsx';
 import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
-import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx"; 
+import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx";
 import CommissionsPage from "@/pages/admin/CommissionsPage.jsx";
+import BookingManagementPage from "@/pages/admin/BookingManagementPage.jsx"; // ✨ הדף החדש
 
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
-// ✨ 1. ייבוא הרכיב החדש
 import AutoLogout from "@/components/AutoLogout.jsx";
 
 export default function App() {
   return (
     <>
       <PushNotificationManager />
-      
-      {/* ✨ 2. הפעלת מנגנון הניתוק האוטומטי */}
       <AutoLogout />
 
       <Routes>
@@ -77,6 +76,11 @@ export default function App() {
             <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
           </Route>
 
+          {/* --- Shift Manager & Admin (ניהול שיבוצים) --- */}
+          <Route element={<ShiftManagerRoute />}>
+             <Route path="bookings" element={<BookingManagementPage />} />
+          </Route>
+
           {/* --- Admin Panel --- */}
           <Route path="admin" element={<AdminRoute />}>
             <Route index element={<AdminDashboardPage />} />
@@ -95,7 +99,7 @@ export default function App() {
             <Route path="referrers" element={<ManageReferrersPage />} />
             <Route path="commissions" element={<CommissionsPage />} />
             <Route path="announcements" element={<ManageAnnouncementsPage />} />
-            <Route path="audit-logs" element={<AuditLogsPage />} /> 
+            <Route path="audit-logs" element={<AuditLogsPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

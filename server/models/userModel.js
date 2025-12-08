@@ -29,7 +29,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'sales', 'maintenance'],
+      // ✨ עדכון: הוספת תפקידי תפעול חדשים
+      enum: ['admin', 'sales', 'maintenance', 'shift_manager', 'housekeeper'],
       default: 'sales',
     },
     canManagePriceLists: {
@@ -40,10 +41,9 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // ✨✨✨ השדה החדש: שעת ניתוק אוטומטי (למשל "23:00") ✨✨✨
     forcedLogoutTime: {
       type: String,
-      default: null 
+      default: null
     },
     reportNames: {
       type: [String],

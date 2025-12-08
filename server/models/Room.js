@@ -3,8 +3,8 @@ import mongoose from 'mongoose';
 const taskSchema = new mongoose.Schema({
   description: { type: String, required: true, trim: true },
   isCompleted: { type: Boolean, default: false },
-
-  // ✨ הסיווג החדש של 3 השכבות
+  
+  // סיווג המשימה
   type: {
     type: String,
     enum: ['standard', 'daily', 'maintenance'],
@@ -19,7 +19,7 @@ const taskSchema = new mongoose.Schema({
   completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now },
 
-  // שדה legacy - עדיין כאן כדי לא לשבור כלום מיידית
+  // שדה legacy
   isSystemTask: { type: Boolean, default: false },
 });
 
@@ -32,6 +32,21 @@ const roomSchema = new mongoose.Schema({
     type: String,
     enum: ['clean', 'dirty', 'maintenance'],
     default: 'dirty',
+    index: true
+  },
+
+  // ✨ למי החדר מוקצה כרגע (עבור חדרנית ספציפית)
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
+
+  // ✨ תאריך השיבוץ (כדי לוודא שהשיבוץ הוא להיום בלבד)
+  assignmentDate: {
+    type: Date,
+    default: null,
     index: true
   },
 
