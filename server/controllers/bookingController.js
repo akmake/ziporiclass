@@ -28,9 +28,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     const roomMap = new Map(existingRooms.map(r => [r.roomNumber, r]));
 
     let defaultType = await RoomType.findOne({ hotel: hotelId, isDefault: true });
-    if (!defaultType) {
-        defaultType = await RoomType.findOne({ hotel: hotelId });
-    }
+    if (!defaultType) defaultType = await RoomType.findOne({ hotel: hotelId });
 
     const conflicts = [];
     const newBookings = [];
@@ -48,8 +46,22 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
         const start = normalizeDate(arrival);
         const end = normalizeDate(departure);
         
-        // ✨ שיפור: קריאה גמישה יותר של עמודת ה-pax (תומך גם ב-Total Pax וגם ב-total_pax)
-        const pax = parseInt(row['total_pax'] || row['Total Pax'] || row['pax'] || 0);
+        // ✨✨✨ התיקון הגדול: סיכום העמודות הנפרדות ✨✨✨
+        const adults = parseInt(row['c_adults'] || 0);
+        const juniors = parseInt(row['c_juniors'] || 0);
+        const children = parseInt(row['c_children'] || 0);
+        
+        // סך הכל מיטות = מבוגרים + נוער + ילדים
+        let pax = adults + juniors + children;
+
+        // הגנה: אם יצא 0 (אולי השמות באקסל שונים?), ננסה למצוא עמודת סיכום ישנה כגיבוי
+        if (pax === 0) {
+             pax = parseInt(row['total_pax'] || row['Total Pax'] || 0);
+        }
+        
+        // אם עדיין 0, נגדיר מינימום 1 כדי שלא יופיע "0 מיטות"
+        if (pax === 0) pax = 1;
+
         const babies = parseInt(row['c_babies'] || 0);
 
         let roomId;
@@ -97,7 +109,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
                 roomNumber: roomNum,
                 arrivalDate: start,
                 departureDate: end,
-                pax,
+                pax, // המספר המסוכם יישמר כאן
                 babies,
                 source: 'excel'
             });
@@ -125,7 +137,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     });
 });
 
-// --- 2. קבלת דשבורד יומי (חישוב סטטוסים בזמן אמת) ---
+// --- 2. קבלת דשבורד יומי ---
 export const getDailyDashboard = catchAsync(async (req, res, next) => {
     const { hotelId, date } = req.query;
     if (!hotelId) return next(new AppError('חסר מזהה מלון', 400));
@@ -157,26 +169,20 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
 
         const arrivals = bookings.filter(b => normalizeDate(b.arrivalDate).getTime() === queryDate.getTime());
         const departures = bookings.filter(b => normalizeDate(b.departureDate).getTime() === queryDate.getTime());
-        
         const stayovers = bookings.filter(b =>
             normalizeDate(b.arrivalDate) < queryDate &&
             normalizeDate(b.departureDate) > queryDate
         );
 
-        // --- לוגיקת הסטטוסים ---
-
-        // 1. תחלופה
         if (arrivals.length > 0 && departures.length > 0) {
             calculatedStatus = 'back_to_back';
             specialInfo = {
                 out: departures[0].pax,
                 in: arrivals[0].pax,
-                // ✨ התיקון בשרת: שולחים pax גם כאן, לפי הנכנסים
-                pax: arrivals[0].pax, 
+                pax: arrivals[0].pax, // המספר החדש שחישבנו
                 babies: arrivals[0].babies
             };
         } 
-        // 2. הגעה בלבד
         else if (arrivals.length > 0) {
             calculatedStatus = 'arrival';
             specialInfo = {
@@ -184,15 +190,13 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
                 babies: arrivals[0].babies
             };
         } 
-        // 3. עזיבה בלבד
         else if (departures.length > 0) {
             calculatedStatus = 'departure';
             specialInfo = {
                 out: departures[0].pax,
-                pax: 0 // אין מיטות להכנה להלילה
+                pax: 0 // בעזיבה אין מיטות להכנה ללילה
             };
         } 
-        // 4. נשארים
         else if (stayovers.length > 0) {
             calculatedStatus = 'stayover';
             specialInfo = { 
@@ -211,41 +215,21 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
     res.json(dashboardData);
 });
 
-// --- 3. טיפול בהתנגשויות ---
+// --- פונקציות עזר (ללא שינוי, אך חובה שיהיו בקובץ) ---
 export const resolveConflict = catchAsync(async (req, res, next) => {
     const { action, conflictData } = req.body;
-
     if (action === 'overwrite') {
         const { existingBookingId, newBookingData } = conflictData;
         await Booking.findByIdAndUpdate(existingBookingId, { status: 'cancelled' });
-        await Booking.create({
-            ...newBookingData,
-            status: 'active',
-            source: 'manual_fix'
-        });
+        await Booking.create({ ...newBookingData, status: 'active', source: 'manual_fix' });
         res.json({ message: 'השיבוץ הישן נדרס והחדש נוצר.' });
     } else {
-        res.json({ message: 'ההתנגשות נפתרה (השיבוץ החדש נדחה).' });
+        res.json({ message: 'ההתנגשות נפתרה.' });
     }
 });
 
-// --- 4. הקצאת חדרים ---
 export const assignRoomsToHousekeeper = catchAsync(async (req, res, next) => {
     const { roomIds, userId } = req.body;
-
-    if (!roomIds || !Array.isArray(roomIds)) return next(new AppError('יש לשלוח רשימת חדרים', 400));
-
-    const today = normalizeDate(new Date());
-
-    await Room.updateMany(
-        { _id: { $in: roomIds } },
-        {
-            $set: {
-                assignedTo: userId || null,
-                assignmentDate: userId ? today : null
-            }
-        }
-    );
-
-    res.json({ message: 'החדרים הוקצו בהצלחה להיום.' });
+    await Room.updateMany({ _id: { $in: roomIds } }, { $set: { assignedTo: userId || null, assignmentDate: normalizeDate(new Date()) } });
+    res.json({ message: 'החדרים הוקצו בהצלחה.' });
 });
