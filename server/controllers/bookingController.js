@@ -16,7 +16,7 @@ const normalizeDate = (date) => {
 // --- 1. העלאת אקסל ועיבוד נתונים (DRY RUN & SAVE) ---
 export const uploadSchedule = catchAsync(async (req, res, next) => {
     if (!req.file) return next(new AppError('לא נבחר קובץ', 400));
-    const { hotelId, dryRun } = req.body; 
+    const { hotelId, dryRun } = req.body;
 
     if (!hotelId) return next(new AppError('חובה לבחור מלון', 400));
 
@@ -26,7 +26,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
 
     const existingRooms = await Room.find({ hotel: hotelId });
     const roomMap = new Map(existingRooms.map(r => [r.roomNumber, r]));
-    
+
     let defaultType = await RoomType.findOne({ hotel: hotelId, isDefault: true });
     if (!defaultType) {
         defaultType = await RoomType.findOne({ hotel: hotelId });
@@ -40,9 +40,9 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
         const roomNum = String(row['c_room_number'] || '').trim();
         if (!roomNum || roomNum === '0') continue;
 
-        const arrival = row['c_arrival_date']; 
+        const arrival = row['c_arrival_date'];
         const departure = row['c_depart_date'];
-        
+
         if (!arrival || !departure) continue;
 
         const start = normalizeDate(arrival);
@@ -55,12 +55,12 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
             roomId = roomMap.get(roomNum)._id;
         } else {
             if (!defaultType) return next(new AppError('לא מוגדר סוג חדר למלון זה', 400));
-            
+
             const newRoom = await Room.create({
                 hotel: hotelId,
                 roomNumber: roomNum,
                 roomType: defaultType._id,
-                status: 'dirty' 
+                status: 'dirty'
             });
             roomId = newRoom._id;
             roomMap.set(roomNum, newRoom);
@@ -81,10 +81,10 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
             conflicts.push({
                 roomNumber: roomNum,
                 newBooking: { start, end, pax, babies },
-                existingBooking: { 
+                existingBooking: {
                     id: overlap._id,
-                    start: overlap.arrivalDate, 
-                    end: overlap.departureDate 
+                    start: overlap.arrivalDate,
+                    end: overlap.departureDate
                 },
                 type: 'overlap'
             });
@@ -118,7 +118,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     res.json({
         status: 'success',
         message: `נוצרו ${newBookings.length} שיבוצים חדשים.`,
-        conflicts: conflicts, 
+        conflicts: conflicts,
         createdRooms
     });
 });
@@ -129,22 +129,25 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
     if (!hotelId) return next(new AppError('חסר מזהה מלון', 400));
 
     const queryDate = date ? normalizeDate(date) : normalizeDate(new Date());
-    const nextDay = new Date(queryDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-
+    
+    // שליפת כל החדרים (כולל חדרניות משובצות)
     const rooms = await Room.find({ hotel: hotelId })
         .populate('assignedTo', 'name')
         .populate('roomType', 'name')
         .lean();
 
+    // שליפת שיבוצים פעילים:
+    // התנאי הוא שחייבת להיות חפיפה כלשהי עם "היום".
+    // 1. תאריך ההגעה הוא היום או לפני.
+    // 2. תאריך העזיבה הוא היום או אחרי.
     const activeBookings = await Booking.find({
         hotel: hotelId,
         status: 'active',
-        arrivalDate: { $lt: nextDay },
-        departureDate: { $gt: queryDate }
+        arrivalDate: { $lte: queryDate },
+        departureDate: { $gte: queryDate } // היה gt, שונה ל-gte כדי לכלול עזיבות היום
     }).lean();
 
-    const bookingMap = new Map(); 
+    const bookingMap = new Map();
     activeBookings.forEach(b => {
         if (!bookingMap.has(b.room.toString())) bookingMap.set(b.room.toString(), []);
         bookingMap.get(b.room.toString()).push(b);
@@ -152,39 +155,57 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
 
     const dashboardData = rooms.map(room => {
         const bookings = bookingMap.get(room._id.toString()) || [];
-        let calculatedStatus = 'empty'; 
+        let calculatedStatus = 'empty';
         let specialInfo = null;
 
+        // בדיקות ספציפיות לתאריך הנבחר
         const arrivals = bookings.filter(b => normalizeDate(b.arrivalDate).getTime() === queryDate.getTime());
         const departures = bookings.filter(b => normalizeDate(b.departureDate).getTime() === queryDate.getTime());
-        const stayovers = bookings.filter(b => 
-            normalizeDate(b.arrivalDate) < queryDate && 
+        
+        // "נשארים": מי שהגיע לפני היום, ועוזב אחרי היום
+        const stayovers = bookings.filter(b =>
+            normalizeDate(b.arrivalDate) < queryDate &&
             normalizeDate(b.departureDate) > queryDate
         );
 
+        // --- לוגיקת הסטטוסים ---
+
+        // 1. תחלופה (גם עוזבים וגם נכנסים)
         if (arrivals.length > 0 && departures.length > 0) {
-            calculatedStatus = 'back_to_back'; 
-            specialInfo = { 
-                out: departures[0].pax, 
-                in: arrivals[0].pax, 
-                babies: arrivals[0].babies 
+            calculatedStatus = 'back_to_back';
+            specialInfo = {
+                out: departures[0].pax,
+                in: arrivals[0].pax,
+                babies: arrivals[0].babies // לול לתינוק שנכנס
             };
-        } else if (arrivals.length > 0) {
-            calculatedStatus = 'arrival'; 
-            specialInfo = { 
-                pax: arrivals[0].pax, 
-                babies: arrivals[0].babies 
+        } 
+        // 2. הגעה בלבד
+        else if (arrivals.length > 0) {
+            calculatedStatus = 'arrival';
+            specialInfo = {
+                pax: arrivals[0].pax,
+                babies: arrivals[0].babies
             };
-        } else if (departures.length > 0) {
-            calculatedStatus = 'departure'; 
-        } else if (stayovers.length > 0) {
-            calculatedStatus = 'stayover'; 
-            specialInfo = { pax: stayovers[0].pax };
+        } 
+        // 3. עזיבה בלבד (עכשיו יוצג כי השאילתה מביאה אותם)
+        else if (departures.length > 0) {
+            calculatedStatus = 'departure';
+            specialInfo = {
+                out: departures[0].pax
+            };
+        } 
+        // 4. נשארים
+        else if (stayovers.length > 0) {
+            calculatedStatus = 'stayover';
+            specialInfo = { 
+                pax: stayovers[0].pax,
+                babies: stayovers[0].babies 
+            };
         }
 
         return {
             ...room,
-            dashboardStatus: calculatedStatus, 
+            dashboardStatus: calculatedStatus,
             bookingInfo: specialInfo
         };
     });
@@ -211,21 +232,20 @@ export const resolveConflict = catchAsync(async (req, res, next) => {
 });
 
 // --- 4. הקצאת חדרים לחדרניות (Shift Manager) ---
-// ✨ עדכון קריטי: שמירת תאריך ההקצאה להיום
 export const assignRoomsToHousekeeper = catchAsync(async (req, res, next) => {
-    const { roomIds, userId } = req.body; 
+    const { roomIds, userId } = req.body;
 
     if (!roomIds || !Array.isArray(roomIds)) return next(new AppError('יש לשלוח רשימת חדרים', 400));
 
-    const today = normalizeDate(new Date()); // 00:00 של היום
+    const today = normalizeDate(new Date());
 
     await Room.updateMany(
         { _id: { $in: roomIds } },
-        { 
-            $set: { 
+        {
+            $set: {
                 assignedTo: userId || null,
-                assignmentDate: userId ? today : null // אם מבטלים שיבוץ, מאפסים תאריך
-            } 
+                assignmentDate: userId ? today : null
+            }
         }
     );
 
