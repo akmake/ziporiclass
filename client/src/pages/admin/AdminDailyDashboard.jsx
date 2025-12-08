@@ -7,10 +7,10 @@ import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Checkbox } from '@/components/ui/Checkbox.jsx';
-// שימוש באייקונים כולל Bed
+// שימוש באייקונים
 import {
     CalendarDays, LogIn, LogOut, RefreshCw,
-    ArrowRightLeft, UserCheck, LoaderCircle, Bed
+    ArrowRightLeft, UserCheck, LoaderCircle, Bed, Eye, EyeOff, Filter
 } from 'lucide-react';
 
 // API Functions
@@ -24,7 +24,7 @@ const fetchDailyDashboard = async ({ queryKey }) => {
     return data;
 };
 
-// הגדרת צבעים לסטטוסים - כולל עזיבה באדום
+// הגדרת צבעים לסטטוסים
 const STATUS_CONFIG = {
     'arrival': { label: 'הגעה', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: LogIn },
     'departure': { label: 'עזיבה היום', color: 'bg-red-100 text-red-700 border-red-200', icon: LogOut },
@@ -38,6 +38,9 @@ export default function AdminDailyDashboard() {
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedRooms, setSelectedRooms] = useState(new Set());
     const [assignToUser, setAssignToUser] = useState('');
+    
+    // ✨ סטייט חדש לסינון התצוגה (ברירת מחדל: מציג רק רלוונטיים)
+    const [showOnlyRelevant, setShowOnlyRelevant] = useState(true);
 
     const queryClient = useQueryClient();
 
@@ -45,7 +48,6 @@ export default function AdminDailyDashboard() {
     const { data: hotels = [] } = useQuery({ queryKey: ['hotels'], queryFn: fetchHotels });
     const { data: allUsers = [] } = useQuery({ queryKey: ['usersList'], queryFn: fetchUsers });
     
-    // סינון עובדים רלוונטיים להקצאה
     const housekeepers = useMemo(() => {
         return allUsers.filter(u => u.role === 'housekeeper' || u.role === 'maintenance' || u.role === 'shift_manager');
     }, [allUsers]);
@@ -54,10 +56,9 @@ export default function AdminDailyDashboard() {
         queryKey: ['dailyDashboard', { hotelId: selectedHotel, date: selectedDate }],
         queryFn: fetchDailyDashboard,
         enabled: !!selectedHotel,
-        refetchInterval: 5000 // רענון מהיר
+        refetchInterval: 5000 
     });
 
-    // Mutation להקצאה
     const assignMutation = useMutation({
         mutationFn: (payload) => api.post('/bookings/assign', payload),
         onSuccess: (res) => {
@@ -78,8 +79,8 @@ export default function AdminDailyDashboard() {
     };
 
     const handleSelectAll = () => {
-        if (selectedRooms.size === rooms.length) setSelectedRooms(new Set());
-        else setSelectedRooms(new Set(rooms.map(r => r._id)));
+        if (selectedRooms.size === displayedRooms.length) setSelectedRooms(new Set());
+        else setSelectedRooms(new Set(displayedRooms.map(r => r._id)));
     };
 
     const executeAssign = () => {
@@ -90,7 +91,7 @@ export default function AdminDailyDashboard() {
         });
     };
 
-    // חישוב סטטיסטיקה לדשבורד העליון
+    // סטטיסטיקה למעלה (מחושבת תמיד על כל החדרים, גם המוסתרים)
     const stats = useMemo(() => {
         const s = { arrival: 0, departure: 0, stayover: 0, back_to_back: 0, dirty: 0 };
         rooms.forEach(r => {
@@ -99,6 +100,21 @@ export default function AdminDailyDashboard() {
         });
         return s;
     }, [rooms]);
+
+    // ✨✨✨ לוגיקת הסינון וההצגה ✨✨✨
+    const displayedRooms = useMemo(() => {
+        if (!showOnlyRelevant) return rooms; // אם המשתמש רוצה הכל - מציגים הכל
+
+        return rooms.filter(room => {
+            // הצג אם:
+            // 1. יש פעילות (הגעה/עזיבה/תחלופה/נשאר) - כלומר לא "ריק"
+            // 2. או שהחדר מלוכלך/בתקלה (גם אם אין אורח, צריך לנקות אותו)
+            const hasActivity = room.dashboardStatus !== 'empty';
+            const needsWork = room.status !== 'clean'; 
+            
+            return hasActivity || needsWork;
+        });
+    }, [rooms, showOnlyRelevant]);
 
     return (
         <div className="container mx-auto p-4 space-y-6 min-h-screen bg-slate-50">
@@ -140,48 +156,72 @@ export default function AdminDailyDashboard() {
                 <StatBox label="לניקיון" count={stats.dirty} color="text-slate-800" bg="bg-white border border-slate-200" />
             </div>
 
-            {/* --- Assignment Toolbar --- */}
-            {selectedRooms.size > 0 && (
-                <div className="sticky top-4 z-20 bg-slate-900 text-white p-4 rounded-xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-2">
-                    <div className="flex items-center gap-2 font-bold">
-                        <span className="bg-blue-500 px-2 py-1 rounded text-xs">{selectedRooms.size}</span> חדרים נבחרו
-                    </div>
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <Select value={assignToUser} onValueChange={setAssignToUser}>
-                            <SelectTrigger className="w-full md:w-[200px] bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="בחר חדרנית לשיוך..." /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">-- בטל שיוך --</SelectItem>
-                                {housekeepers.map(u => (<SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>))}
-                            </SelectContent>
-                        </Select>
-                        <Button onClick={executeAssign} disabled={assignMutation.isPending} className="bg-blue-600 hover:bg-blue-500 whitespace-nowrap">
-                            {assignMutation.isPending ? <LoaderCircle className="animate-spin ml-2 h-4 w-4"/> : <UserCheck className="ml-2 h-4 w-4"/>} בצע הקצאה
-                        </Button>
-                    </div>
+            {/* --- Toolbar: הקצאה + כפתור סינון --- */}
+            <div className="sticky top-4 z-20 flex flex-col md:flex-row items-center justify-between gap-4">
+                
+                {/* כפתור הסינון החדש */}
+                <div className="bg-white p-2 rounded-lg shadow-sm border flex items-center">
+                    <Button 
+                        variant="ghost" 
+                        onClick={() => setShowOnlyRelevant(!showOnlyRelevant)}
+                        className={`gap-2 ${showOnlyRelevant ? 'text-blue-600 bg-blue-50' : 'text-slate-500'}`}
+                    >
+                        {showOnlyRelevant ? <Filter size={16} /> : <Eye size={16} />}
+                        {showOnlyRelevant ? 'מציג: רק רלוונטיים לעבודה' : 'מציג: כל החדרים במלון'}
+                    </Button>
                 </div>
-            )}
+
+                {selectedRooms.size > 0 && (
+                    <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl flex items-center gap-4 animate-in slide-in-from-top-2 flex-1 justify-end">
+                        <div className="flex items-center gap-2 font-bold whitespace-nowrap">
+                            <span className="bg-blue-500 px-2 py-1 rounded text-xs">{selectedRooms.size}</span> נבחרו
+                        </div>
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <Select value={assignToUser} onValueChange={setAssignToUser}>
+                                <SelectTrigger className="w-full md:w-[200px] bg-slate-800 border-slate-700 text-white h-9"><SelectValue placeholder="בחר חדרנית..." /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">-- בטל שיוך --</SelectItem>
+                                    {housekeepers.map(u => (<SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>))}
+                                </SelectContent>
+                            </Select>
+                            <Button onClick={executeAssign} disabled={assignMutation.isPending} size="sm" className="bg-blue-600 hover:bg-blue-500 whitespace-nowrap">
+                                {assignMutation.isPending ? <LoaderCircle className="animate-spin ml-2 h-4 w-4"/> : <UserCheck className="ml-2 h-4 w-4"/>} הקצה
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* --- Room Grid --- */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <Checkbox checked={rooms.length > 0 && selectedRooms.size === rooms.length} onCheckedChange={handleSelectAll} />
+                        <Checkbox checked={displayedRooms.length > 0 && selectedRooms.size === displayedRooms.length} onCheckedChange={handleSelectAll} />
                         <span className="text-sm font-bold text-slate-700">בחר הכל</span>
                     </div>
-                    <span className="text-xs text-slate-500">{rooms.length} חדרים בסה"כ</span>
+                    <span className="text-xs text-slate-500">
+                        מוצגים {displayedRooms.length} מתוך {rooms.length} חדרים
+                    </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 bg-slate-100/50">
                     {isLoading ? <p className="col-span-full text-center py-10">טוען נתונים...</p> :
-                     rooms.map(room => {
+                     displayedRooms.length === 0 ? 
+                        <div className="col-span-full text-center py-10 text-slate-400">
+                            <p className="text-lg">אין חדרים הדורשים טיפול להיום 🎉</p>
+                            <Button variant="link" onClick={() => setShowOnlyRelevant(false)}>הצג את כל החדרים בכל זאת</Button>
+                        </div>
+                     :
+                     displayedRooms.map(room => {
                         const config = STATUS_CONFIG[room.dashboardStatus] || STATUS_CONFIG['empty'];
                         const Icon = config.icon;
                         const info = room.bookingInfo;
 
-                        // ✨ חישוב מיטות ועריסות לתצוגה
+                        // ✨✨✨ חישוב מיטות ועריסות לתצוגה ✨✨✨
                         const babiesCount = info?.babies || 0;
                         const totalPax = info?.pax || 0;
-                        // הנחה: טוטאל פקס כולל הכל, אז מיטות = טוטאל פחות תינוקות
+                        // הנחה: pax באקסל הוא סה"כ אנשים (כולל תינוקות).
+                        // אז מיטות רגילות = סה"כ אנשים פחות התינוקות.
                         const bedsCount = Math.max(0, totalPax - babiesCount);
 
                         return (
@@ -208,16 +248,16 @@ export default function AdminDailyDashboard() {
                                 {/* ✨ כרטיסיית המידע המעודכנת (מיטות/עריסות) */}
                                 {info && (
                                     <div className="text-sm text-slate-700 space-y-1 mb-3 bg-slate-100 p-2 rounded border border-slate-200">
-                                        <div className="flex flex-col gap-1">
+                                        <div className="flex flex-col gap-1.5">
                                             {/* מיטות */}
-                                            <p className="flex items-center gap-1.5 font-bold">
-                                                <Bed size={16} className="text-slate-500"/>
-                                                <span>{bedsCount > 0 ? bedsCount : '0'} מיטות</span>
+                                            <p className="flex items-center gap-2 font-bold text-slate-800 text-base">
+                                                <Bed size={18} className="text-slate-500"/>
+                                                <span>{bedsCount} מיטות</span>
                                             </p>
 
                                             {/* עריסות (רק אם יש) */}
                                             {babiesCount > 0 && (
-                                                <p className="flex items-center gap-1 font-bold text-pink-600 bg-pink-100 px-2 py-0.5 rounded-md text-xs border border-pink-200 w-fit">
+                                                <p className="flex items-center gap-1 font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md text-xs border border-pink-200 w-fit">
                                                     👶 {babiesCount} עריסות
                                                 </p>
                                             )}
