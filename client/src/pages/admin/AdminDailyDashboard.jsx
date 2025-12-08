@@ -39,7 +39,7 @@ export default function AdminDailyDashboard() {
     const [selectedRooms, setSelectedRooms] = useState(new Set());
     const [assignToUser, setAssignToUser] = useState('');
     
-    // ✨ סטייט חדש לסינון התצוגה (ברירת מחדל: מציג רק רלוונטיים)
+    // סינון התצוגה
     const [showOnlyRelevant, setShowOnlyRelevant] = useState(true);
 
     const queryClient = useQueryClient();
@@ -91,7 +91,7 @@ export default function AdminDailyDashboard() {
         });
     };
 
-    // סטטיסטיקה למעלה (מחושבת תמיד על כל החדרים, גם המוסתרים)
+    // סטטיסטיקה למעלה
     const stats = useMemo(() => {
         const s = { arrival: 0, departure: 0, stayover: 0, back_to_back: 0, dirty: 0 };
         rooms.forEach(r => {
@@ -101,17 +101,13 @@ export default function AdminDailyDashboard() {
         return s;
     }, [rooms]);
 
-    // ✨✨✨ לוגיקת הסינון וההצגה ✨✨✨
+    // לוגיקת הסינון
     const displayedRooms = useMemo(() => {
-        if (!showOnlyRelevant) return rooms; // אם המשתמש רוצה הכל - מציגים הכל
+        if (!showOnlyRelevant) return rooms; 
 
         return rooms.filter(room => {
-            // הצג אם:
-            // 1. יש פעילות (הגעה/עזיבה/תחלופה/נשאר) - כלומר לא "ריק"
-            // 2. או שהחדר מלוכלך/בתקלה (גם אם אין אורח, צריך לנקות אותו)
             const hasActivity = room.dashboardStatus !== 'empty';
             const needsWork = room.status !== 'clean'; 
-            
             return hasActivity || needsWork;
         });
     }, [rooms, showOnlyRelevant]);
@@ -156,10 +152,10 @@ export default function AdminDailyDashboard() {
                 <StatBox label="לניקיון" count={stats.dirty} color="text-slate-800" bg="bg-white border border-slate-200" />
             </div>
 
-            {/* --- Toolbar: הקצאה + כפתור סינון --- */}
+            {/* --- Toolbar --- */}
             <div className="sticky top-4 z-20 flex flex-col md:flex-row items-center justify-between gap-4">
                 
-                {/* כפתור הסינון החדש */}
+                {/* כפתור סינון */}
                 <div className="bg-white p-2 rounded-lg shadow-sm border flex items-center">
                     <Button 
                         variant="ghost" 
@@ -217,11 +213,11 @@ export default function AdminDailyDashboard() {
                         const Icon = config.icon;
                         const info = room.bookingInfo;
 
-                        // ✨✨✨ חישוב מיטות ועריסות לתצוגה ✨✨✨
+                        // ✨✨✨ תיקון קריטי: לוקחים או את pax או את in (במקרה של תחלופה) ✨✨✨
+                        // זה יפתור את הבעיה של ה-0 מיטות!
                         const babiesCount = info?.babies || 0;
-                        const totalPax = info?.pax || 0;
-                        // הנחה: pax באקסל הוא סה"כ אנשים (כולל תינוקות).
-                        // אז מיטות רגילות = סה"כ אנשים פחות התינוקות.
+                        const totalPax = info?.pax || info?.in || 0; 
+                        
                         const bedsCount = Math.max(0, totalPax - babiesCount);
 
                         return (
@@ -252,6 +248,7 @@ export default function AdminDailyDashboard() {
                                             {/* מיטות */}
                                             <p className="flex items-center gap-2 font-bold text-slate-800 text-base">
                                                 <Bed size={18} className="text-slate-500"/>
+                                                {/* כאן יוצג המספר הנכון בגלל התיקון למעלה */}
                                                 <span>{bedsCount} מיטות</span>
                                             </p>
 

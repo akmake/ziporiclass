@@ -6,7 +6,7 @@ import { catchAsync } from '../middlewares/errorHandler.js';
 import AppError from '../utils/AppError.js';
 import XLSX from 'xlsx';
 
-// פונקציית עזר לניקוי תאריכים (להתעלם משעות)
+// פונקציית עזר לניקוי תאריכים
 const normalizeDate = (date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -47,7 +47,9 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
 
         const start = normalizeDate(arrival);
         const end = normalizeDate(departure);
-        const pax = parseInt(row['total_pax'] || 0);
+        
+        // ✨ שיפור: קריאה גמישה יותר של עמודת ה-pax (תומך גם ב-Total Pax וגם ב-total_pax)
+        const pax = parseInt(row['total_pax'] || row['Total Pax'] || row['pax'] || 0);
         const babies = parseInt(row['c_babies'] || 0);
 
         let roomId;
@@ -130,21 +132,16 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
 
     const queryDate = date ? normalizeDate(date) : normalizeDate(new Date());
     
-    // שליפת כל החדרים (כולל חדרניות משובצות)
     const rooms = await Room.find({ hotel: hotelId })
         .populate('assignedTo', 'name')
         .populate('roomType', 'name')
         .lean();
 
-    // שליפת שיבוצים פעילים:
-    // התנאי הוא שחייבת להיות חפיפה כלשהי עם "היום".
-    // 1. תאריך ההגעה הוא היום או לפני.
-    // 2. תאריך העזיבה הוא היום או אחרי.
     const activeBookings = await Booking.find({
         hotel: hotelId,
         status: 'active',
         arrivalDate: { $lte: queryDate },
-        departureDate: { $gte: queryDate } // היה gt, שונה ל-gte כדי לכלול עזיבות היום
+        departureDate: { $gte: queryDate }
     }).lean();
 
     const bookingMap = new Map();
@@ -158,11 +155,9 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
         let calculatedStatus = 'empty';
         let specialInfo = null;
 
-        // בדיקות ספציפיות לתאריך הנבחר
         const arrivals = bookings.filter(b => normalizeDate(b.arrivalDate).getTime() === queryDate.getTime());
         const departures = bookings.filter(b => normalizeDate(b.departureDate).getTime() === queryDate.getTime());
         
-        // "נשארים": מי שהגיע לפני היום, ועוזב אחרי היום
         const stayovers = bookings.filter(b =>
             normalizeDate(b.arrivalDate) < queryDate &&
             normalizeDate(b.departureDate) > queryDate
@@ -170,13 +165,15 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
 
         // --- לוגיקת הסטטוסים ---
 
-        // 1. תחלופה (גם עוזבים וגם נכנסים)
+        // 1. תחלופה
         if (arrivals.length > 0 && departures.length > 0) {
             calculatedStatus = 'back_to_back';
             specialInfo = {
                 out: departures[0].pax,
                 in: arrivals[0].pax,
-                babies: arrivals[0].babies // לול לתינוק שנכנס
+                // ✨ התיקון בשרת: שולחים pax גם כאן, לפי הנכנסים
+                pax: arrivals[0].pax, 
+                babies: arrivals[0].babies
             };
         } 
         // 2. הגעה בלבד
@@ -187,11 +184,12 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
                 babies: arrivals[0].babies
             };
         } 
-        // 3. עזיבה בלבד (עכשיו יוצג כי השאילתה מביאה אותם)
+        // 3. עזיבה בלבד
         else if (departures.length > 0) {
             calculatedStatus = 'departure';
             specialInfo = {
-                out: departures[0].pax
+                out: departures[0].pax,
+                pax: 0 // אין מיטות להכנה להלילה
             };
         } 
         // 4. נשארים
@@ -213,7 +211,7 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
     res.json(dashboardData);
 });
 
-// --- 3. טיפול בהתנגשויות (Resolve Conflict) ---
+// --- 3. טיפול בהתנגשויות ---
 export const resolveConflict = catchAsync(async (req, res, next) => {
     const { action, conflictData } = req.body;
 
@@ -231,7 +229,7 @@ export const resolveConflict = catchAsync(async (req, res, next) => {
     }
 });
 
-// --- 4. הקצאת חדרים לחדרניות (Shift Manager) ---
+// --- 4. הקצאת חדרים ---
 export const assignRoomsToHousekeeper = catchAsync(async (req, res, next) => {
     const { roomIds, userId } = req.body;
 
