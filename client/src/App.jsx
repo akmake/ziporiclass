@@ -29,7 +29,7 @@ import AdminDashboardPage from "@/pages/admin/AdminDashboardPage.jsx";
 import AdminMaintenanceDashboard from "@/pages/admin/AdminMaintenanceDashboard.jsx";
 import ManagePhysicalRoomsPage from '@/pages/admin/ManagePhysicalRoomsPage.jsx';
 import RoomStatusPage from '@/pages/admin/RoomStatusPage.jsx';
-import DailyPlanPage from '@/pages/admin/DailyPlanPage.jsx';
+import AdminDailyDashboard from '@/pages/admin/AdminDailyDashboard.jsx';
 import ManagePriceListsPage from '@/pages/admin/ManagePriceListsPage.jsx';
 import ManageOrdersPage from '@/pages/admin/ManageOrdersPage.jsx';
 import ManageUsersPage from "@/pages/admin/ManageUsersPage.jsx";
@@ -89,7 +89,7 @@ export default function App() {
             <Route path="rooms/create" element={<ManagePhysicalRoomsPage />} />
 
             <Route path="rooms-status" element={<RoomStatusPage />} />
-            <Route path="daily-plan" element={<DailyPlanPage />} />
+            <Route path="daily-plan" element={<AdminDailyDashboard />} />
 
             <Route path="orders" element={<ManageOrdersPage />} />
             <Route path="users" element={<ManageUsersPage />} />
