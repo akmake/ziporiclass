@@ -1,3 +1,4 @@
+// server/routes/roomRoutes.js
 import express from 'express';
 import { requireAuth, requireAdmin, requireMaintenance } from '../middlewares/authMiddleware.js';
 import {

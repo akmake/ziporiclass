@@ -1,3 +1,4 @@
+// server/controllers/roomController.js
 import Room from '../models/Room.js';
 import Hotel from '../models/Hotel.js';
 import Booking from '../models/Booking.js';
@@ -9,7 +10,7 @@ export const getMyTasks = catchAsync(async (req, res) => {
     // שליפת חדרים ששויכו למשתמש המחובר
     const rooms = await Room.find({ assignedTo: req.user._id })
         .populate('hotel', 'name')
-        .sort({ status: 1, roomNumber: 1 }); // מיון: קודם סטטוס, אח"כ מספר חדר
+        .sort({ status: 1, roomNumber: 1 });
 
     res.json(rooms);
 });
@@ -17,19 +18,18 @@ export const getMyTasks = catchAsync(async (req, res) => {
 // --- 2. שליפת כל החדרים (למנהל) ---
 export const getAllRooms = catchAsync(async (req, res) => {
     const rooms = await Room.find({})
-        .populate('roomType', 'name')
-        .populate('hotel', 'name')
-        .populate('lastCleanedBy', 'name')
-        .populate('assignedTo', 'name')
+        .populate('roomType', 'name', { strictPopulate: false }) // ✨ תיקון: מונע קריסה על ID לא תקין
+        .populate('hotel', 'name', { strictPopulate: false })   // ✨ תיקון: מונע קריסה על ID לא תקין
+        .populate('lastCleanedBy', 'name', { strictPopulate: false }) // ✨ תיקון: מונע קריסה על ID לא תקין
+        .populate('assignedTo', 'name', { strictPopulate: false })     // ✨ תיקון: מונע קריסה על ID לא תקין
         .sort({ hotel: 1, roomNumber: 1 });
-
     res.json(rooms);
 });
 
 // --- 3. שליפת חדרים לפי מלון ---
 export const getRoomsByHotel = catchAsync(async (req, res) => {
     const { hotelId } = req.params;
-    
+
     // בדיקה בסיסית אם ה-ID תקין למניעת קריסות CastError
     if (!hotelId.match(/^[0-9a-fA-F]{24}$/)) {
         return res.status(400).json({ message: 'מזהה מלון לא תקין' });
@@ -90,7 +90,7 @@ export const updateRoomStatus = catchAsync(async (req, res, next) => {
     if (status === 'clean') {
         room.lastCleanedAt = new Date();
         room.lastCleanedBy = req.user._id;
-        
+
         // סימון כל המשימות כהושלמו (אופציונלי, לנוחות)
         if (room.tasks && room.tasks.length > 0) {
             room.tasks.forEach(t => t.isCompleted = true);
@@ -101,7 +101,6 @@ export const updateRoomStatus = catchAsync(async (req, res, next) => {
     await room.save();
     res.json(room);
 });
-
 // --- 6. הוספת משימה ידנית ---
 export const addTask = catchAsync(async (req, res, next) => {
     const { id } = req.params;
@@ -113,7 +112,7 @@ export const addTask = catchAsync(async (req, res, next) => {
     if (!room) return next(new AppError('חדר לא נמצא', 404));
 
     const type = isTemporary ? 'daily' : 'maintenance';
-    
+
     room.tasks.push({
         description,
         addedBy: req.user._id,
@@ -159,7 +158,7 @@ export const deleteRoom = catchAsync(async (req, res) => {
 
 // --- 9. הפצת סידור עבודה (ידני) ---
 export const applyDailyPlan = catchAsync(async (req, res, next) => {
-    const { plan } = req.body; 
+    const { plan } = req.body;
     // plan צפוי להיות מערך: [{ roomId, action, note }]
 
     if (!plan || !Array.isArray(plan)) {
@@ -170,7 +169,7 @@ export const applyDailyPlan = catchAsync(async (req, res, next) => {
 
     for (const item of plan) {
         const { roomId, note } = item;
-        
+
         // כאן אפשר להוסיף לוגיקה שמוסיפה משימות לפי ה-action (למשל 'checkout')
         // כרגע נוסיף רק הערה אם קיימת
         if (note) {
