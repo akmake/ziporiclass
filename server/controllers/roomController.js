@@ -31,10 +31,11 @@ export const getRoomsByHotel = catchAsync(async (req, res) => {
   const query = { hotel: hotelId };
 
   if (user.role === 'housekeeper') {
-      // חדרנית רואה את החדרים ששויכו לה, ללא תלות בתאריך ההקצאה
+      // חדרנית רואה את החדרים ששויכו לה
       query.assignedTo = user._id;
   }
   else if (user.role === 'maintenance') {
+      // איש תחזוקה רואה חדרים בסטטוס תחזוקה או עם משימות תחזוקה פתוחות
       query.$or = [
           { status: 'maintenance' },
           { tasks: { $elemMatch: { type: 'maintenance', isCompleted: false } } }
@@ -47,12 +48,13 @@ export const getRoomsByHotel = catchAsync(async (req, res) => {
     .populate('assignedTo', 'name')
     .sort({ roomNumber: 1 });
 
+  // ניקוי משימות יומיות ישנות מהתצוגה (אופציונלי, ליתר ביטחון)
   const todayStart = new Date();
   todayStart.setHours(0,0,0,0);
 
-  // סינון ויזואלי של משימות ישנות
   rooms = rooms.map(room => {
       const activeTasks = room.tasks.filter(t => {
+          // משימות יומיות של העבר - מסתירים
           if (t.type === 'daily' && t.date && new Date(t.date) < todayStart) {
               return false;
           }
@@ -76,6 +78,7 @@ export const createBulkRooms = catchAsync(async (req, res, next) => {
   }
 
   const hotelDoc = await Hotel.findById(hotel);
+  // ברירת מחדל: צ'ק ליסט בסיסי
   const checklist = hotelDoc?.masterChecklist && hotelDoc.masterChecklist.length > 0
       ? hotelDoc.masterChecklist
       : [{ text: 'ניקיון כללי', order: 1 }];
@@ -110,7 +113,7 @@ export const createBulkRooms = catchAsync(async (req, res, next) => {
   res.status(201).json({ message: `נוצרו ${createdRooms.length} חדרים חדשים.` });
 });
 
-// --- 4. הוספת משימה ---
+// --- 4. הוספת משימה ידנית ---
 export const addTask = catchAsync(async (req, res, next) => {
     const { id } = req.params;
     const { description, isTemporary } = req.body;
@@ -140,7 +143,7 @@ export const addTask = catchAsync(async (req, res, next) => {
     res.json(room);
 });
 
-// --- 5. עדכון משימה ---
+// --- 5. עדכון משימה (V/X) ---
 export const toggleTask = catchAsync(async (req, res, next) => {
     const { id, taskId } = req.params;
     const { isCompleted } = req.body;
@@ -167,6 +170,7 @@ export const updateRoomStatus = catchAsync(async (req, res, next) => {
     const room = await Room.findById(id);
     if (!room) return next(new AppError('חדר לא נמצא', 404));
 
+    // שמירת היסטוריה בעת סימון כ"נקי"
     if (status === 'clean') {
         if (room.status !== 'clean') {
             room.history.push({
@@ -178,19 +182,14 @@ export const updateRoomStatus = catchAsync(async (req, res, next) => {
         room.lastCleanedAt = new Date();
         room.lastCleanedBy = req.user._id;
     }
+    // אם מסמנים כ"מלוכלך", מאפסים את הצ'ק ליסט הבסיסי
     else if (status === 'dirty' && room.status !== 'dirty') {
         const openMaintenance = room.tasks.filter(t => t.type === 'maintenance' && !t.isCompleted);
         const hotelDoc = await Hotel.findById(room.hotel);
 
-        let checklist = [];
-        if (hotelDoc?.checklists?.departure?.length > 0) {
-            checklist = hotelDoc.checklists.departure;
-        } else if (hotelDoc?.masterChecklist?.length > 0) {
-            checklist = hotelDoc.masterChecklist;
-        } else {
-            checklist = [{ text: 'ניקיון כללי', order: 1 }];
-        }
-
+        // רובד 1: צ'ק ליסט בסיסי קבוע
+        let checklist = hotelDoc?.masterChecklist || [{ text: 'ניקיון יסודי', order: 1 }];
+        
         const newStandardTasks = checklist.map(item => ({
             description: item.text,
             type: 'standard',
@@ -211,109 +210,89 @@ export const deleteRoom = catchAsync(async (req, res) => {
     res.status(204).send();
 });
 
-// --- 7. 🔥 יצירת החדר היומית (Safe Mode) 🔥 ---
-// זו הפונקציה שנקראת מ"סידור עבודה" (Daily Plan).
-// היא בונה את המשימות לחדר באופן נפרד לחלוטין מההקצאה.
+// --- 7. 🔥 המנוע החכם: הלבשת נתוני ההזמנה על החדר 🔥 ---
+// פונקציה זו נקראת כשהמנהל לוחץ "הפץ לחדרניות" או אוטומטית אחרי קליטת אקסל.
 export const applyDailyPlan = catchAsync(async (req, res, next) => {
     const { plan } = req.body; 
+    // plan = מערך של { roomId, action, note } - נשתמש בזה כדי לדעת על אלו חדרים לרוץ
 
     if (!plan || !Array.isArray(plan)) {
         return next(new AppError('מבנה נתונים לא תקין', 400));
     }
 
-    // טווח זמנים לכל היום
     const todayStart = new Date();
     todayStart.setHours(0,0,0,0);
     const todayEnd = new Date();
     todayEnd.setHours(23,59,59,999);
 
-    console.log(`🛡️ Safe Daily Plan: Scanning for bookings ${todayStart.toISOString()} - ${todayEnd.toISOString()}`);
+    console.log(`🛡️ Layered System: Syncing rooms with bookings...`);
 
     let updatedCount = 0;
 
     for (const item of plan) {
-        const { roomId, action, note } = item;
-
-        // אם לא נבחר כלום, מדלגים
-        if ((!action || action === 'none') && (!note || !note.trim())) continue;
-
+        const { roomId, note } = item;
         const room = await Room.findById(roomId);
         if (!room) continue;
 
-        // שמירת גיבוי למקרה של תקלה (כדי לא למחוק משימות סתם)
-        const previousTasks = [...room.tasks];
+        // שמירת משימות תחזוקה קיימות (שכבה 1 - לא נוגעים)
         const existingMaintenance = room.tasks.filter(t => t.type === 'maintenance' && !t.isCompleted);
 
-        // --- שלב א': איתור הזמנה (Booking) - חיפוש כפול וחזק ---
-        // 1. חיפוש לפי ID של החדר (אם הקישור תקין)
-        let bookingToday = await Booking.findOne({
-            room: room._id,
-            status: 'active',
-            arrivalDate: { $gte: todayStart, $lte: todayEnd }
-        });
-
-        // 2. אם לא נמצא, חיפוש לפי מספר חדר (String) - לגיבוי מול אקסל שלא קושר טוב
-        if (!bookingToday) {
-            bookingToday = await Booking.findOne({
-                roomNumber: room.roomNumber, // וודא ששדה זה קיים ב-Booking (הוספנו אותו בקליטה)
-                status: 'active',
-                arrivalDate: { $gte: todayStart, $lte: todayEnd }
-            });
-            if (bookingToday) console.log(`✅ מצאתי הזמנה לחדר ${room.roomNumber} לפי מספר חדר (טקסט)!`);
-        }
-
-        // --- שלב ב': בניית נתוני מיטות ---
-        const autoTasks = [];
-        if (bookingToday) {
-            const totalBeds = bookingToday.pax || 0;
-            const totalBabies = bookingToday.babies || 0;
-            
-            let taskDesc = `🛏️ להכין ${totalBeds} מיטות`;
-            if (totalBabies > 0) {
-                taskDesc += ` + ${totalBabies} עריסות/לולים 👶`;
-            }
-
-            autoTasks.push({
-                description: taskDesc,
-                type: 'daily',
-                date: todayStart,
-                isCompleted: false,
-                isSystemTask: true,
-                isHighlight: true
-            });
-        }
-
-        // --- שלב ג': בחירת הצ'ק ליסט ---
+        // --- שכבה 2: צ'ק ליסט בסיסי (תמיד מתווסף כשמחדשים סידור) ---
         const hotelDoc = await Hotel.findById(room.hotel);
-        let selectedChecklist = [];
-
-        // אם יש הגעה היום (לפי האקסל), זה Departure (ניקיון יסודי) לא משנה מה המנהל בחר
-        if (bookingToday || action === 'checkout' || action === 'arrival') {
-            selectedChecklist = hotelDoc?.checklists?.departure || [];
-        } else if (action === 'stayover') {
-            selectedChecklist = hotelDoc?.checklists?.stayover || [];
-        }
+        const baseChecklist = hotelDoc?.masterChecklist || [{ text: 'ניקיון כללי', order: 1 }];
         
-        // Fallback
-        if (selectedChecklist.length === 0) {
-            selectedChecklist = hotelDoc?.masterChecklist || [{ text: 'ניקיון כללי', order: 1 }];
-        }
-
-        // --- מנגנון הגנה: לא מוחקים אם אין תוכן חדש ---
-        // אם הצ'ק ליסט ריק, ואין מיטות, ואין הערה -> כנראה משהו שגוי, לא דורסים את המשימות הקיימות.
-        if (selectedChecklist.length === 0 && autoTasks.length === 0 && (!note || !note.trim())) {
-            console.log(`⚠️ מדלג על חדר ${room.roomNumber} - לא נמצא מידע לביצוע איפוס.`);
-            continue; 
-        }
-
-        const standardTasks = selectedChecklist.map(item => ({
+        const standardTasks = baseChecklist.map(item => ({
             description: item.text,
             type: 'standard',
             isCompleted: false,
             isSystemTask: true
         }));
 
-        // --- שלב ד': הערות מנהל ---
+        // --- שכבה 3: הלבשת נתוני הזמנה (Beds & Cribs) ---
+        // חיפוש הזמנה פעילה להיום
+        let bookingToday = await Booking.findOne({
+            room: room._id,
+            status: 'active',
+            arrivalDate: { $gte: todayStart, $lte: todayEnd } // מחפשים כניסות היום
+        });
+
+        // חיפוש גיבוי לפי מספר חדר (טקסט)
+        if (!bookingToday) {
+            bookingToday = await Booking.findOne({
+                roomNumber: room.roomNumber,
+                status: 'active',
+                arrivalDate: { $gte: todayStart, $lte: todayEnd }
+            });
+        }
+
+        const bookingTasks = [];
+        if (bookingToday) {
+            // הוספת משימת מיטות (בנפרד)
+            if (bookingToday.pax > 0) {
+                bookingTasks.push({
+                    description: `🛏️ להכין ${bookingToday.pax} מיטות`,
+                    type: 'daily', // משימה יומית ספציפית
+                    date: todayStart,
+                    isCompleted: false,
+                    isSystemTask: true,
+                    isHighlight: true // להדגשה ב-UI
+                });
+            }
+
+            // הוספת משימת עריסות (בנפרד)
+            if (bookingToday.babies > 0) {
+                bookingTasks.push({
+                    description: `👶 להכין ${bookingToday.babies} עריסות/לולים`,
+                    type: 'daily',
+                    date: todayStart,
+                    isCompleted: false,
+                    isSystemTask: true,
+                    isHighlight: true
+                });
+            }
+        }
+
+        // --- שכבה 4: הערות מנהל ידניות ---
         const managerTasks = [];
         if (note && note.trim()) {
             managerTasks.push({
@@ -326,23 +305,18 @@ export const applyDailyPlan = catchAsync(async (req, res, next) => {
             });
         }
 
-        // ביצוע העדכון בפועל
-        if (room.status !== 'clean') {
-             room.history.push({ cycleDate: new Date(), cleanedBy: "System Reset (Plan)", tasksSnapshot: previousTasks });
-        }
-
+        // הרכבת כל השכבות מחדש
         room.tasks = [
-            ...existingMaintenance, 
-            ...managerTasks, 
-            ...autoTasks, 
-            ...standardTasks
+            ...existingMaintenance, // תמיד בראש
+            ...managerTasks,        // דגשים
+            ...bookingTasks,        // מיטות ועריסות
+            ...standardTasks        // צ'ק ליסט רגיל
         ];
 
-        room.status = 'dirty'; 
-
+        room.status = 'dirty'; // איפוס סטטוס כדי שהחדרנית תראה את העבודה
         await room.save();
         updatedCount++;
     }
 
-    res.json({ message: `סידור העבודה עודכן בהצלחה ב-${updatedCount} חדרים (עם הגנה ממחיקה).` });
+    res.json({ message: `סידור העבודה עודכן: ${updatedCount} חדרים סונכרנו עם נתוני מיטות ועריסות.` });
 });

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { Card, CardContent } from '@/components/ui/Card.jsx';
 import { Button } from '@/components/ui/Button.jsx';
 import { Checkbox } from '@/components/ui/Checkbox.jsx';
-import { Paintbrush, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Wrench, Plus, Bed } from 'lucide-react';
+import { Paintbrush, CheckCircle2, ChevronDown, ChevronUp, Wrench, Plus, Bed, Baby, ListChecks, Star } from 'lucide-react';
 import { Input } from '@/components/ui/Input.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
 
@@ -33,26 +33,28 @@ export default function HousekeeperView() {
         queryKey: ['myRooms', selectedHotel],
         queryFn: () => fetchMyRooms(selectedHotel),
         enabled: !!selectedHotel,
-        refetchInterval: 5000 
+        refetchInterval: false // ✨ ביטול רענון אוטומטי למניעת קפיצות
     });
 
     const toggleTaskMutation = useMutation({
         mutationFn: ({ roomId, taskId, isCompleted }) => api.patch(`/rooms/${roomId}/tasks/${taskId}`, { isCompleted }),
-        // Optimistic Update: עדכון מיידי בממשק
         onMutate: async ({ roomId, taskId, isCompleted }) => {
             await queryClient.cancelQueries(['myRooms', selectedHotel]);
             const previousRooms = queryClient.getQueryData(['myRooms', selectedHotel]);
-            
-            queryClient.setQueryData(['myRooms', selectedHotel], (old) => old.map(room => {
-                if (room._id === roomId) {
-                    return {
-                        ...room,
-                        tasks: room.tasks.map(t => t._id === taskId ? { ...t, isCompleted } : t)
-                    };
-                }
-                return room;
-            }));
-            
+
+            queryClient.setQueryData(['myRooms', selectedHotel], (old) => {
+                if (!old) return [];
+                return old.map(room => {
+                    if (room._id === roomId) {
+                        return {
+                            ...room,
+                            tasks: room.tasks.map(t => t._id === taskId ? { ...t, isCompleted } : t)
+                        };
+                    }
+                    return room;
+                });
+            });
+
             return { previousRooms };
         },
         onError: (err, newTodo, context) => {
@@ -66,7 +68,7 @@ export default function HousekeeperView() {
         mutationFn: ({ roomId, status }) => api.patch(`/rooms/${roomId}/status`, { status }),
         onSuccess: () => {
             toast.success('סטטוס חדר עודכן!');
-            queryClient.invalidateQueries(['myRooms']);
+            queryClient.invalidateQueries(['myRooms', selectedHotel]);
         }
     });
 
@@ -76,7 +78,7 @@ export default function HousekeeperView() {
             toast.success('התקלה דווחה בהצלחה');
             setReportText('');
             setIsReportOpen(false);
-            queryClient.invalidateQueries(['myRooms']);
+            queryClient.invalidateQueries(['myRooms', selectedHotel]);
         }
     });
 
@@ -90,7 +92,7 @@ export default function HousekeeperView() {
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20 font-sans" dir="rtl">
-            <div className="bg-white p-4 shadow-sm sticky top-0 z-10 flex justify-between items-center">
+            <div className="bg-white p-4 shadow-sm sticky top-0 z-10 flex justify-between items-center border-b border-slate-200">
                 <div>
                     <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <Paintbrush className="text-pink-600"/> המשימות שלי להיום
@@ -112,7 +114,6 @@ export default function HousekeeperView() {
                 {myRooms.length === 0 && !isLoading && (
                     <div className="text-center py-10 text-slate-400">
                         <p>אין לך חדרים להיום 🎉</p>
-                        <p className="text-xs mt-2">המתיני להקצאה מהאחראי.</p>
                     </div>
                 )}
 
@@ -135,31 +136,38 @@ export default function HousekeeperView() {
 
                             {activeRoom?._id === room._id && (
                                 <div className="bg-slate-50 p-4 border-t border-slate-100 animate-in slide-in-from-top-2">
-                                    <div className="space-y-3 mb-6">
-                                        {room.tasks.length === 0 ? (
-                                            <p className="text-slate-400 text-sm text-center italic">אין משימות מיוחדות, בצעי נוהל רגיל.</p>
-                                        ) : (
-                                            room.tasks.map(task => (
-                                                <div
-                                                    key={task._id}
-                                                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors 
-                                                        ${task.isCompleted ? 'bg-slate-100 opacity-60' : 'bg-white shadow-sm'} 
-                                                        ${task.type === 'maintenance' ? 'border-red-200 bg-red-50' : 'border-slate-200'}
-                                                        ${task.description.includes('מיטות') ? 'border-blue-300 bg-blue-50' : ''}
-                                                    `}
-                                                    onClick={() => toggleTaskMutation.mutate({ roomId: room._id, taskId: task._id, isCompleted: !task.isCompleted })}
-                                                >
-                                                    <Checkbox checked={task.isCompleted} />
-                                                    <div className="flex-1 text-sm font-medium">
-                                                        <span className={task.isCompleted ? 'line-through text-slate-500' : 'text-slate-800'}>
-                                                            {task.description}
-                                                        </span>
-                                                        {task.description.includes('מיטות') && <span className="block text-[10px] text-blue-600 font-bold flex items-center gap-1"><Bed size={10}/> כמות לאורח הבא</span>}
-                                                        {task.type === 'maintenance' && <span className="block text-[10px] text-red-600 font-bold">תקלה</span>}
-                                                    </div>
-                                                </div>
-                                            ))
+                                    
+                                    <div className="space-y-4 mb-6">
+                                        
+                                        {/* 1. תקלות קריטיות */}
+                                        {room.tasks.filter(t => t.type === 'maintenance').length > 0 && (
+                                            <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                                                <h4 className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1"><Wrench size={12}/> תקלות פתוחות</h4>
+                                                {room.tasks.filter(t => t.type === 'maintenance').map(task => (
+                                                    <TaskRow key={task._id} task={task} roomId={room._id} toggle={toggleTaskMutation.mutate} />
+                                                ))}
+                                            </div>
                                         )}
+
+                                        {/* 2. סידורי חדר (מיטות/עריסות) - הנתונים מהאקסל */}
+                                        {room.tasks.filter(t => t.type === 'daily' && t.isSystemTask).length > 0 && (
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                                                <h4 className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-1"><Star size={12}/> הרכב חדר (מהזמנה)</h4>
+                                                {room.tasks.filter(t => t.type === 'daily' && t.isSystemTask).map(task => (
+                                                    <TaskRow key={task._id} task={task} roomId={room._id} toggle={toggleTaskMutation.mutate} />
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* 3. צ'ק ליסט שוטף */}
+                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
+                                            <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1"><ListChecks size={12}/> ניקיון שוטף</h4>
+                                            {room.tasks.filter(t => t.type === 'standard').map(task => (
+                                                <TaskRow key={task._id} task={task} roomId={room._id} toggle={toggleTaskMutation.mutate} />
+                                            ))}
+                                            {room.tasks.filter(t => t.type === 'standard').length === 0 && <p className="text-xs text-gray-400">אין משימות קבועות.</p>}
+                                        </div>
+
                                     </div>
 
                                     <div className="flex gap-3">
@@ -201,6 +209,32 @@ export default function HousekeeperView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+        </div>
+    );
+}
+
+// רכיב עזר לשורת משימה
+function TaskRow({ task, roomId, toggle }) {
+    const isBed = task.description.includes('מיטות');
+    const isCrib = task.description.includes('עריסות') || task.description.includes('לולים');
+
+    return (
+        <div
+            className={`flex items-center gap-3 p-3 rounded-md mb-1 cursor-pointer transition-colors border
+                ${task.isCompleted ? 'bg-slate-100 border-transparent opacity-60' : 'bg-white border-slate-100 hover:border-blue-300 shadow-sm'}
+            `}
+            onClick={() => toggle({ roomId, taskId: task._id, isCompleted: !task.isCompleted })}
+        >
+            <Checkbox checked={task.isCompleted} />
+            <div className="flex-1">
+                <span className={`text-sm ${task.isCompleted ? 'line-through text-slate-500' : 'font-medium text-slate-800'}`}>
+                    {task.description}
+                </span>
+                <div className="flex gap-2">
+                    {isBed && <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1 bg-blue-50 px-1 rounded w-fit mt-1"><Bed size={10}/> נדרש להזמנה</span>}
+                    {isCrib && <span className="text-[10px] text-pink-600 font-bold flex items-center gap-1 bg-pink-50 px-1 rounded w-fit mt-1"><Baby size={10}/> לתינוק</span>}
+                </div>
+            </div>
         </div>
     );
 }
