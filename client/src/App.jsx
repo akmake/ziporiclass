@@ -6,7 +6,7 @@ import AdminRoute from "@/components/routes/AdminRoute.jsx";
 import SalesRoute from "@/components/routes/SalesRoute.jsx";
 import MaintenanceRoute from "@/components/routes/MaintenanceRoute.jsx";
 import PriceListManagerRoute from "@/components/routes/PriceListManagerRoute.jsx";
-import ShiftManagerRoute from "@/components/routes/ShiftManagerRoute.jsx"; // ✨ חדש
+import ShiftManagerRoute from "@/components/routes/ShiftManagerRoute.jsx"; 
 
 /* Public Pages */
 import HomePage from "@/pages/HomePage.jsx";
@@ -22,7 +22,7 @@ import LeadsPage from '@/pages/LeadsPage.jsx';
 import PricingLogicPage from '@/pages/PricingLogicPage.jsx';
 
 /* Maintenance Pages */
-import MaintenanceDashboardPage from '@/pages/maintenance/MaintenanceDashboardPage.jsx';
+import HousekeeperView from '@/pages/maintenance/HousekeeperView.jsx'; // ✨ התיקון: ייבוא מסך החדרנית
 
 /* Admin Pages */
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage.jsx";
@@ -40,7 +40,7 @@ import ManageReferrersPage from '@/pages/admin/ManageReferrersPage.jsx';
 import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
 import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx";
 import CommissionsPage from "@/pages/admin/CommissionsPage.jsx";
-import BookingManagementPage from "@/pages/admin/BookingManagementPage.jsx"; // ✨ הדף החדש
+import BookingManagementPage from "@/pages/admin/BookingManagementPage.jsx";
 
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
 import AutoLogout from "@/components/AutoLogout.jsx";
@@ -69,7 +69,8 @@ export default function App() {
 
           {/* --- Maintenance Workers --- */}
           <Route element={<MaintenanceRoute />}>
-             <Route path="maintenance" element={<MaintenanceDashboardPage />} />
+             {/* ✨ התיקון: הפניה למסך החדרנית האמיתי */}
+             <Route path="maintenance" element={<HousekeeperView />} />
           </Route>
 
           <Route element={<PriceListManagerRoute />}>
@@ -78,7 +79,7 @@ export default function App() {
 
           {/* --- Shift Manager & Admin (ניהול שיבוצים) --- */}
           <Route element={<ShiftManagerRoute />}>
-             <Route path="bookings" element={<BookingManagementPage />} />
+              <Route path="bookings" element={<BookingManagementPage />} />
           </Route>
 
           {/* --- Admin Panel --- */}
