@@ -225,6 +225,17 @@ export const deleteRoom = catchAsync(async (req, res) => {
     res.status(204).send();
 });
 
+// --- פונקציה חדשה: החדרים שלי (לחדרנית) ---
+export const getMyTasks = catchAsync(async (req, res) => {
+    // שליפת חדרים ששויכו למשתמש הנוכחי
+    const rooms = await Room.find({ assignedTo: req.user._id })
+        .populate('hotel', 'name')
+        // אנחנו צריכים את המידע הזה בשביל הלוגיקה של הפרונט
+        .select('roomNumber status tasks currentGuest hotel dailyTasks'); 
+
+    res.json(rooms);
+});
+
 // --- 8. החלת סידור עבודה חכם (עם כמות מיטות + מיזוג רשימות) ---
 export const applyDailyPlan = catchAsync(async (req, res, next) => {
     const { plan } = req.body; // [{ roomId, action, note }]
@@ -317,6 +328,8 @@ export const applyDailyPlan = catchAsync(async (req, res, next) => {
                 isSystemTask: false,
                 addedBy: req.user._id
             });
+        
+
         }
 
         // הרכבת כל השכבות מחדש
