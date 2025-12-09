@@ -17,27 +17,38 @@ export const createHotel = catchAsync(async (req, res) => {
     res.status(201).json(newHotel);
 });
 
-// ✨ עדכון התבנית הראשית (Master Checklist)
-// מקבל מערך של אובייקטים: [{ text: '...', order: 1 }, ...]
+// === תיקון: עדכון כל סוגי הצ'ק ליסטים ===
 export const updateMasterChecklist = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { checklist } = req.body; 
+    // המקבל יכול לשלוח checklists כאובייקט { arrival: [], departure: [], stayover: [] }
+    // או checklist כמערך (תמיכה לאחור)
+    const { checklists, checklist } = req.body;
+
+    const updateData = {};
+    
+    if (checklists) {
+        updateData.checklists = checklists;
+    } else if (checklist) {
+        // Fallback: אם נשלח רק checklist אחד, נשמור אותו כברירת מחדל בכולם או ב-departure
+        updateData.masterChecklist = checklist; 
+        // אופציונלי: לעדכן גם את החדשים
+        updateData['checklists.departure'] = checklist;
+    }
 
     const hotel = await Hotel.findByIdAndUpdate(
-        id, 
-        { masterChecklist: checklist }, 
+        id,
+        updateData,
         { new: true }
     );
-    
+
     if (!hotel) throw new AppError('המלון לא נמצא.', 404);
     res.json(hotel);
 });
 
-// פונקציית Legacy (נשמרת למקרה שעדיין יש קריאות ישנות)
+// פונקציית Legacy
 export const updateHotelTasks = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { tasks } = req.body; 
-    // ממירים פורמט ישן לחדש אם צריך, או שומרים בשדה הישן
+    const { tasks } = req.body;
     const hotel = await Hotel.findByIdAndUpdate(id, { defaultTasks: tasks }, { new: true });
     res.json(hotel);
 });
