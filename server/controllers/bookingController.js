@@ -28,7 +28,7 @@ const findColValue = (row, possibleNames) => {
     return 0;
 };
 
-// --- 1. העלאת אקסל (חיוני לקליטת הנתונים הראשונית) ---
+// --- 1. העלאת אקסל ועיבוד נתונים (DRY RUN & SAVE) ---
 export const uploadSchedule = catchAsync(async (req, res, next) => {
     if (!req.file) return next(new AppError('לא נבחר קובץ', 400));
     const { hotelId, dryRun } = req.body;
@@ -66,9 +66,8 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
         const children = findColValue(row, ['c_children', 'children', 'child', 'ילדים']);
         
         let pax = adults + juniors + children;
-        // גיבוי: אם החישוב הפרטני נכשל, מנסים למצוא עמודת סה"כ
         if (pax === 0) pax = findColValue(row, ['total_pax', 'pax', 'total', 'סה"כ']);
-        if (pax === 0) pax = 1; // מינימום 1 כדי לא לאבד מידע
+        if (pax === 0) pax = 1;
 
         const babies = findColValue(row, ['c_babies', 'babies', 'baby', 'תינוקות']);
 
@@ -144,7 +143,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     });
 });
 
-// --- 2. דשבורד יומי (לצפייה בלבד) ---
+// --- 2. דשבורד יומי ---
 export const getDailyDashboard = catchAsync(async (req, res, next) => {
     const { hotelId, date } = req.query;
     if (!hotelId) return next(new AppError('חסר מזהה מלון', 400));
@@ -235,110 +234,20 @@ export const resolveConflict = catchAsync(async (req, res, next) => {
     }
 });
 
-// --- 4. 🔥 הקצאה חכמה: הפונקציה שמפעילה את כל הרובדים בלחיצה אחת 🔥 ---
+// --- 4. הקצאה נקייה (רובד ניהול כוח אדם בלבד) ---
 export const assignRoomsToHousekeeper = catchAsync(async (req, res, next) => {
     const { roomIds, userId } = req.body;
     
-    // הגדרת טווח זמן לבדיקת הזמנות להיום
-    const todayStart = new Date();
-    todayStart.setHours(0,0,0,0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23,59,59,999);
-
-    let updatedCount = 0;
-
-    for (const roomId of roomIds) {
-        const room = await Room.findById(roomId);
-        if (!room) continue;
-
-        // 1. קודם כל מקצים (הבסיס)
-        room.assignedTo = userId || null;
-        room.assignmentDate = normalizeDate(new Date());
-
-        // 2. 🔥 הפעלת רובד האוטומציה: שאיבת נתונים ובניית משימות 🔥
-        // נפעיל את זה תמיד בעת הקצאה מחדש, כדי לוודא שהחדר מעודכן
-        
-        const hotelDoc = await Hotel.findById(room.hotel);
-        
-        // בדיקה האם יש הזמנה פעילה להיום (כניסה או יציאה)
-        const bookingToday = await Booking.findOne({
-            room: room._id,
-            status: 'active',
-            $or: [
-                { arrivalDate: { $gte: todayStart, $lte: todayEnd } },   // נכנס היום
-                { departureDate: { $gte: todayStart, $lte: todayEnd } }  // עוזב היום
-            ]
-        });
-
-        // קביעת סוג הפעולה (איזה צ'ק ליסט לטעון)
-        let checklistType = 'stayover'; // ברירת מחדל: שהייה
-        let isArrival = false;
-
-        if (bookingToday) {
-            const arr = bookingToday.arrivalDate >= todayStart && bookingToday.arrivalDate <= todayEnd;
-            const dep = bookingToday.departureDate >= todayStart && bookingToday.departureDate <= todayEnd;
-
-            // אם יש עזיבה או הגעה -> זה ניקיון יסודי (departure)
-            if (arr || dep) {
-                checklistType = 'departure'; 
-            }
-            // אם זו הגעה -> נצטרך להוסיף שכבת מיטות
-            if (arr) {
-                isArrival = true; 
-            }
+    // מעדכן רק את השיוך ואת תאריך השיוך. לא נוגע בסטטוס ולא במשימות.
+    await Room.updateMany(
+        { _id: { $in: roomIds } },
+        { 
+            $set: { 
+                assignedTo: userId || null, 
+                assignmentDate: normalizeDate(new Date()) 
+            } 
         }
+    );
 
-        // טעינת הצ'ק ליסט הנכון מהמלון
-        let selectedChecklist = [];
-        if (checklistType === 'departure') {
-            selectedChecklist = hotelDoc?.checklists?.departure || hotelDoc?.masterChecklist || [];
-        } else {
-            selectedChecklist = hotelDoc?.checklists?.stayover || [];
-        }
-        
-        // הגנה: אם אין רשימה, שמים סעיף גנרי כדי שהחדר לא יהיה ריק
-        if (selectedChecklist.length === 0) {
-            selectedChecklist = [{ text: 'ניקיון שוטף (לא הוגדר נוהל)', order: 1 }];
-        }
-
-        // המרת הרשימה למשימות ב-DB
-        const newTasks = selectedChecklist.map(item => ({
-            description: item.text,
-            type: 'standard',
-            isCompleted: false,
-            isSystemTask: true
-        }));
-
-        // הוספת משימת המיטות (רק אם זו הגעה)
-        if (isArrival && bookingToday) {
-            const totalBeds = bookingToday.pax || 0;
-            const totalBabies = bookingToday.babies || 0;
-            
-            let taskDesc = `🛏️ להכין ${totalBeds} מיטות`;
-            if (totalBabies > 0) {
-                taskDesc += ` + ${totalBabies} עריסות/לולים 👶`;
-            }
-
-            // דוחפים לראש הרשימה עם הדגשה
-            newTasks.unshift({
-                description: taskDesc,
-                type: 'daily',
-                date: todayStart,
-                isCompleted: false,
-                isSystemTask: true,
-                isHighlight: true
-            });
-        }
-
-        // שמירה לחדר (דריסת המשימות הישנות)
-        room.tasks = newTasks;
-        
-        // מסמנים את החדר כ"מלוכלך" כדי שיופיע לחדרנית
-        room.status = 'dirty';
-
-        await room.save();
-        updatedCount++;
-    }
-
-    res.json({ message: `הוקצו ${updatedCount} חדרים (ונוצרו משימות באופן אוטומטי).` });
+    res.json({ message: 'החדרים הוקצו בהצלחה.' });
 });
