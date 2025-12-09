@@ -6,21 +6,21 @@ import { format } from 'date-fns';
 
 // UI Components
 import { Button } from '@/components/ui/Button.jsx';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card.jsx';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Label } from '@/components/ui/Label.jsx';
-import { UploadCloud, AlertTriangle, CheckCircle, FileUp, LoaderCircle, ArrowLeft } from 'lucide-react';
+import { UploadCloud, AlertTriangle, CheckCircle, FileUp, LoaderCircle } from 'lucide-react';
 
 const fetchHotels = async () => (await api.get('/admin/hotels')).data;
 
 export default function BookingManagementPage() {
     const [selectedHotel, setSelectedHotel] = useState(null);
     const [file, setFile] = useState(null);
-    const [uploadResult, setUploadResult] = useState(null); // כאן נשמור את תוצאת הסימולציה/העלאה
-    
+    const [uploadResult, setUploadResult] = useState(null);
+
     const queryClient = useQueryClient();
 
-    const { data: hotels = [], isLoading: isLoadingHotels } = useQuery({
+    const { data: hotels = [] } = useQuery({
         queryKey: ['hotels'],
         queryFn: fetchHotels,
     });
@@ -31,18 +31,27 @@ export default function BookingManagementPage() {
         }),
         onSuccess: (res) => {
             const data = res.data;
+            
+            // מקרה 1: סימולציה (בדיקה ראשונית)
             if (data.status === 'simulation') {
                 setUploadResult(data);
+                
                 if (data.conflicts.length === 0) {
-                    toast.success('הקובץ תקין! ניתן לאשר יצירה.');
+                    // ✨✨✨ השינוי: אם אין התנגשויות - שמירה אוטומטית! ✨✨✨
+                    toast.success('הקובץ תקין! שומר נתונים...');
+                    // קריאה מיידית לשמירה (dryRun = false)
+                    handleUpload(false); 
                 } else {
+                    // אם יש בעיות - מציגים אותן למשתמש שיחליט
                     toast("נמצאו התנגשויות - יש לטפל בהן.", { icon: '⚠️' });
                 }
-            } else {
-                // הצלחה מלאה
+            } 
+            // מקרה 2: שמירה סופית הצליחה
+            else {
                 toast.success(data.message);
                 setUploadResult(null);
                 setFile(null);
+                // אפשר להוסיף כאן איפוס של ה-Input file אם יש ref
             }
         },
         onError: (err) => toast.error(err.response?.data?.message || 'שגיאה בהעלאה')
@@ -52,21 +61,10 @@ export default function BookingManagementPage() {
         mutationFn: (payload) => api.post('/bookings/resolve', payload),
         onSuccess: (res) => {
             toast.success(res.data.message);
-            // מסירים את ההתנגשות מהרשימה המקומית כדי שהמשתמש יראה התקדמות
             setUploadResult(prev => ({
                 ...prev,
-                conflicts: prev.conflicts.filter(c => 
-                    // מסננים את הקונפליקט שטופל (לפי חדר או מזהה אחר)
-                    // כאן לצורך הפשטות נניח שאנחנו מרעננים את המסך או שמסירים לפי אינדקס אם היה לנו
-                    // בגרסה פשוטה: פשוט נסיר את הראשון שמתאים לחדר
-                    c.roomNumber !== res.data.resolvedRoomNumber // נצטרך שהשרת יחזיר את זה, או שנעשה אופטימיסטי
-                )
+                conflicts: prev.conflicts.filter(c => c.roomNumber !== res.data.resolvedRoomNumber)
             }));
-            
-            // מכיוון שאין לנו מזהה ייחודי לקונפליקט בזיכרון כרגע (אלא אם השרת מחזיר), 
-            // הכי נכון זה פשוט לרענן או להסתיר ידנית.
-            // לגרסה הזו: נבקש מהמשתמש להעלות שוב כדי לוודא? לא, זה מתיש.
-            // נשאיר את זה פשוט: נסיר את ההתנגשות שטופלה מהסטייט המקומי.
         },
         onError: () => toast.error('שגיאה בפתרון ההתנגשות')
     });
@@ -74,13 +72,13 @@ export default function BookingManagementPage() {
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
-            setUploadResult(null); // איפוס תוצאות קודמות
+            setUploadResult(null);
         }
     };
 
     const handleUpload = (isDryRun) => {
         if (!file || !selectedHotel) return toast.error('חובה לבחור מלון וקובץ');
-        
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('hotelId', selectedHotel);
@@ -90,13 +88,11 @@ export default function BookingManagementPage() {
     };
 
     const handleResolve = (conflict, action) => {
-        // action: 'overwrite' | 'ignore'
         resolveConflictMutation.mutate({
             action,
             conflictData: conflict
         }, {
             onSuccess: () => {
-                // עדכון לוקאלי של הרשימה
                 setUploadResult(prev => ({
                     ...prev,
                     conflicts: prev.conflicts.filter(c => c !== conflict)
@@ -112,7 +108,7 @@ export default function BookingManagementPage() {
                     <UploadCloud className="text-blue-600" /> קליטת סידור עבודה (אקסל)
                 </h1>
                 <p className="mt-2 text-gray-600">
-                    העלאת קובץ שיבוץ חדרים, זיהוי חדרים חדשים ופתרון התנגשויות תאריכים.
+                    העלאת קובץ שיבוץ חדרים. המערכת תזהה אוטומטית אם הקובץ תקין ותשמור אותו.
                 </p>
             </header>
 
@@ -138,8 +134,8 @@ export default function BookingManagementPage() {
                             <Label>קובץ אקסל (XLSX)</Label>
                             <div className="flex gap-2">
                                 <div className="relative flex-grow">
-                                    <input 
-                                        type="file" 
+                                    <input
+                                        type="file"
                                         accept=".xlsx, .xls"
                                         onChange={handleFileChange}
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -154,32 +150,23 @@ export default function BookingManagementPage() {
                     </div>
 
                     <div className="flex gap-4">
-                        <Button 
-                            onClick={() => handleUpload(true)} 
+                        <Button
+                            // בלחיצה - מתחיל סימולציה (true). אם תקין, ה-onSuccess ימשיך אוטומטית.
+                            onClick={() => handleUpload(true)}
                             disabled={!file || !selectedHotel || uploadMutation.isPending}
-                            className="bg-blue-600 hover:bg-blue-700"
+                            className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
                         >
                             {uploadMutation.isPending ? <LoaderCircle className="animate-spin ml-2"/> : <UploadCloud className="ml-2"/>}
-                            בדוק קובץ (סימולציה)
+                            טען קובץ למערכת
                         </Button>
-                        
-                        {/* כפתור שמירה סופי מופיע רק אם הכל תקין בסימולציה */}
-                        {uploadResult?.status === 'simulation' && uploadResult.conflicts.length === 0 && (
-                            <Button 
-                                onClick={() => handleUpload(false)} 
-                                className="bg-green-600 hover:bg-green-700 animate-in fade-in"
-                            >
-                                <CheckCircle className="ml-2"/> אשר וצור שיבוצים
-                            </Button>
-                        )}
                     </div>
                 </CardContent>
             </Card>
 
-            {/* אזור תוצאות הסימולציה */}
+            {/* אזור תוצאות (מופיע רק אם יש בעיות או הצלחה חלקית) */}
             {uploadResult && (
                 <div className="animate-in slide-in-from-bottom-4 duration-500 space-y-6">
-                    
+
                     {/* סיכום */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <Card className="bg-green-50 border-green-200">
@@ -196,7 +183,7 @@ export default function BookingManagementPage() {
                             <CardContent className="p-4 flex items-center gap-4">
                                 <FileUp className="text-blue-600 h-8 w-8" />
                                 <div>
-                                    <p className="text-sm text-blue-800 font-bold">חדרים חדשים שייווצרו</p>
+                                    <p className="text-sm text-blue-800 font-bold">חדרים חדשים</p>
                                     <p className="text-2xl font-bold text-blue-900">{uploadResult.newRoomsCreated?.length || 0}</p>
                                 </div>
                             </CardContent>
@@ -213,7 +200,7 @@ export default function BookingManagementPage() {
                         </Card>
                     </div>
 
-                    {/* רשימת התנגשויות */}
+                    {/* רשימת התנגשויות - מופיעה רק אם צריך לפתור משהו */}
                     {uploadResult.conflicts.length > 0 && (
                         <div className="bg-white rounded-lg border border-red-100 shadow-sm overflow-hidden">
                             <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-2 text-red-800 font-bold">
@@ -223,13 +210,13 @@ export default function BookingManagementPage() {
                             <div className="divide-y divide-gray-100">
                                 {uploadResult.conflicts.map((conflict, idx) => (
                                     <div key={idx} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
-                                        
+
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className="bg-slate-200 text-slate-800 px-2 py-1 rounded text-xs font-bold">חדר {conflict.roomNumber}</span>
                                                 <span className="text-red-600 text-sm font-bold">חפיפת תאריכים</span>
                                             </div>
-                                            
+
                                             <div className="grid grid-cols-2 gap-4 text-sm">
                                                 <div className="bg-white border p-2 rounded">
                                                     <p className="text-gray-500 text-xs mb-1">קיים במערכת:</p>
