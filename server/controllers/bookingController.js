@@ -13,16 +13,12 @@ const normalizeDate = (date) => {
     return d;
 };
 
-// ✨ פונקציית עזר למציאת ערך בעמודה לפי רשימת שמות אפשריים (לא רגיש לאותיות)
+// פונקציית עזר למציאת ערך בעמודה (עבור העלאת אקסל)
 const findColValue = (row, possibleNames) => {
     const rowKeys = Object.keys(row).map(k => k.toLowerCase());
-    
     for (const name of possibleNames) {
         const lowerName = name.toLowerCase();
-        // 1. חיפוש מדויק
         if (row[name] !== undefined) return parseInt(row[name]);
-        
-        // 2. חיפוש לפי מפתח (לא רגיש לאותיות)
         const foundKeyIndex = rowKeys.indexOf(lowerName);
         if (foundKeyIndex !== -1) {
             const realKey = Object.keys(row)[foundKeyIndex];
@@ -54,11 +50,9 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     const createdRooms = [];
 
     for (const row of rawData) {
-        // זיהוי מספר חדר
         let roomNum = String(row['c_room_number'] || row['חדר'] || row['Room'] || '').trim();
         if (!roomNum || roomNum === '0') continue;
 
-        // זיהוי תאריכים
         let arrival = row['c_arrival_date'] || row['Arrival'] || row['הגעה'];
         let departure = row['c_depart_date'] || row['Departure'] || row['עזיבה'];
 
@@ -66,25 +60,15 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
 
         const start = normalizeDate(arrival);
         const end = normalizeDate(departure);
-        
-        // ✨✨✨ חישוב כמות מיטות (פונקציית הסיכום) ✨✨✨
-        // מחפש בכל הווריאציות של השמות
+
         const adults = findColValue(row, ['c_adults', 'adults', 'adult', 'מבוגרים']);
         const juniors = findColValue(row, ['c_juniors', 'juniors', 'junior', 'נוער']);
         const children = findColValue(row, ['c_children', 'children', 'child', 'ילדים']);
         
-        // סך הכל מיטות = מבוגרים + נוער + ילדים
         let pax = adults + juniors + children;
-
-        // Fallback: אם לא מצא כלום בנפרד (יצא 0), נסה למצוא עמודת סיכום ישנה כגיבוי
-        if (pax === 0) {
-             pax = findColValue(row, ['total_pax', 'pax', 'total', 'סה"כ']);
-        }
-        
-        // הגנה מינימלית: אם עדיין 0, נגדיר 1 כדי שלא ייראה ריק
+        if (pax === 0) pax = findColValue(row, ['total_pax', 'pax', 'total', 'סה"כ']);
         if (pax === 0) pax = 1;
 
-        // חישוב תינוקות בנפרד
         const babies = findColValue(row, ['c_babies', 'babies', 'baby', 'תינוקות']);
 
         let roomId;
@@ -92,7 +76,6 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
             roomId = roomMap.get(roomNum)._id;
         } else {
             if (!defaultType) return next(new AppError('לא מוגדר סוג חדר למלון זה', 400));
-
             const newRoom = await Room.create({
                 hotel: hotelId,
                 roomNumber: roomNum,
@@ -132,7 +115,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
                 roomNumber: roomNum,
                 arrivalDate: start,
                 departureDate: end,
-                pax, // זהו מספר המיטות הסופי (הסכום שחישבנו)
+                pax,
                 babies,
                 source: 'excel'
             });
@@ -166,7 +149,7 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
     if (!hotelId) return next(new AppError('חסר מזהה מלון', 400));
 
     const queryDate = date ? normalizeDate(date) : normalizeDate(new Date());
-    
+
     const rooms = await Room.find({ hotel: hotelId })
         .populate('assignedTo', 'name')
         .populate('roomType', 'name')
@@ -202,29 +185,29 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
             specialInfo = {
                 out: departures[0].pax,
                 in: arrivals[0].pax,
-                pax: arrivals[0].pax, // שולחים את כמות הנכנסים כ-pax
+                pax: arrivals[0].pax,
                 babies: arrivals[0].babies
             };
-        } 
+        }
         else if (arrivals.length > 0) {
             calculatedStatus = 'arrival';
             specialInfo = {
                 pax: arrivals[0].pax,
                 babies: arrivals[0].babies
             };
-        } 
+        }
         else if (departures.length > 0) {
             calculatedStatus = 'departure';
             specialInfo = {
                 out: departures[0].pax,
-                pax: 0 
+                pax: 0
             };
-        } 
+        }
         else if (stayovers.length > 0) {
             calculatedStatus = 'stayover';
-            specialInfo = { 
+            specialInfo = {
                 pax: stayovers[0].pax,
-                babies: stayovers[0].babies 
+                babies: stayovers[0].babies
             };
         }
 
@@ -238,7 +221,7 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
     res.json(dashboardData);
 });
 
-// --- פונקציות עזר נוספות (נשמרות כפי שהיו) ---
+// --- 3. פתרון התנגשויות ---
 export const resolveConflict = catchAsync(async (req, res, next) => {
     const { action, conflictData } = req.body;
     if (action === 'overwrite') {
@@ -251,8 +234,113 @@ export const resolveConflict = catchAsync(async (req, res, next) => {
     }
 });
 
+// --- 4. 🔥 פונקציית הקצאה חכמה (כוללת את רובד האוטומציה) 🔥 ---
 export const assignRoomsToHousekeeper = catchAsync(async (req, res, next) => {
     const { roomIds, userId } = req.body;
-    await Room.updateMany({ _id: { $in: roomIds } }, { $set: { assignedTo: userId || null, assignmentDate: normalizeDate(new Date()) } });
-    res.json({ message: 'החדרים הוקצו בהצלחה.' });
+    
+    // הגדרת טווח זמן לבדיקת הזמנות (היום)
+    const todayStart = new Date();
+    todayStart.setHours(0,0,0,0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23,59,59,999);
+
+    let updatedCount = 0;
+
+    // רצים על כל חדר שנבחר להקצאה
+    for (const roomId of roomIds) {
+        const room = await Room.findById(roomId);
+        if (!room) continue;
+
+        // 1. ביצוע ההקצאה (הרובד הבסיסי)
+        room.assignedTo = userId || null;
+        room.assignmentDate = normalizeDate(new Date());
+
+        // 2. הפעלת רובד האוטומציה: בדיקה אם צריך לייצר משימות (אם אין)
+        // אם החדר כבר בסטטוס 'מלוכלך' ויש לו משימות - לא ניגע בו כדי לא לדרוס עבודה.
+        // אבל אם הוא 'נקי' או שאין לו משימות - נפעיל את האוטומציה.
+        if (room.status === 'clean' || room.tasks.length === 0) {
+            
+            const hotelDoc = await Hotel.findById(room.hotel);
+            
+            // בדיקת הזמנות להיום (כדי לדעת איזה צ'ק ליסט לטעון וכמה מיטות)
+            const bookingToday = await Booking.findOne({
+                room: room._id,
+                status: 'active',
+                $or: [
+                    { arrivalDate: { $gte: todayStart, $lte: todayEnd } },   // הגעה היום
+                    { departureDate: { $gte: todayStart, $lte: todayEnd } }  // עזיבה היום
+                ]
+            });
+
+            // ברירת מחדל: צ'ק ליסט שהייה
+            let checklistType = 'stayover'; 
+            let shouldAddBeds = false;
+
+            if (bookingToday) {
+                // לוגיקת זיהוי מדויקת: האם זה הגעה או עזיבה?
+                const isArrival = bookingToday.arrivalDate >= todayStart && bookingToday.arrivalDate <= todayEnd;
+                const isDeparture = bookingToday.departureDate >= todayStart && bookingToday.departureDate <= todayEnd;
+
+                // עזיבה או הגעה = צ'ק ליסט יסודי
+                if (isArrival || isDeparture) {
+                    checklistType = 'departure'; 
+                }
+                
+                // רק אם זו הגעה, צריך להכין מיטות
+                if (isArrival) {
+                    shouldAddBeds = true;
+                }
+            }
+
+            // בחירת הרשימה המתאימה
+            let selectedChecklist = [];
+            if (checklistType === 'departure') {
+                selectedChecklist = hotelDoc?.checklists?.departure || hotelDoc?.masterChecklist || [];
+            } else {
+                selectedChecklist = hotelDoc?.checklists?.stayover || [];
+            }
+            
+            // Fallback
+            if (selectedChecklist.length === 0) {
+                selectedChecklist = [{ text: 'ניקיון כללי', order: 1 }];
+            }
+
+            // יצירת משימות רגילות מהצ'ק ליסט
+            const newTasks = selectedChecklist.map(item => ({
+                description: item.text,
+                type: 'standard',
+                isCompleted: false,
+                isSystemTask: true
+            }));
+
+            // הוספת שכבת מיטות (אם יש הגעה)
+            if (shouldAddBeds && bookingToday) {
+                const totalBeds = bookingToday.pax || 0;
+                const totalBabies = bookingToday.babies || 0;
+                
+                let taskDesc = `🛏️ להכין ${totalBeds} מיטות`;
+                if (totalBabies > 0) {
+                    taskDesc += ` + ${totalBabies} עריסות/לולים 👶`;
+                }
+
+                // דוחף לראש הרשימה
+                newTasks.unshift({
+                    description: taskDesc,
+                    type: 'daily', // מוגדר כיומי כדי שיופיע כדגש
+                    date: todayStart,
+                    isCompleted: false,
+                    isSystemTask: true,
+                    isHighlight: true
+                });
+            }
+
+            room.tasks = newTasks;
+            room.status = 'dirty'; // הקצאה תמיד הופכת את החדר למלוכלך/לעבודה
+        }
+
+        await room.save();
+        updatedCount++;
+    }
+
+    res.json({ message: `הוקצו ${updatedCount} חדרים ועודכנו משימות בהתאם להזמנות.` });
 });
