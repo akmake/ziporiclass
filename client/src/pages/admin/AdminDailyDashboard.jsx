@@ -1,177 +1,105 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/utils/api.js';
-import toast from 'react-hot-toast';
-import { Button } from '@/components/ui/Button.jsx';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Checkbox } from '@/components/ui/Checkbox.jsx';
-import { CalendarDays, LogIn, LogOut, RefreshCw, UserCheck, LoaderCircle, Bed, Baby, AlertTriangle } from 'lucide-react';
-
-const fetchHotels = async () => (await api.get('/admin/hotels')).data;
-const fetchUsers = async () => (await api.get('/admin/users')).data;
-
-// שליפת דשבורד - משתמשים בפונקציה הגנרית החדשה של השרת
-const fetchDailyDashboard = async ({ queryKey }) => {
-    const [_, { hotelId }] = queryKey;
-    if (!hotelId) return [];
-    const { data } = await api.get(`/bookings/daily?hotelId=${hotelId}`);
-    return data;
-};
-
-// הגדרות עיצוב לסטטוסים
-const STATUS_CONFIG = {
-    'arrival': { label: 'הגעה', color: 'bg-blue-100 text-blue-700', icon: LogIn },
-    'departure': { label: 'עזיבה', color: 'bg-red-100 text-red-700', icon: LogOut },
-    'stayover': { label: 'שוהה', color: 'bg-amber-100 text-amber-700', icon: RefreshCw },
-    'back_to_back': { label: 'תחלופה', color: 'bg-purple-100 text-purple-700', icon: RefreshCw },
-    'empty': { label: 'ריק', color: 'bg-slate-100 text-slate-400', icon: null }
-};
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/utils/api';
+import DailyUpload from '@/components/DailyUpload'; // הקומפוננטה ששלחתי קודם
+import { Card, CardContent } from '@/components/ui/Card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 
 export default function AdminDailyDashboard() {
-    const [selectedHotel, setSelectedHotel] = useState(null);
-    const [selectedRooms, setSelectedRooms] = useState(new Set());
-    const [assignToUser, setAssignToUser] = useState('');
+  const [selectedHotel, setSelectedHotel] = useState(null);
 
-    const queryClient = useQueryClient();
+  // טעינת רשימת חדרים מלאה (מנהל רואה הכל)
+  const { data: rooms = [], refetch } = useQuery({
+    queryKey: ['allRooms', selectedHotel],
+    queryFn: async () => {
+        if(!selectedHotel) return [];
+        const res = await api.get(`/rooms/daily-status/${selectedHotel}`);
+        return res.data;
+    },
+    enabled: !!selectedHotel
+  });
 
-    const { data: hotels = [] } = useQuery({ queryKey: ['hotels'], queryFn: fetchHotels });
-    const { data: allUsers = [] } = useQuery({ queryKey: ['usersList'], queryFn: fetchUsers });
+  // טעינת מלונות (כמו בקוד הקיים שלך)
+  const { data: hotels = [] } = useQuery({
+      queryKey: ['hotels'],
+      queryFn: async () => (await api.get('/admin/hotels')).data
+  });
 
-    // סינון עובדי ניקיון בלבד
-    const housekeepers = useMemo(() => allUsers.filter(u => u.role === 'housekeeper' || u.role === 'maintenance'), [allUsers]);
+  // ברירת מחדל למלון ראשון
+  React.useEffect(() => {
+      if (hotels.length > 0 && !selectedHotel) setSelectedHotel(hotels[0]._id);
+  }, [hotels]);
 
-    const { data: rooms = [], isLoading } = useQuery({
-        queryKey: ['dailyDashboard', { hotelId: selectedHotel }],
-        queryFn: fetchDailyDashboard,
-        enabled: !!selectedHotel,
-        refetchInterval: 5000
-    });
+  return (
+    <div className="p-6 bg-slate-50 min-h-screen" dir="rtl">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">ניהול שוטף - חדרים</h1>
+        
+        {/* בורר מלונות */}
+        <select 
+            className="p-2 border rounded-md"
+            value={selectedHotel || ''} 
+            onChange={(e) => setSelectedHotel(e.target.value)}
+        >
+            {hotels.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
+        </select>
+      </div>
 
-    const assignMutation = useMutation({
-        mutationFn: (payload) => api.post('/bookings/assign', payload),
-        onSuccess: () => {
-            toast.success('החדרים הוקצו בהצלחה');
-            setSelectedRooms(new Set());
-            queryClient.invalidateQueries(['dailyDashboard']);
-        }
-    });
-
-    const handleSelectRoom = (roomId) => {
-        const next = new Set(selectedRooms);
-        if (next.has(roomId)) next.delete(roomId);
-        else next.add(roomId);
-        setSelectedRooms(next);
-    };
-
-    const handleAssign = () => {
-        if (selectedRooms.size === 0 || !assignToUser) return toast.error('חסרים נתונים');
-        assignMutation.mutate({ roomIds: Array.from(selectedRooms), userId: assignToUser === 'none' ? null : assignToUser });
-    };
-
-    return (
-        <div className="container mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-                        <CalendarDays className="text-blue-600"/> דשבורד יומי
-                    </h1>
-                    <p className="text-slate-500 mt-1">ניהול חדרים, סטטוסים ושיבוץ עובדים.</p>
-                </div>
-
-                <div className="flex gap-4 items-center bg-white p-3 rounded-xl shadow-sm border">
-                    <Select value={selectedHotel || ''} onValueChange={setSelectedHotel}>
-                        <SelectTrigger className="w-[200px]"><SelectValue placeholder="בחר מלון..." /></SelectTrigger>
-                        <SelectContent>{hotels.map(h => <SelectItem key={h._id} value={h._id}>{h.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-            </header>
-
-            {/* סרגל הקצאה */}
-            {selectedRooms.size > 0 && (
-                <div className="sticky top-4 z-20 bg-slate-800 text-white p-3 rounded-lg shadow-xl flex items-center justify-between animate-in slide-in-from-top-2">
-                    <span className="font-bold px-4">{selectedRooms.size} חדרים נבחרו</span>
-                    <div className="flex gap-2">
-                        <Select value={assignToUser} onValueChange={setAssignToUser}>
-                            <SelectTrigger className="w-[180px] bg-slate-700 border-none text-white"><SelectValue placeholder="בחר חדרנית" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">-- בטל שיוך --</SelectItem>
-                                {housekeepers.map(u => <SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <Button onClick={handleAssign} disabled={assignMutation.isPending} className="bg-blue-600 hover:bg-blue-500">
-                            {assignMutation.isPending ? <LoaderCircle className="animate-spin"/> : <UserCheck size={18} className="mr-2"/>} הקצה
-                        </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* צד ימין: פעולות (העלאת אקסל) */}
+        <div className="space-y-6">
+            <DailyUpload 
+                hotelId={selectedHotel} 
+                onUploadSuccess={() => refetch()} // רענון אחרי העלאה
+            />
+            
+            {/* סטטיסטיקה מהירה */}
+            <Card>
+                <CardContent className="p-4 space-y-2">
+                    <h3 className="font-bold">תמונת מצב</h3>
+                    <div className="flex justify-between">
+                        <span>נקיים:</span>
+                        <span className="font-bold text-green-600">{rooms.filter(r => r.status === 'clean').length}</span>
                     </div>
-                </div>
-            )}
+                    <div className="flex justify-between">
+                        <span>מלוכלכים:</span>
+                        <span className="font-bold text-red-600">{rooms.filter(r => r.status === 'dirty').length}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2 mt-2">
+                        <span>סה"כ מיטות להוספה:</span>
+                        {/* חישוב מתוחכם: רץ על כל המשימות של כל החדרים ובודק כמה מהם זה "מיטות" שלא בוצעו */}
+                        <span className="font-bold text-orange-600">
+                            {rooms.reduce((acc, room) => acc + room.dailyTasks.filter(t => t.description.includes('מיטות') && !t.isCompleted).length, 0)}
+                        </span>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
 
-            {/* גריד חדרים */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {isLoading ? <p className="col-span-full text-center p-10">טוען...</p> : 
-                 rooms.map(room => {
-                    const guestInfo = room.currentGuest || {};
-                    const statusConfig = STATUS_CONFIG[guestInfo.status] || STATUS_CONFIG['empty'];
-                    const StatusIcon = statusConfig.icon;
-                    const isClean = room.status === 'clean';
-                    const isSelected = selectedRooms.has(room._id);
-
-                    // חישוב משימות מיוחדות להצגה
-                    const specialTasksCount = room.tasks.filter(t => t.type === 'special').length;
-
-                    return (
-                        <div 
-                            key={room._id}
-                            className={`
-                                relative p-4 rounded-xl border bg-white cursor-pointer transition-all hover:shadow-md
-                                ${isSelected ? 'ring-2 ring-blue-600 border-transparent' : 'border-slate-200'}
-                                ${isClean ? 'opacity-80' : ''}
-                            `}
-                            onClick={() => handleSelectRoom(room._id)}
-                        >
-                            <div className="flex justify-between items-start mb-3">
-                                <span className="text-2xl font-black text-slate-800">{room.roomNumber}</span>
-                                <Checkbox checked={isSelected} />
-                            </div>
-
-                            {/* תגית סטטוס אורח */}
-                            <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-bold w-fit mb-3 ${statusConfig.color}`}>
-                                {StatusIcon && <StatusIcon size={12}/>} {statusConfig.label}
-                            </div>
-
-                            {/* מידע על אורחים */}
-                            {guestInfo.pax > 0 && (
-                                <div className="text-sm text-slate-600 space-y-1 mb-3 bg-slate-50 p-2 rounded">
-                                    <div className="flex items-center gap-2 font-bold">
-                                        <Bed size={14}/> {guestInfo.pax} אורחים
-                                    </div>
-                                    {guestInfo.babies > 0 && (
-                                        <div className="flex items-center gap-2 text-pink-600 font-bold">
-                                            <Baby size={14}/> {guestInfo.babies} תינוקות
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* התראות חריגות */}
-                            {specialTasksCount > 0 && !isClean && (
-                                <div className="text-xs text-amber-600 font-bold flex items-center gap-1 mb-2">
-                                    <AlertTriangle size={12}/> יש {specialTasksCount} בקשות מיוחדות
-                                </div>
-                            )}
-
-                            {/* פוטר: סטטוס ניקיון ושיוך */}
-                            <div className="flex justify-between items-end border-t pt-2 mt-2">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isClean ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
-                                    {isClean ? 'נקי' : 'ממתין'}
-                                </span>
-                                <span className="text-xs text-blue-600 font-bold truncate max-w-[80px]">
-                                    {room.assignedTo?.name || 'לא שובץ'}
-                                </span>
-                            </div>
+        {/* צד שמאל: גריד חדרים */}
+        <div className="lg:col-span-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {rooms.map(room => (
+                    <div key={room._id} className={`
+                        p-3 rounded-lg border-2 text-center cursor-pointer transition-all hover:scale-105
+                        ${room.status === 'clean' ? 'bg-green-50 border-green-200' : 'bg-white border-red-200'}
+                        ${room.dailyTasks.some(t => t.type === 'special' && !t.isCompleted) ? 'ring-2 ring-orange-400 ring-offset-1' : ''}
+                    `}>
+                        <div className="text-xl font-bold">{room.roomNumber}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                            {room.currentGuest.reservationStatus === 'departure' ? 'עזיבה' : 
+                             room.currentGuest.reservationStatus === 'arrival' ? 'הגעה' : 'שוהה'}
                         </div>
-                    );
-                })}
+                        {/* חיווי אייקונים למנהל */}
+                        <div className="flex justify-center gap-1 mt-2">
+                             {/* אם יש משימה חוסמת פתוחה - מציג מנעול */}
+                             {room.dailyTasks.some(t => t.isBlocking && !t.isCompleted) && <Lock size={12} className="text-orange-500"/>}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
-    );
+      </div>
+    </div>
+  );
 }
