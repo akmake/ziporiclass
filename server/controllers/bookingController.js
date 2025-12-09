@@ -1,141 +1,132 @@
 import XLSX from 'xlsx';
 import Room from '../models/Room.js';
-import Hotel from '../models/Hotel.js'; // צריך כדי לשלוף צ'ק ליסטים קבועים אם נרצה בעתיד
 
-// --- עזרים ---
-const normalizeDate = (d) => {
-    if (!d) return null;
-    const date = new Date(d);
-    // תיקון איזור זמן פשוט כדי לוודא שהיום הוא היום
-    date.setHours(0, 0, 0, 0);
-    return date;
-};
-
-// פונקציה חכמה למציאת ערך בעמודה (גם אם השם באקסל טיפה שונה)
-const findValue = (row, possibleHeaders) => {
-    const keys = Object.keys(row);
-    for (const header of possibleHeaders) {
-        // חיפוש מדויק או מכיל
-        const foundKey = keys.find(k => k.trim() === header || k.toLowerCase().includes(header.toLowerCase()));
-        if (foundKey) return row[foundKey];
+// פונקציית העזר המקורית שלך - היא מצוינת, שמרתי אותה
+const findColValue = (row, possibleNames) => {
+    if (!row || typeof row !== 'object') return null;
+    const rowKeys = Object.keys(row).map(k => k.toLowerCase().trim());
+    for (const name of possibleNames) {
+        if (row[name] !== undefined) return row[name];
+        const lowerName = name.toLowerCase();
+        const foundKeyIndex = rowKeys.indexOf(lowerName);
+        if (foundKeyIndex !== -1) {
+            const realKey = Object.keys(row)[foundKeyIndex];
+            return row[realKey];
+        }
     }
     return null;
 };
 
-// --- הלוגיקה הראשית ---
-export const uploadDailyReport = async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ message: "לא נבחר קובץ" });
-        const { hotelId } = req.body;
+const normalizeDate = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+};
 
-        // 1. קריאת האקסל מהזיכרון
+export const uploadSchedule = async (req, res) => {
+    // הגנה קריטית: בדיקה שהקובץ קיים בזיכרון
+    if (!req.file || !req.file.buffer) {
+        return res.status(400).json({ message: 'שגיאה: לא התקבל קובץ בשרת (req.file חסר)' });
+    }
+
+    try {
+        const { hotelId } = req.body;
         const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
         const sheetName = workbook.SheetNames[0];
-        const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        // defval: "" חשוב כדי לא לקבל undefined על תאים ריקים
+        const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
 
         const today = normalizeDate(new Date());
         let updatedCount = 0;
 
-        // 2. ריצה על כל שורה
         for (const row of rawData) {
-            
-            // >> תנאי סינון 1: חילוץ מספר חדר <<
-            let roomNum = findValue(row, ['חדר', 'Room', 'Room Number']);
+            // 1. זיהוי מספר חדר (לוגיקה מהקוד המקורי שלך)
+            let roomNum = findColValue(row, ['c_room_number', 'חדר', 'Room']);
             roomNum = String(roomNum || '').trim();
 
-            // >> תנאי סינון 2: אם החדר הוא 0, ריק, או לא קיים - מדלגים <<
-            if (!roomNum || roomNum === '0' || roomNum === '00') {
-                continue; 
-            }
+            // הסינון שביקשת: מדלגים על 0, 00, או ריק
+            if (!roomNum || roomNum === '0' || roomNum === '00') continue;
 
-            // 3. חילוץ נתונים
-            const guestName = findValue(row, ['שם', 'Guest Name']) || 'אורח';
-            const adults = parseInt(findValue(row, ['מבוגרים', 'Adults']) || 0);
-            const children = parseInt(findValue(row, ['ילדים', 'Children']) || 0);
-            const babies = parseInt(findValue(row, ['תינוקות', 'Babies']) || 0);
+            // 2. זיהוי תאריכים
+            const arrivalRaw = findColValue(row, ['c_arrival_date', 'Arrival', 'הגעה']);
+            const departureRaw = findColValue(row, ['c_depart_date', 'Departure', 'עזיבה']);
             
-            // תאריכים
-            const arrivalRaw = findValue(row, ['הגעה', 'Arrival']);
-            const departureRaw = findValue(row, ['עזיבה', 'Departure']);
-            const arrivalDate = normalizeDate(arrivalRaw);
-            const departureDate = normalizeDate(departureRaw);
+            const start = normalizeDate(arrivalRaw);
+            const end = normalizeDate(departureRaw);
+
+            // אם אין תאריכים, אי אפשר לחשב סטטוס - נדלג (או נשאיר סטטוס קיים)
+            if (!start || !end) continue;
+
+            // 3. חילוץ הרכב (Pax)
+            const adults = parseInt(findColValue(row, ['c_adults', 'adults', 'מבוגרים']) || 0);
+            const children = parseInt(findColValue(row, ['c_children', 'children', 'ילדים']) || 0);
+            const babies = parseInt(findColValue(row, ['c_babies', 'babies', 'תינוקות']) || 0);
+            const guestName = findColValue(row, ['c_guest_name', 'Guest', 'שם', 'שם אורח']) || '';
 
             const totalPax = adults + children;
 
-            // 4. חישוב סטטוס (הגעה/עזיבה/שוהה)
-            let resStatus = 'stayover'; // ברירת מחדל: שוהה
+            // 4. חישוב סטטוס להיום
+            let status = 'stayover';
+            const isArr = start.getTime() === today.getTime();
+            const isDep = end.getTime() === today.getTime();
 
-            const isArrivingToday = arrivalDate && arrivalDate.getTime() === today.getTime();
-            const isDepartingToday = departureDate && departureDate.getTime() === today.getTime();
+            if (isArr && isDep) status = 'back_to_back';
+            else if (isArr) status = 'arrival';
+            else if (isDep) status = 'departure';
 
-            if (isArrivingToday && isDepartingToday) {
-                resStatus = 'back_to_back'; // תחלופה (נדיר)
-            } else if (isArrivingToday) {
-                resStatus = 'arrival';
-            } else if (isDepartingToday) {
-                resStatus = 'departure';
-            }
-
-            // 5. בניית משימות חכמות (The Dynamic Checklist)
+            // 5. בניית משימות (משתמש במבנה ה-tasks הקיים במודל שלך)
             const tasks = [];
 
-            // -- שלב א': משימות בסיס לפי סטטוס --
-            if (resStatus === 'departure' || resStatus === 'back_to_back') {
-                tasks.push({ description: 'החלפת מצעים מלאה', type: 'standard' });
-                tasks.push({ description: 'ניקיון שירותים ומקלחת יסודי', type: 'standard' });
-                tasks.push({ description: 'החלפת מגבות ומוצרי טואלטיקה', type: 'standard' });
-            } else if (resStatus === 'stayover') {
-                tasks.push({ description: 'סידור מיטה (מתיחה)', type: 'standard' });
-                tasks.push({ description: 'ריקון פחים', type: 'standard' });
-                tasks.push({ description: 'החלפת מגבות (אם על הרצפה)', type: 'standard' });
-            } else if (resStatus === 'arrival') {
-                 tasks.push({ description: 'בדיקת חדר לפני כניסה (ריח/מזגן)', type: 'standard' });
+            // משימות בסיס
+            if (status === 'departure' || status === 'back_to_back') {
+                tasks.push({ description: 'ניקיון יסודי (צ\'ק אאוט)', type: 'standard', isCompleted: false });
+                tasks.push({ description: 'החלפת מצעים ומגבות', type: 'standard', isCompleted: false });
+            } else if (status === 'stayover') {
+                tasks.push({ description: 'ריענון חדר', type: 'standard', isCompleted: false });
+            } else if (status === 'arrival') {
+                tasks.push({ description: 'בדיקת חדר לפני כניסה', type: 'standard', isCompleted: false });
             }
 
-            // -- שלב ב': תוספות חכמות (רק בהגעה או תחלופה) --
-            // אם אורח נכנס היום, צריך להכין לו את החדר לפי ההרכב
-            if (resStatus === 'arrival' || resStatus === 'back_to_back') {
-                
-                // לוגיקת מיטות: נניח בסיס של 2 אנשים בחדר. כל אדם מעל 2 צריך מיטה.
+            // לוגיקה חכמה: מיטות ולולים
+            if (status === 'arrival' || status === 'back_to_back') {
                 if (totalPax > 2) {
-                    const extraBeds = totalPax - 2;
                     tasks.unshift({ 
-                        description: `⚠️ להוסיף ${extraBeds} מיטות/ספות`, 
-                        type: 'special',
-                        isBlocking: true // חוסם!
+                        description: `⚠️ להוסיף ${totalPax - 2} מיטות`, 
+                        type: 'special', // זה ה-Enum הקיים במודל שלך
+                        isCompleted: false 
                     });
                 }
-
-                // לוגיקת תינוקות
                 if (babies > 0) {
                     tasks.unshift({ 
-                        description: `👶 להוסיף ${babies} לולים/עריסות`, 
-                        type: 'special',
-                        isBlocking: true // חוסם!
+                        description: `👶 להוסיף ${babies} לולים`, 
+                        type: 'special', 
+                        isCompleted: false 
                     });
                 }
             }
 
-            // 6. שמירה לדאטה-בייס (Upsert - מעדכן אם קיים, יוצר אם חדש)
-            // אנחנו מאפסים את הסטטוס ל-'dirty' כי הגיע יום חדש ויש משימות
-            await Room.findOneAndUpdate(
+            // 6. עדכון המסד
+            // שימוש ב-updateOne עם upsert כדי ליצור חדרים חסרים
+            await Room.updateOne(
                 { hotel: hotelId, roomNumber: roomNum },
                 {
                     $set: {
-                        status: 'dirty', 
+                        status: 'dirty', // תמיד מתחיל מלוכלך כשיש עדכון
+                        tasks: tasks,    // דריסת המשימות הישנות
                         currentGuest: {
-                            name: guestName,
                             pax: totalPax,
                             babies: babies,
-                            arrivalDate,
-                            departureDate,
-                            reservationStatus: resStatus
+                            status: status, // arrival/departure...
+                            arrival: start,
+                            departure: end,
+                            name: guestName
                         },
-                        dailyTasks: tasks, // דריסת המשימות של אתמול בחדשות
                         lastUpdated: new Date()
                     }
                 },
-                { upsert: true, new: true } // Upsert = אם החדר לא קיים במערכת, צור אותו
+                { upsert: true }
             );
             updatedCount++;
         }
@@ -143,7 +134,7 @@ export const uploadDailyReport = async (req, res) => {
         res.json({ message: 'הקובץ עובד בהצלחה', roomsProcessed: updatedCount });
 
     } catch (error) {
-        console.error("Excel Error:", error);
-        res.status(500).json({ message: "שגיאה בעיבוד הקובץ: " + error.message });
+        console.error("Upload Error:", error);
+        res.status(500).json({ message: "שגיאה בעיבוד: " + error.message });
     }
 };
