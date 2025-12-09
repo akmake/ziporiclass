@@ -235,10 +235,11 @@ export const resolveConflict = catchAsync(async (req, res, next) => {
 });
 
 // --- 4. הקצאה נקייה (רובד ניהול כוח אדם בלבד) ---
+// פונקציה זו רק משייכת את החדר לאדם. היא לא נוגעת במשימות או בסטטוס.
 export const assignRoomsToHousekeeper = catchAsync(async (req, res, next) => {
     const { roomIds, userId } = req.body;
     
-    // מעדכן רק את השיוך ואת תאריך השיוך. לא נוגע בסטטוס ולא במשימות.
+    // מעדכן רק את השיוך ואת תאריך השיוך
     await Room.updateMany(
         { _id: { $in: roomIds } },
         { 
