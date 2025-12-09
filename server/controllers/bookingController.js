@@ -13,6 +13,25 @@ const normalizeDate = (date) => {
     return d;
 };
 
+// ✨ פונקציית עזר למציאת ערך בעמודה לפי רשימת שמות אפשריים (לא רגיש לאותיות)
+const findColValue = (row, possibleNames) => {
+    const rowKeys = Object.keys(row).map(k => k.toLowerCase());
+    
+    for (const name of possibleNames) {
+        const lowerName = name.toLowerCase();
+        // 1. חיפוש מדויק
+        if (row[name] !== undefined) return parseInt(row[name]);
+        
+        // 2. חיפוש לפי מפתח (לא רגיש לאותיות)
+        const foundKeyIndex = rowKeys.indexOf(lowerName);
+        if (foundKeyIndex !== -1) {
+            const realKey = Object.keys(row)[foundKeyIndex];
+            return parseInt(row[realKey]);
+        }
+    }
+    return 0;
+};
+
 // --- 1. העלאת אקסל ועיבוד נתונים (DRY RUN & SAVE) ---
 export const uploadSchedule = catchAsync(async (req, res, next) => {
     if (!req.file) return next(new AppError('לא נבחר קובץ', 400));
@@ -35,34 +54,38 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     const createdRooms = [];
 
     for (const row of rawData) {
-        const roomNum = String(row['c_room_number'] || '').trim();
+        // זיהוי מספר חדר
+        let roomNum = String(row['c_room_number'] || row['חדר'] || row['Room'] || '').trim();
         if (!roomNum || roomNum === '0') continue;
 
-        const arrival = row['c_arrival_date'];
-        const departure = row['c_depart_date'];
+        // זיהוי תאריכים
+        let arrival = row['c_arrival_date'] || row['Arrival'] || row['הגעה'];
+        let departure = row['c_depart_date'] || row['Departure'] || row['עזיבה'];
 
         if (!arrival || !departure) continue;
 
         const start = normalizeDate(arrival);
         const end = normalizeDate(departure);
         
-        // ✨✨✨ התיקון הגדול: סיכום העמודות הנפרדות ✨✨✨
-        const adults = parseInt(row['c_adults'] || 0);
-        const juniors = parseInt(row['c_juniors'] || 0);
-        const children = parseInt(row['c_children'] || 0);
+        // ✨✨✨ חישוב כמות מיטות (פונקציית הסיכום) ✨✨✨
+        // מחפש בכל הווריאציות של השמות
+        const adults = findColValue(row, ['c_adults', 'adults', 'adult', 'מבוגרים']);
+        const juniors = findColValue(row, ['c_juniors', 'juniors', 'junior', 'נוער']);
+        const children = findColValue(row, ['c_children', 'children', 'child', 'ילדים']);
         
         // סך הכל מיטות = מבוגרים + נוער + ילדים
         let pax = adults + juniors + children;
 
-        // הגנה: אם יצא 0 (אולי השמות באקסל שונים?), ננסה למצוא עמודת סיכום ישנה כגיבוי
+        // Fallback: אם לא מצא כלום בנפרד (יצא 0), נסה למצוא עמודת סיכום ישנה כגיבוי
         if (pax === 0) {
-             pax = parseInt(row['total_pax'] || row['Total Pax'] || 0);
+             pax = findColValue(row, ['total_pax', 'pax', 'total', 'סה"כ']);
         }
         
-        // אם עדיין 0, נגדיר מינימום 1 כדי שלא יופיע "0 מיטות"
+        // הגנה מינימלית: אם עדיין 0, נגדיר 1 כדי שלא ייראה ריק
         if (pax === 0) pax = 1;
 
-        const babies = parseInt(row['c_babies'] || 0);
+        // חישוב תינוקות בנפרד
+        const babies = findColValue(row, ['c_babies', 'babies', 'baby', 'תינוקות']);
 
         let roomId;
         if (roomMap.has(roomNum)) {
@@ -109,7 +132,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
                 roomNumber: roomNum,
                 arrivalDate: start,
                 departureDate: end,
-                pax, // המספר המסוכם יישמר כאן
+                pax, // זהו מספר המיטות הסופי (הסכום שחישבנו)
                 babies,
                 source: 'excel'
             });
@@ -179,7 +202,7 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
             specialInfo = {
                 out: departures[0].pax,
                 in: arrivals[0].pax,
-                pax: arrivals[0].pax, // המספר החדש שחישבנו
+                pax: arrivals[0].pax, // שולחים את כמות הנכנסים כ-pax
                 babies: arrivals[0].babies
             };
         } 
@@ -194,7 +217,7 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
             calculatedStatus = 'departure';
             specialInfo = {
                 out: departures[0].pax,
-                pax: 0 // בעזיבה אין מיטות להכנה ללילה
+                pax: 0 
             };
         } 
         else if (stayovers.length > 0) {
@@ -215,7 +238,7 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
     res.json(dashboardData);
 });
 
-// --- פונקציות עזר (ללא שינוי, אך חובה שיהיו בקובץ) ---
+// --- פונקציות עזר נוספות (נשמרות כפי שהיו) ---
 export const resolveConflict = catchAsync(async (req, res, next) => {
     const { action, conflictData } = req.body;
     if (action === 'overwrite') {

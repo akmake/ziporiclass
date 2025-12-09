@@ -7,13 +7,11 @@ import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Checkbox } from '@/components/ui/Checkbox.jsx';
-// שימוש באייקונים
 import {
     CalendarDays, LogIn, LogOut, RefreshCw,
-    ArrowRightLeft, UserCheck, LoaderCircle, Bed, Eye, EyeOff, Filter
+    ArrowRightLeft, UserCheck, LoaderCircle, Bed, Eye, Filter
 } from 'lucide-react';
 
-// API Functions
 const fetchHotels = async () => (await api.get('/admin/hotels')).data;
 const fetchUsers = async () => (await api.get('/admin/users')).data;
 
@@ -24,7 +22,6 @@ const fetchDailyDashboard = async ({ queryKey }) => {
     return data;
 };
 
-// הגדרת צבעים לסטטוסים
 const STATUS_CONFIG = {
     'arrival': { label: 'הגעה', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: LogIn },
     'departure': { label: 'עזיבה היום', color: 'bg-red-100 text-red-700 border-red-200', icon: LogOut },
@@ -38,13 +35,10 @@ export default function AdminDailyDashboard() {
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedRooms, setSelectedRooms] = useState(new Set());
     const [assignToUser, setAssignToUser] = useState('');
-    
-    // סינון התצוגה
     const [showOnlyRelevant, setShowOnlyRelevant] = useState(true);
 
     const queryClient = useQueryClient();
 
-    // Data Fetching
     const { data: hotels = [] } = useQuery({ queryKey: ['hotels'], queryFn: fetchHotels });
     const { data: allUsers = [] } = useQuery({ queryKey: ['usersList'], queryFn: fetchUsers });
     
@@ -70,7 +64,6 @@ export default function AdminDailyDashboard() {
         onError: () => toast.error('שגיאה בהקצאת חדרים')
     });
 
-    // Handlers
     const handleSelectRoom = (roomId) => {
         const next = new Set(selectedRooms);
         if (next.has(roomId)) next.delete(roomId);
@@ -91,7 +84,6 @@ export default function AdminDailyDashboard() {
         });
     };
 
-    // סטטיסטיקה למעלה
     const stats = useMemo(() => {
         const s = { arrival: 0, departure: 0, stayover: 0, back_to_back: 0, dirty: 0 };
         rooms.forEach(r => {
@@ -101,10 +93,8 @@ export default function AdminDailyDashboard() {
         return s;
     }, [rooms]);
 
-    // לוגיקת הסינון
     const displayedRooms = useMemo(() => {
         if (!showOnlyRelevant) return rooms; 
-
         return rooms.filter(room => {
             const hasActivity = room.dashboardStatus !== 'empty';
             const needsWork = room.status !== 'clean'; 
@@ -114,7 +104,6 @@ export default function AdminDailyDashboard() {
 
     return (
         <div className="container mx-auto p-4 space-y-6 min-h-screen bg-slate-50">
-            {/* --- Header --- */}
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
@@ -143,7 +132,6 @@ export default function AdminDailyDashboard() {
                 </div>
             </header>
 
-            {/* --- Stats Row --- */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <StatBox label="הגעות" count={stats.arrival} color="text-blue-600" bg="bg-blue-50" />
                 <StatBox label="עזיבות היום" count={stats.departure} color="text-red-600" bg="bg-red-50" />
@@ -152,10 +140,7 @@ export default function AdminDailyDashboard() {
                 <StatBox label="לניקיון" count={stats.dirty} color="text-slate-800" bg="bg-white border border-slate-200" />
             </div>
 
-            {/* --- Toolbar --- */}
             <div className="sticky top-4 z-20 flex flex-col md:flex-row items-center justify-between gap-4">
-                
-                {/* כפתור סינון */}
                 <div className="bg-white p-2 rounded-lg shadow-sm border flex items-center">
                     <Button 
                         variant="ghost" 
@@ -188,7 +173,6 @@ export default function AdminDailyDashboard() {
                 )}
             </div>
 
-            {/* --- Room Grid --- */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
                     <div className="flex items-center gap-2">
@@ -213,42 +197,33 @@ export default function AdminDailyDashboard() {
                         const Icon = config.icon;
                         const info = room.bookingInfo;
 
-                        // ✨✨✨ תיקון קריטי: לוקחים או את pax או את in (במקרה של תחלופה) ✨✨✨
-                        // זה יפתור את הבעיה של ה-0 מיטות!
+                        // ✨✨✨ תיקון סופי: אין חיסור תינוקות! ✨✨✨
+                        // ה-pax מכיל רק את המיטות (מבוגרים + נוער + ילדים), אז לא מחסירים כלום.
                         const babiesCount = info?.babies || 0;
-                        const totalPax = info?.pax || info?.in || 0; 
-                        
-                        const bedsCount = Math.max(0, totalPax - babiesCount);
+                        const bedsCount = info?.pax || info?.in || 0; 
 
                         return (
                             <div
                                 key={room._id}
-                                className={`
-                                    relative p-4 rounded-xl border transition-all cursor-pointer bg-white group
-                                    ${selectedRooms.has(room._id) ? 'ring-2 ring-blue-500 border-transparent shadow-md' : 'border-slate-200 hover:border-blue-300'}
-                                `}
+                                className={`relative p-4 rounded-xl border transition-all cursor-pointer bg-white group ${selectedRooms.has(room._id) ? 'ring-2 ring-blue-500 border-transparent shadow-md' : 'border-slate-200 hover:border-blue-300'}`}
                                 onClick={() => handleSelectRoom(room._id)}
                             >
-                                {/* מספר חדר + בחירה */}
                                 <div className="flex justify-between items-start mb-3">
                                     <span className="text-2xl font-black text-slate-800">{room.roomNumber}</span>
                                     <Checkbox checked={selectedRooms.has(room._id)} />
                                 </div>
 
-                                {/* תווית סטטוס גדולה */}
                                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold w-fit mb-3 ${config.color}`}>
                                     {Icon && <Icon size={16} />}
                                     {config.label}
                                 </div>
 
-                                {/* ✨ כרטיסיית המידע המעודכנת (מיטות/עריסות) */}
                                 {info && (
                                     <div className="text-sm text-slate-700 space-y-1 mb-3 bg-slate-100 p-2 rounded border border-slate-200">
                                         <div className="flex flex-col gap-1.5">
                                             {/* מיטות */}
                                             <p className="flex items-center gap-2 font-bold text-slate-800 text-base">
                                                 <Bed size={18} className="text-slate-500"/>
-                                                {/* כאן יוצג המספר הנכון בגלל התיקון למעלה */}
                                                 <span>{bedsCount} מיטות</span>
                                             </p>
 
@@ -260,7 +235,6 @@ export default function AdminDailyDashboard() {
                                             )}
                                         </div>
 
-                                        {/* תחלופה / עזיבה / כניסה */}
                                         {(info.out || info.in) && (
                                             <div className="flex flex-wrap gap-2 text-xs mt-2 pt-2 border-t border-slate-200">
                                                 {info.out && <span className="text-red-600 font-medium bg-red-50 px-1 rounded">עוזבים: {info.out}</span>}
@@ -270,7 +244,6 @@ export default function AdminDailyDashboard() {
                                     </div>
                                 )}
 
-                                {/* פוטר: מצב ניקיון ושיבוץ */}
                                 <div className="flex justify-between items-end border-t pt-3 mt-auto">
                                     <div className={`text-xs px-2 py-0.5 rounded-full border ${room.status === 'clean' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
                                         {room.status === 'clean' ? 'נקי' : 'מלוכלך'}
