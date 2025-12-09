@@ -7,8 +7,6 @@ import AppError from '../utils/AppError.js';
 import XLSX from 'xlsx';
 
 // --- עזרים ---
-
-// פונקציה לניקוי שעה מתאריך (משאירה רק את התאריך עצמו)
 const normalizeDate = (date) => {
     if (!date) return null;
     const d = new Date(date);
@@ -18,44 +16,39 @@ const normalizeDate = (date) => {
 
 // ✨ הפונקציה החכמה למציאת ערך בעמודה (לא רגיש לאותיות גדולות/קטנות)
 const findColValue = (row, possibleNames) => {
-    // יצירת רשימת מפתחות של השורה באותיות קטנות לצורך השוואה
     const rowKeys = Object.keys(row).map(k => k.toLowerCase().trim());
-
     for (const name of possibleNames) {
         const lowerName = name.toLowerCase().trim();
-
-        // 1. חיפוש מדויק (הכי מהיר)
+        // 1. חיפוש מדויק
         if (row[name] !== undefined) return parseInt(row[name]);
-
-        // 2. חיפוש חכם (לפי המפתחות המנורמלים)
+        // 2. חיפוש חכם
         const foundKeyIndex = rowKeys.indexOf(lowerName);
         if (foundKeyIndex !== -1) {
             const realKey = Object.keys(row)[foundKeyIndex];
             return parseInt(row[realKey]);
         }
     }
-    return 0; // אם לא נמצא כלום, מחזיר 0
+    return 0;
 };
 
-
-// --- הפעולה הראשית: העלאת אקסל ועיבוד נתונים ---
+// --- 1. העלאת אקסל ועיבוד נתונים (DRY RUN & SAVE) ---
 export const uploadSchedule = catchAsync(async (req, res, next) => {
+    console.log("--- STARTING UPLOAD PROCESS ---");
+
     if (!req.file) return next(new AppError('לא נבחר קובץ', 400));
-    
     const { hotelId, dryRun } = req.body;
+
     if (!hotelId) return next(new AppError('חובה לבחור מלון', 400));
 
-    // קריאת הקובץ מהזיכרון
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
-    // defval: "" מבטיח שגם תאים ריקים יקבלו ערך, מונע קריסות
     const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
 
-    // שליפת נתונים קיימים להשוואה
+    console.log(`Excel Loaded. Rows found: ${rawData.length}`);
+
     const existingRooms = await Room.find({ hotel: hotelId });
     const roomMap = new Map(existingRooms.map(r => [r.roomNumber, r]));
 
-    // שליפת סוג חדר ברירת מחדל (למקרה שצריך ליצור חדר חדש)
     let defaultType = await RoomType.findOne({ hotel: hotelId, isDefault: true });
     if (!defaultType) defaultType = await RoomType.findOne({ hotel: hotelId });
 
@@ -63,74 +56,70 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     const newBookings = [];
     const createdRooms = [];
 
-    // --- לולאת הניתוח הראשית ---
+    let loopCount = 0;
     for (const row of rawData) {
-        
+        loopCount++;
+        const shouldLog = loopCount <= 5; // נדפיס לוג רק ל-5 שורות ראשונות
+
         // 1. זיהוי מספר חדר
-        // מחפש לפי מגוון שמות אפשריים: 'c_room_number', 'חדר', 'Room'
         let roomNum = String(row['c_room_number'] || row['חדר'] || row['Room'] || '').trim();
-        
-        // דילוג על שורות לא רלוונטיות (ללא מספר חדר או חדר 0)
-        if (!roomNum || roomNum === '0') continue;
+        if (!roomNum || roomNum === '0') {
+            if (shouldLog) console.log(`Skipping row ${loopCount}: No room number`);
+            continue;
+        }
 
         // 2. זיהוי תאריכים
-        let arrivalRaw = row['c_arrival_date'] || row['Arrival'] || row['הגעה'];
-        let departureRaw = row['c_depart_date'] || row['Departure'] || row['עזיבה'];
+        let arrival = row['c_arrival_date'] || row['Arrival'] || row['הגעה'];
+        let departure = row['c_depart_date'] || row['Departure'] || row['עזיבה'];
 
-        if (!arrivalRaw || !departureRaw) continue; // דילוג אם אין תאריכים
+        if (!arrival || !departure) {
+             if (shouldLog) console.log(`Skipping row ${loopCount} (Room ${roomNum}): No dates`);
+             continue;
+        }
 
-        const start = normalizeDate(arrivalRaw);
-        const end = normalizeDate(departureRaw);
-
-        // ✨ 3. חישוב כמות אנשים (pax) - הלוגיקה המדויקת ✨
+        const start = normalizeDate(arrival);
+        const end = normalizeDate(departure);
         
-        // ניסיון לחלץ כמויות נפרדות לפי שמות עמודות נפוצים
+        if (shouldLog) console.log(`Processing Room ${roomNum}: ${start.toISOString().split('T')[0]} - ${end.toISOString().split('T')[0]}`);
+
+        // 3. חישוב כמות אנשים (PAX)
         const adults = findColValue(row, ['c_adults', 'adults', 'adult', 'מבוגרים']);
         const juniors = findColValue(row, ['c_juniors', 'juniors', 'junior', 'נוער']);
         const children = findColValue(row, ['c_children', 'children', 'child', 'ילדים']);
 
-        // חיבור הסכום: מבוגרים + נוער + ילדים
         let pax = adults + juniors + children;
-
-        // Fallback: אם הסכום יצא 0, המערכת מחפשת עמודת "סה"כ" או "Total"
         if (pax === 0) {
              pax = findColValue(row, ['total_pax', 'pax', 'total', 'סה"כ']);
         }
-
-        // הגנה מינימלית: אם עדיין 0, נגדיר 1 כדי שלא ייראה ריק
         if (pax === 0) pax = 1;
 
-        // 4. חישוב תינוקות (בנפרד, כי הם דורשים עריסה ולא מיטה)
         const babies = findColValue(row, ['c_babies', 'babies', 'baby', 'תינוקות']);
 
-
-        // --- לוגיקת יצירת/מציאת חדר ---
+        // 4. מציאת/יצירת חדר
         let roomId;
         if (roomMap.has(roomNum)) {
             roomId = roomMap.get(roomNum)._id;
         } else {
-            // אם החדר לא קיים - יוצרים אותו אוטומטית
-            if (!defaultType) return next(new AppError('לא מוגדר סוג חדר למלון זה, לא ניתן ליצור חדרים חדשים.', 400));
+            if (!defaultType) return next(new AppError('לא מוגדר סוג חדר למלון זה', 400));
 
             const newRoom = await Room.create({
                 hotel: hotelId,
                 roomNumber: roomNum,
                 roomType: defaultType._id,
-                status: 'dirty' // חדר חדש נוצר כמלוכלך כברירת מחדל
+                status: 'dirty'
             });
             roomId = newRoom._id;
             roomMap.set(roomNum, newRoom);
             createdRooms.push(roomNum);
         }
 
-        // --- בדיקת חפיפה (Conflict Detection) ---
         const overlap = await Booking.findOne({
             room: roomId,
             status: 'active',
             $or: [
-                { arrivalDate: { $lt: end, $gte: start } }, // התחלה בתוך הטווח הקיים
-                { departureDate: { $gt: start, $lte: end } }, // סיום בתוך הטווח הקיים
-                { arrivalDate: { $lte: start }, departureDate: { $gte: end } } // הטווח החדש עוטף את הקיים
+                { arrivalDate: { $lt: end, $gte: start } },
+                { departureDate: { $gt: start, $lte: end } },
+                { arrivalDate: { $lte: start }, departureDate: { $gte: end } }
             ]
         });
 
@@ -146,23 +135,19 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
                 type: 'overlap'
             });
         } else {
-            // הכל תקין - מוסיפים לרשימת ההזמנות החדשות
             newBookings.push({
                 hotel: hotelId,
                 room: roomId,
                 roomNumber: roomNum,
                 arrivalDate: start,
                 departureDate: end,
-                pax,   // המספר הסופי שחושב
+                pax,
                 babies,
                 source: 'excel'
             });
         }
     }
 
-    // --- סיום ומתן תשובה ---
-
-    // במצב "סימולציה" (Dry Run) - רק מציגים מה יקרה, לא שומרים
     if (String(dryRun) === 'true') {
         return res.json({
             status: 'simulation',
@@ -172,7 +157,6 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
         });
     }
 
-    // שמירה בפועל לדאטהבייס
     if (newBookings.length > 0) {
         await Booking.insertMany(newBookings);
     }
@@ -185,26 +169,7 @@ export const uploadSchedule = catchAsync(async (req, res, next) => {
     });
 });
 
-// --- שאר הפונקציות בקונטרולר (כמו שהיו) ---
-// (העתקתי לך את החשובות כדי שהקובץ יהיה שלם)
-
-export const resolveConflict = catchAsync(async (req, res, next) => {
-    const { action, conflictData } = req.body;
-    
-    if (action === 'overwrite') {
-        const { existingBookingId, newBookingData } = conflictData;
-        // ביטול הישן
-        await Booking.findByIdAndUpdate(existingBookingId, { status: 'cancelled' });
-        // יצירת החדש
-        await Booking.create({ ...newBookingData, status: 'active', source: 'manual_fix' });
-        
-        res.json({ message: 'השיבוץ הישן נדרס והחדש נוצר.' });
-    } else {
-        // התעלמות (ignore) - לא עושים כלום
-        res.json({ message: 'ההתנגשות נפתרה (התעלמות מהחדש).' });
-    }
-});
-
+// --- 2. קבלת דשבורד יומי (שוחזר מהמקור) ---
 export const getDailyDashboard = catchAsync(async (req, res, next) => {
     const { hotelId, date } = req.query;
     if (!hotelId) return next(new AppError('חסר מזהה מלון', 400));
@@ -216,19 +181,87 @@ export const getDailyDashboard = catchAsync(async (req, res, next) => {
         .populate('roomType', 'name')
         .lean();
 
-    // לוגיקה לשליפת הבוקינג הרלוונטי להיום (לצורך הצגה בדשבורד)
-    // ... (אותה לוגיקה קיימת) ...
-    // כאן רק לצורך הדוגמה אני מחזיר את החדרים כמו שהם
-    // ביישום המלא תעתיק את פונקציית getDailyDashboard המקורית שלך
-    
-    res.json(rooms); 
+    const activeBookings = await Booking.find({
+        hotel: hotelId,
+        status: 'active',
+        arrivalDate: { $lte: queryDate },
+        departureDate: { $gte: queryDate }
+    }).lean();
+
+    const bookingMap = new Map();
+    activeBookings.forEach(b => {
+        if (!bookingMap.has(b.room.toString())) bookingMap.set(b.room.toString(), []);
+        bookingMap.get(b.room.toString()).push(b);
+    });
+
+    const dashboardData = rooms.map(room => {
+        const bookings = bookingMap.get(room._id.toString()) || [];
+        let calculatedStatus = 'empty';
+        let specialInfo = null;
+
+        const arrivals = bookings.filter(b => normalizeDate(b.arrivalDate).getTime() === queryDate.getTime());
+        const departures = bookings.filter(b => normalizeDate(b.departureDate).getTime() === queryDate.getTime());
+        const stayovers = bookings.filter(b =>
+            normalizeDate(b.arrivalDate) < queryDate &&
+            normalizeDate(b.departureDate) > queryDate
+        );
+
+        if (arrivals.length > 0 && departures.length > 0) {
+            calculatedStatus = 'back_to_back';
+            specialInfo = {
+                out: departures[0].pax,
+                in: arrivals[0].pax,
+                pax: arrivals[0].pax,
+                babies: arrivals[0].babies
+            };
+        }
+        else if (arrivals.length > 0) {
+            calculatedStatus = 'arrival';
+            specialInfo = {
+                pax: arrivals[0].pax,
+                babies: arrivals[0].babies
+            };
+        }
+        else if (departures.length > 0) {
+            calculatedStatus = 'departure';
+            specialInfo = {
+                out: departures[0].pax,
+                pax: 0
+            };
+        }
+        else if (stayovers.length > 0) {
+            calculatedStatus = 'stayover';
+            specialInfo = {
+                pax: stayovers[0].pax,
+                babies: stayovers[0].babies
+            };
+        }
+
+        return {
+            ...room,
+            dashboardStatus: calculatedStatus,
+            bookingInfo: specialInfo
+        };
+    });
+
+    res.json(dashboardData);
+});
+
+// --- פונקציות עזר נוספות (שוחזרו מהמקור) ---
+export const resolveConflict = catchAsync(async (req, res, next) => {
+    const { action, conflictData } = req.body;
+    if (action === 'overwrite') {
+        const { existingBookingId, newBookingData } = conflictData;
+        await Booking.findByIdAndUpdate(existingBookingId, { status: 'cancelled' });
+        await Booking.create({ ...newBookingData, status: 'active', source: 'manual_fix' });
+        res.json({ message: 'השיבוץ הישן נדרס והחדש נוצר.' });
+    } else {
+        res.json({ message: 'ההתנגשות נפתרה.' });
+    }
 });
 
 export const assignRoomsToHousekeeper = catchAsync(async (req, res, next) => {
     const { roomIds, userId } = req.body;
-    await Room.updateMany(
-        { _id: { $in: roomIds } }, 
-        { $set: { assignedTo: userId || null, assignmentDate: normalizeDate(new Date()) } }
-    );
+    await Room.updateMany({ _id: { $in: roomIds } }, { $set: { assignedTo: userId || null, assignmentDate: normalizeDate(new Date()) } });
     res.json({ message: 'החדרים הוקצו בהצלחה.' });
 });
