@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
-  Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
-  Mail, Calculator, Wrench, CalendarDays,LayoutDashboard, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud, UserCog, BedDouble
+  Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered,
+  Mail, Calculator, Wrench, CalendarDays, LayoutDashboard, Activity, Paintbrush,
+  History, FileSpreadsheet, UploadCloud, UserCog, BedDouble, MessageCircle // ✨ אייקון חדש
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
@@ -12,16 +13,19 @@ import {
 } from "@/components/ui/Dropdown-menu";
 import { LeadsBell } from './LeadsBell';
 
-// לוגיקה לבניית התפריטים לפי הרשאות
 const getNavGroups = (isAuthenticated, user) => {
   if (!isAuthenticated) return null;
 
   const role = user?.role;
   const groups = {
+      general: [], // ✨ קבוצה חדשה לכללי
       sales: [],
       operations: [],
       admin: []
   };
+
+  // ✨ קישור לצ'אט - זמין לכולם
+  groups.general.push({ to: '/chat', label: 'הודעות וצ\'אט', icon: MessageCircle });
 
   // 1. קבוצת מכירות (Sales)
   if (role === 'admin' || role === 'sales') {
@@ -37,31 +41,28 @@ const getNavGroups = (isAuthenticated, user) => {
       }
   }
 
-  // 2. קבוצת תפעול (Shift Manager / Maintenance / Housekeeper)
+  // 2. קבוצת תפעול
   if (role === 'admin' || role === 'maintenance' || role === 'shift_manager' || role === 'housekeeper') {
-      // קישור למסך עובד (חדרנית/איש אחזקה בשטח)
       groups.operations.push(
           { to: '/maintenance', label: 'מסך עובד שטח', icon: Paintbrush }
       );
 
-      // רק מנהלים ואחראי משמרת - כלי ניהול
       if (role === 'admin' || role === 'shift_manager') {
           groups.operations.push(
-              { to: '/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud }, // ✅ תוקן: הנתיב הנכון הוא /bookings
+              { to: '/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud },
               { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
               { to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog },
-              { to: '/admin/rooms-status', label: 'תמונת מצב חדרים', icon: Activity }, // ✅ הוסף: תמונת מצב
-              { to: '/admin/rooms/create', label: 'הקמת חדרים', icon: BedDouble },     // ✅ הוסף: הקמת חדרים
+              { to: '/admin/rooms-status', label: 'תמונת מצב חדרים', icon: Activity },
+              { to: '/admin/rooms/create', label: 'הקמת חדרים', icon: BedDouble },
           );
       }
-      
-      // מנהלים ואנשי תחזוקה - דשבורד ניהולי לתחזוקה
+
       if (role === 'admin' || role === 'maintenance') {
-           groups.operations.push({ to: '/admin/maintenance', label: 'מרכז תפעול', icon: Wrench });
+          groups.operations.push({ to: '/admin/maintenance', label: 'מרכז תפעול', icon: Wrench });
       }
   }
 
-  // 3. קבוצת אדמין כללי (Admin)
+  // 3. קבוצת אדמין
   if (role === 'admin') {
       groups.admin = [
           { to: '/admin', label: 'דשבורד ניהולי', icon: LayoutDashboard },
@@ -93,12 +94,11 @@ export default function Navbar() {
 
             {/* Mobile Top Bar */}
             <div className="md:hidden flex items-center justify-between bg-white dark:bg-slate-900 border-b h-16 px-4">
-               <Link to="/" className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
+              <Link to="/" className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
                       ZIPORI CLASS
                 </Link>
 
                 <div className="flex items-center gap-4">
-                  {/* פעמון בנייד - לא לעובדי ניקיון/תחזוקה */}
                   {isAuthenticated && user?.role !== 'maintenance' && user?.role !== 'housekeeper' && <LeadsBell />}
 
                   <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
@@ -139,7 +139,6 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
 
     return (
         <div className="flex flex-col flex-grow border-l border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto h-full shadow-xl">
-            {/* Header / Logo */}
             <div className="flex items-center justify-between h-16 flex-shrink-0 px-4 bg-slate-50 border-b">
                 <Link to="/" onClick={onClose} className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
                     ZIPORI CLASS
@@ -147,7 +146,6 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
 
                 <div className="flex items-center gap-3">
                     {isAuthenticated && user?.role !== 'maintenance' && user?.role !== 'housekeeper' && <LeadsBell />}
-
                     {onClose && (
                         <Button variant="ghost" size="icon" onClick={onClose}>
                             <X className="h-6 w-6" />
@@ -156,8 +154,19 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                 </div>
             </div>
 
-            {/* Nav Items Section */}
             <div className="flex-1 flex flex-col py-4 px-3 gap-6">
+
+                {/* ✨ קבוצה כללית (צ'אט) */}
+                {groups?.general?.length > 0 && (
+                    <div>
+                        <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">תקשורת</h3>
+                        <nav className="space-y-1">
+                            {groups.general.map((item) => (
+                                <NavItem key={item.to} item={item} onClick={onClose} />
+                            ))}
+                        </nav>
+                    </div>
+                )}
 
                 {/* 1. קבוצת מכירות */}
                 {groups?.sales?.length > 0 && (
@@ -174,7 +183,6 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                 {/* 2. קבוצת תפעול */}
                 {groups?.operations?.length > 0 && (
                     <div>
-                        {(groups.sales?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
                         <h3 className="px-3 text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2 mt-2">תפעול וניקיון</h3>
                         <nav className="space-y-1">
                             {groups.operations.map((item) => (
@@ -187,7 +195,6 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                 {/* 3. קבוצת אדמין */}
                 {groups?.admin?.length > 0 && (
                     <div>
-                        {(groups.sales?.length > 0 || groups.operations?.length > 0) && <div className="my-2 border-t border-gray-100"></div>}
                         <h3 className="px-3 text-xs font-semibold text-purple-600 uppercase tracking-wider mb-2 mt-2">ניהול ראשי</h3>
                         <nav className="space-y-1">
                             {groups.admin.map((item) => (
@@ -198,7 +205,6 @@ function SidebarContent({ groups, user, isAuthenticated, logout, onClose }) {
                 )}
             </div>
 
-            {/* Footer User Area */}
             <div className="px-2 py-4 border-t dark:border-slate-800 bg-gray-50">
                 {isAuthenticated ? (
                     <UserNav user={user} logout={handleLogout} />
@@ -231,7 +237,7 @@ function NavItem({ item, onClick }) {
 }
 
 function UserNav({ user, logout }) {
-    const getInitials = (name) => {
+  const getInitials = (name) => {
         if (!name) return 'U';
         const names = name.split(' ');
         return names.length > 1 ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase() : name[0].toUpperCase();

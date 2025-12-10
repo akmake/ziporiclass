@@ -7,6 +7,8 @@ import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
 import mongoose from 'mongoose';
 import csurf from 'csurf';
+import http from 'http'; // ✨ חדש
+import { initSocket } from './socket.js'; // ✨ חדש
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -29,14 +31,11 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import referrerRoutes from './routes/referrerRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
-import adminAuditRoutes from './routes/adminAudit.js'; // ✨ ייבוא הנתיב החדש
+import adminAuditRoutes from './routes/adminAudit.js';
 import adminCommissionRoutes from './routes/adminCommissions.js';
 import bookingRoutes from './routes/bookingRoutes.js';
-import userRoutes from './routes/userRoutes.js'; // ✨ ייבוא הנתיב החדש
-
-
-
-
+import userRoutes from './routes/userRoutes.js';
+import chatRoutes from './routes/chatRoutes.js'; // ✨ נתיב הצ'אט החדש
 
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -47,6 +46,10 @@ try {
 }
 
 const app = express();
+// ✨ יצירת שרת HTTP שעוטף את Express
+const httpServer = http.createServer(app);
+// ✨ הפעלת Socket.io
+initSocket(httpServer);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,7 +108,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // --- חיבור נתיבי API ---
-app.use('/api/users', userRoutes); // ✨ חיבור הנתיב החדש כאן!
+app.use('/api/users', userRoutes);
 app.use('/api/pricelists', priceListRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
@@ -121,10 +124,10 @@ app.use('/api/admin/extras', adminExtraTypesRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/referrers', referrerRoutes);
 app.use('/api/push', pushRoutes);
-app.use('/api/admin/audit', adminAuditRoutes); // ✨ חיבור הנתיב החדש
+app.use('/api/admin/audit', adminAuditRoutes);
 app.use('/api/admin/commissions', adminCommissionRoutes);
 app.use('/api/bookings', bookingRoutes);
-
+app.use('/api/chat', chatRoutes); // ✨ כאן חיברנו את הצ'אט
 
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuildPath));
@@ -144,6 +147,7 @@ app.use('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`✔ Server is booming on port ${PORT}`));
+// ✨ שימוש ב-httpServer במקום app.listen
+httpServer.listen(PORT, () => console.log(`✔ Server & Socket running on port ${PORT}`));
 
 export default app;

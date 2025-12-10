@@ -6,7 +6,8 @@ import AdminRoute from "@/components/routes/AdminRoute.jsx";
 import SalesRoute from "@/components/routes/SalesRoute.jsx";
 import MaintenanceRoute from "@/components/routes/MaintenanceRoute.jsx";
 import PriceListManagerRoute from "@/components/routes/PriceListManagerRoute.jsx";
-import ShiftManagerRoute from "@/components/routes/ShiftManagerRoute.jsx"; 
+import ShiftManagerRoute from "@/components/routes/ShiftManagerRoute.jsx";
+import UserRoute from "@/components/routes/UserRoute.jsx"; // וודא שיש לך כזה, או השתמש ב-ProtectedRoute
 
 /* Public Pages */
 import HomePage from "@/pages/HomePage.jsx";
@@ -21,8 +22,11 @@ import EditOrderPage from '@/pages/EditOrderPage.jsx';
 import LeadsPage from '@/pages/LeadsPage.jsx';
 import PricingLogicPage from '@/pages/PricingLogicPage.jsx';
 
+/* Chat Page - ✨ חדש */
+import ChatPage from '@/pages/ChatPage.jsx';
+
 /* Maintenance Pages */
-import HousekeeperView from '@/pages/maintenance/HousekeeperView.jsx'; // ✨ התיקון: ייבוא מסך החדרנית
+import HousekeeperView from '@/pages/maintenance/HousekeeperView.jsx';
 
 /* Admin Pages */
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage.jsx";
@@ -41,7 +45,7 @@ import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
 import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx";
 import CommissionsPage from "@/pages/admin/CommissionsPage.jsx";
 import BookingManagementPage from "@/pages/admin/BookingManagementPage.jsx";
-import RoomAssignmentPage from './pages/admin/RoomAssignmentPage'; // <--- הוספתי כאן
+import RoomAssignmentPage from './pages/admin/RoomAssignmentPage';
 
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
 import AutoLogout from "@/components/AutoLogout.jsx";
@@ -58,9 +62,15 @@ export default function App() {
         <Route path="/" element={<Layout />}>
           <Route path="login" element={<LoginPage />} />
 
+          {/* --- ✨ מסך הצ'אט (זמין לכל משתמש מחובר) --- */}
+          <Route path="chat" element={
+             // אם אין לך UserRoute, תשתמש ב-ProtectedRoute או פשוט תוודא שה-Layout מטפל בזה
+             <ChatPage />
+          } />
+
           {/* --- Sales & General Admin --- */}
           <Route element={<SalesRoute />}>
-            <Route index element={<HomePage />} />
+             <Route index element={<HomePage />} />
             <Route path="new-order" element={<OrderPage />} />
             <Route path="orders-history" element={<OrdersPage />} />
             <Route path="edit-order/:orderId" element={<EditOrderPage />} />
@@ -70,7 +80,6 @@ export default function App() {
 
           {/* --- Maintenance Workers --- */}
           <Route element={<MaintenanceRoute />}>
-             {/* ✨ התיקון: הפניה למסך החדרנית האמיתי */}
              <Route path="maintenance" element={<HousekeeperView />} />
           </Route>
 
@@ -78,9 +87,9 @@ export default function App() {
             <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
           </Route>
 
-          {/* --- Shift Manager & Admin (ניהול שיבוצים) --- */}
+          {/* --- Shift Manager & Admin --- */}
           <Route element={<ShiftManagerRoute />}>
-              <Route path="bookings" element={<BookingManagementPage />} />
+             <Route path="bookings" element={<BookingManagementPage />} />
           </Route>
 
           {/* --- Admin Panel --- */}
