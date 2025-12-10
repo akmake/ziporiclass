@@ -1,17 +1,11 @@
 // client/src/components/CommissionGenerator.jsx
+
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-
-// ייבוא הקבועים מקובץ ה-utils
-import {
-    parseMoney, cleanStr, findArrivalDate,
-    INV_COL_ID, INV_COL_NAME, INV_COL_AMOUNT, INV_COL_NUM,
-    RES_COL_CLERK, RES_COL_MASTER, RES_COL_PRICE, RES_COL_NAME, RES_COL_STATUS, RES_COL_CODE
-} from '@/utils/commissionLogic.js';
 
 // UI Components
 import { Button } from '@/components/ui/Button.jsx';
@@ -22,6 +16,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/Input.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { AlertTriangle, Save, Filter, CheckCircle2, Pencil, Database, Percent } from 'lucide-react';
+
+// ייבוא הקבועים והלוגיקה מקובץ ה-utils (שלא נגענו בו)
+import {
+    parseMoney, cleanStr, findArrivalDate,
+    INV_COL_ID, INV_COL_NAME, INV_COL_AMOUNT, INV_COL_NUM,
+    RES_COL_CLERK, RES_COL_MASTER, RES_COL_PRICE, RES_COL_NAME, RES_COL_STATUS, RES_COL_CODE
+} from '@/utils/commissionLogic.js';
+
+// ============================================================================
+// 🚫 רשימת המודחים - שמות שיתעלמו מהם באקסל באופן גורף
+// ============================================================================
+const EXCLUDED_NAMES = ['אוטה', 'אפרת', 'מיכל', 'נחמני'];
 
 export default function CommissionGenerator({ onReportGenerated }) {
     const [invoicesMap, setInvoicesMap] = useState(null);
@@ -48,7 +54,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
         queryFn: async () => (await api.get('/admin/commissions/paid-ids')).data
     });
 
-    // 2. שליפת מפת ההזמנות (היברידית) - לצורך בדיקת פיצול בלבד
+    // 2. שליפת מפת ההזמנות (לבדיקת פיצול בלבד)
     const { data: dbOrdersMap = {} } = useQuery({
         queryKey: ['ordersCommissionMap'],
         queryFn: async () => (await api.get('/admin/orders/commission-map')).data,
@@ -165,15 +171,20 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const clerksSet = new Set();
         data.forEach(row => {
             const clerk = cleanStr(row[RES_COL_CLERK]);
-            if (clerk) clerksSet.add(clerk);
+            
+            // 🛑 סינון המודחים עוד לפני שהם נכנסים לרשימה 🛑
+            const isExcluded = EXCLUDED_NAMES.some(excludedName => clerk.includes(excludedName));
+            if (clerk && !isExcluded) {
+                clerksSet.add(clerk);
+            }
         });
         const sortedClerks = Array.from(clerksSet).sort();
         setAllClerks(sortedClerks);
         setSelectedClerks(new Set(sortedClerks));
-        toast.success(`נטענו ${data.length} שורות הזמנות`);
+        toast.success(`נטענו ${data.length} שורות הזמנות (לאחר סינון מודחים)`);
     };
 
-    // --- הפונקציה הראשית לניתוח (הלוגיקה המתוקנת) ---
+    // --- הפונקציה הראשית לניתוח ---
     const handleAnalyze = () => {
         const currentInvoicesMap = invoicesMap || {};
 
@@ -183,36 +194,40 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const tempConsolidated = {};
         const newSelectedIds = new Set();
 
-        // 1. רצים על האקסל - זה המקור האבסולוטי!
         reservationsData.forEach(row => {
-            // נתונים בסיסיים מהאקסל (רשת הביטחון)
+            // נתונים בסיסיים מהאקסל (זה המקור!)
             const rowClerkExcel = cleanStr(row[RES_COL_CLERK]);
+            
+            // 🛑 בדיקה 1: האם השם באקסל נמצא ברשימת המודחים? אם כן - החוצה מיד!
+            const isExcluded = EXCLUDED_NAMES.some(excludedName => rowClerkExcel.includes(excludedName));
+            if (isExcluded) return; 
+
+            // שאר הנתונים
             let status = (row[RES_COL_STATUS] || "").toString().toLowerCase();
             let masterId = (row[RES_COL_MASTER] || "").toString().trim();
             let price = parseMoney(row[RES_COL_PRICE]);
             let arrivalDate = findArrivalDate(row);
             let priceCode = cleanStr(row[RES_COL_CODE] || "");
 
-            // סינונים בסיסיים
+            // סינונים טכניים (ביטולים, כבר שולם)
             if (status.includes("can") || status.includes("בוטל")) return;
             if (!masterId) return;
             if (paidHistoryIds.includes(masterId)) return;
 
             // =========================================================
-            // 🛑 צומת ההחלטה: האם יש פיצול ב-DB? 🛑
+            // בדיקת הפיצול (רק אם עברנו את הסינון של המודחים)
             // =========================================================
-            
             const dbOrder = dbOrdersMap[masterId];
             
-            // תנאי לפיצול: ההזמנה קיימת ב-DB, ויש לה דגל isSplit=true (כלומר היוצר והסוגר שונים)
+            // האם יש פיצול ודאי? (קיים ב-DB, יש שני שמות שונים, ודגל פיצול דלוק)
             if (dbOrder && dbOrder.isSplit) {
-                // --- תרחיש חדש: חישוב מפוצל ---
                 
+                // --- חישוב מפוצל (80/20) ---
+                
+                // בודקים אם המשתמשים רלוונטיים לפילטר הנוכחי
+                // (כאן אנחנו גמישים: אם בחרת לראות את היוצר, תראה אותו. אם בחרת את הסוגר, תראה אותו)
                 const isCreatorSelected = selectedClerks.has(dbOrder.creator);
                 const isCloserSelected = selectedClerks.has(dbOrder.closer);
-
-                // אם אף אחד מהצדדים לא נבחר בסינון, מדלגים
-                if (!isCreatorSelected && !isCloserSelected) return;
 
                 // 1. שורה ליוצר (80%)
                 if (isCreatorSelected) {
@@ -258,10 +273,10 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
             } else {
                 // =========================================================
-                // תרחיש ברירת מחדל: אין פיצול ב-DB (או שההזמנה לא קיימת שם)
-                // חוזרים להתנהגות הישנה: הכל לפי השם שבאקסל!
+                // אין פיצול (או אין מידע) -> חוזרים לאקסל המקורי (100%)
                 // =========================================================
                 
+                // כאן המסנן עובד רגיל: האם השם מהאקסל נבחר ב-Checkbox?
                 if (!selectedClerks.has(rowClerkExcel)) return;
 
                 if (!tempConsolidated[masterId]) {
@@ -270,12 +285,12 @@ export default function CommissionGenerator({ onReportGenerated }) {
                         uniqueKey: masterId,
                         guestName: cleanStr(row[RES_COL_NAME]),
                         status: status,
-                        clerk: rowClerkExcel, // שם מהאקסל
+                        clerk: rowClerkExcel, // לוקחים את השם המקורי מהאקסל
                         priceCode: priceCode,
                         totalOrderPrice: 0,
                         manualFix: false,
                         arrivalDate: arrivalDate,
-                        isSplit: false
+                        isSplit: false // אין פיצול
                     };
                 }
                 tempConsolidated[masterId].totalOrderPrice += price;
@@ -292,7 +307,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
             let baseRate = isGroup ? 0.015 : 0.03;
             let commissionRate = baseRate;
 
-            // יישום הפיצול בפועל (באחוזים)
+            // אם זה מפוצל, משנים את האחוז
             if (item.isSplit) {
                 if (item.splitRole === 'creator') commissionRate = baseRate * 0.8;
                 else if (item.splitRole === 'closer') commissionRate = baseRate * 0.2;
@@ -384,6 +399,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
     const visibleRows = processedRows.filter(r => r.colorStatus !== 'green' || r.manualFix);
     const hiddenGreenCount = processedRows.length - visibleRows.length;
     const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.uniqueKey)).reduce((sum, r) => sum + r.commissionToPay, 0);
+    const previewCommission = (parseFloat(fixAmount || 0) * (parseFloat(fixRate || 0) / 100));
 
     return (
         <div className="space-y-6 animate-in fade-in text-right">
