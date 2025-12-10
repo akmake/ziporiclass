@@ -42,7 +42,7 @@ export default function MaintenanceDashboardPage() {
         queryKey: ['rooms', selectedHotelId],
         queryFn: () => fetchRooms(selectedHotelId),
         enabled: !!selectedHotelId,
-        refetchInterval: false // ✨ ביטול רענון אוטומטי
+        refetchInterval: false // יציבות
     });
 
     const filteredRooms = useMemo(() => {
@@ -143,69 +143,24 @@ function RoomManagementDialog({ room, hotelId, isOpen, onClose }) {
 
     const addTaskMutation = useMutation({
         mutationFn: (data) => api.post(`/rooms/${room._id}/tasks`, data),
-        onMutate: async (vars) => {
-            await queryClient.cancelQueries(queryKey);
-            const previousRooms = queryClient.getQueryData(queryKey);
-            
-            queryClient.setQueryData(queryKey, (oldRooms) => {
-                if (!oldRooms) return [];
-                return oldRooms.map(r => {
-                    if (r._id === room._id) {
-                        const type = vars.isTemporary ? 'daily' : 'maintenance';
-                        const tempTask = {
-                            _id: Math.random().toString(),
-                            description: vars.description,
-                            isCompleted: false,
-                            type: type,
-                            temp: true // ✨ דגל מיוחד למניעת קריסה
-                        };
-                        return { ...r, tasks: [...r.tasks, tempTask], status: 'dirty' };
-                    }
-                    return r;
-                });
-            });
+        onSuccess: () => {
+            queryClient.invalidateQueries(queryKey);
             setNewTaskText('');
-            return { previousRooms };
-        },
-        onError: (err, v, context) => queryClient.setQueryData(queryKey, context.previousRooms),
-        onSettled: () => queryClient.invalidateQueries(queryKey)
+        }
     });
 
     const toggleTaskMutation = useMutation({
         mutationFn: ({ taskId, isCompleted }) => api.patch(`/rooms/${room._id}/tasks/${taskId}`, { isCompleted }),
-        onMutate: async ({ taskId, isCompleted }) => {
-            await queryClient.cancelQueries(queryKey);
-            const previousRooms = queryClient.getQueryData(queryKey);
-            queryClient.setQueryData(queryKey, (oldRooms) => {
-                if (!oldRooms) return [];
-                return oldRooms.map(r => {
-                    if (r._id === room._id) {
-                        const updatedTasks = r.tasks.map(t => t._id === taskId ? { ...t, isCompleted } : t);
-                        return { ...r, tasks: updatedTasks };
-                    }
-                    return r;
-                });
-            });
-            return { previousRooms };
-        },
-        onError: (err, v, context) => queryClient.setQueryData(queryKey, context.previousRooms),
-        onSettled: () => queryClient.invalidateQueries(queryKey)
+        onSuccess: () => queryClient.invalidateQueries(queryKey)
     });
 
     const setStatusMutation = useMutation({
         mutationFn: (status) => api.patch(`/rooms/${room._id}/status`, { status }),
-        onMutate: async (status) => {
-            await queryClient.cancelQueries(queryKey);
-            const previousRooms = queryClient.getQueryData(queryKey);
-            queryClient.setQueryData(queryKey, (oldRooms) => {
-                if(!oldRooms) return [];
-                return oldRooms.map(r => r._id === room._id ? { ...r, status } : r);
-            });
+        onSuccess: () => {
+            queryClient.invalidateQueries(queryKey);
+            toast.success('סטטוס עודכן');
             onClose();
-            return { previousRooms };
-        },
-        onError: (err, v, context) => queryClient.setQueryData(queryKey, context.previousRooms),
-        onSettled: () => { queryClient.invalidateQueries(queryKey); toast.success('סטטוס עודכן!'); }
+        }
     });
 
     const handleAddTask = () => {
@@ -215,20 +170,19 @@ function RoomManagementDialog({ room, hotelId, isOpen, onClose }) {
     };
 
     const maintenanceTasks = room.tasks.filter(t => t.type === 'maintenance');
-    const bookingTasks = room.tasks.filter(t => t.type === 'daily' && t.isSystemTask); // מיטות ועריסות
+    const bookingTasks = room.tasks.filter(t => t.type === 'daily' && t.isSystemTask);
     const standardTasks = room.tasks.filter(t => t.type === 'standard');
-    const otherDailyTasks = room.tasks.filter(t => t.type === 'daily' && !t.isSystemTask); // הערות ידניות
+    const otherDailyTasks = room.tasks.filter(t => t.type === 'daily' && !t.isSystemTask);
 
     const TaskItem = ({ task }) => (
         <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
                 task.isCompleted ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-200 shadow-sm hover:border-blue-300'
-            } ${task.temp ? 'opacity-50' : ''}`}
-            // ✨ מניעת לחיצה אם המשימה זמנית
-            onClick={() => !task.temp && toggleTaskMutation.mutate({ taskId: task._id, isCompleted: !task.isCompleted })}
+            }`}
+            onClick={() => toggleTaskMutation.mutate({ taskId: task._id, isCompleted: !task.isCompleted })}
         >
-            <Checkbox checked={task.isCompleted} disabled={task.temp} />
+            <Checkbox checked={task.isCompleted} />
             <span className={`flex-1 ${task.isCompleted ? 'line-through' : 'font-medium'}`}>
-                {task.description} {task.temp && '(שומר...)'}
+                {task.description}
             </span>
         </div>
     );
@@ -251,7 +205,7 @@ function RoomManagementDialog({ room, hotelId, isOpen, onClose }) {
 
                 <div className="flex-1 space-y-6 py-2 overflow-y-auto">
 
-                    {/* 1. תקלות (הכי חשוב) */}
+                    {/* 1. תקלות */}
                     {maintenanceTasks.length > 0 && (
                         <div className="space-y-2 border-r-4 border-red-500 pr-3 bg-red-50/50 p-2 rounded">
                             <h3 className="font-bold text-red-700 flex items-center gap-2"><AlertCircle size={16}/> תקלות פתוחות</h3>
@@ -259,7 +213,7 @@ function RoomManagementDialog({ room, hotelId, isOpen, onClose }) {
                         </div>
                     )}
 
-                    {/* 2. משימות הזמנה (מיטות/עריסות) */}
+                    {/* 2. הזמנה */}
                     {bookingTasks.length > 0 && (
                         <div className="space-y-2 border-r-4 border-blue-400 pr-3 bg-blue-50/50 p-2 rounded">
                             <h3 className="font-bold text-blue-700 flex items-center gap-2"><Star size={16}/> הכנת חדר להזמנה</h3>
@@ -267,7 +221,7 @@ function RoomManagementDialog({ room, hotelId, isOpen, onClose }) {
                         </div>
                     )}
 
-                    {/* 3. הערות מנהל יומיות */}
+                    {/* 3. דגשים */}
                     {otherDailyTasks.length > 0 && (
                         <div className="space-y-2 border-r-4 border-amber-400 pr-3 bg-amber-50/50 p-2 rounded">
                             <h3 className="font-bold text-amber-700 flex items-center gap-2"><Star size={16}/> דגשים להיום</h3>
@@ -275,7 +229,7 @@ function RoomManagementDialog({ room, hotelId, isOpen, onClose }) {
                         </div>
                     )}
 
-                    {/* 4. סטנדרט */}
+                    {/* 4. שוטף */}
                     <div className="space-y-2">
                         <h3 className="font-bold text-slate-700 flex items-center gap-2"><CheckSquare size={16}/> נוהל ניקיון קבוע</h3>
                         <div className="bg-slate-50 p-2 rounded-lg space-y-2">

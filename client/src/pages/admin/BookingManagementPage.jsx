@@ -1,69 +1,101 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Label } from '@/components/ui/Label.jsx';
-import { UploadCloud, FileUp, CheckCircle, AlertTriangle, LoaderCircle } from 'lucide-react';
+import { UploadCloud, AlertTriangle, CheckCircle, FileUp, LoaderCircle } from 'lucide-react';
 
 const fetchHotels = async () => (await api.get('/admin/hotels')).data;
 
 export default function BookingManagementPage() {
     const [selectedHotel, setSelectedHotel] = useState(null);
     const [file, setFile] = useState(null);
-    const [previewData, setPreviewData] = useState(null); // נתונים לתצוגה לפני שמירה
+    const [uploadResult, setUploadResult] = useState(null);
 
-    const { data: hotels = [] } = useQuery({ queryKey: ['hotels'], queryFn: fetchHotels });
+    const { data: hotels = [] } = useQuery({
+        queryKey: ['hotels'],
+        queryFn: fetchHotels,
+    });
 
     const uploadMutation = useMutation({
-        mutationFn: ({ formData }) => api.post('/bookings/upload', formData, {
+        mutationFn: (formData) => api.post('/bookings/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         }),
-        onSuccess: (res, variables) => {
-            const isDryRun = variables.formData.get('dryRun') === 'true';
-            
-            if (isDryRun) {
-                // שלב 1: הצגת סימולציה
-                setPreviewData(res.data);
-                toast.success('הקובץ נבדק! אנא אשר את השינויים.');
+        onSuccess: (res) => {
+            const data = res.data;
+            if (data.status === 'simulation') {
+                setUploadResult(data);
+                if (data.conflicts.length === 0) {
+                    toast.success('קובץ תקין, שומר...');
+                    handleUpload(false);
+                } else {
+                    toast("נמצאו התנגשויות", { icon: '⚠️' });
+                }
             } else {
-                // שלב 2: שמירה סופית
-                toast.success(res.data.message);
-                setPreviewData(null);
+                toast.success(data.message);
+                setUploadResult(null);
                 setFile(null);
             }
         },
-        onError: (err) => toast.error(err.response?.data?.message || 'שגיאה בהעלאה')
+        onError: (err) => toast.error(err.response?.data?.message || 'שגיאה')
+    });
+
+    const resolveConflictMutation = useMutation({
+        mutationFn: (payload) => api.post('/bookings/resolve', payload),
+        onSuccess: (res) => {
+            toast.success(res.data.message);
+            setUploadResult(prev => ({
+                ...prev,
+                conflicts: prev.conflicts.filter(c => c.roomNumber !== res.data.resolvedRoomNumber) // (זהירות, הלוגיקה כאן פשוטה לתצוגה)
+            }));
+            // בפועל השרת מטפל בזה, אנחנו רק מרעננים את ה-UI
+            // אפשר גם לאפס את התוצאות אם רוצים להעלות מחדש
+        },
+        onError: () => toast.error('שגיאה')
     });
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
-            setPreviewData(null); // איפוס תצוגה מקדימה אם בוחרים קובץ חדש
+            setUploadResult(null);
         }
     };
 
-    const handleProcess = (isDryRun) => {
-        if (!file || !selectedHotel) return toast.error('חובה לבחור מלון וקובץ');
-
+    const handleUpload = (isDryRun) => {
+        if (!file || !selectedHotel) return toast.error('חסרים פרטים');
         const formData = new FormData();
         formData.append('file', file);
         formData.append('hotelId', selectedHotel);
         formData.append('dryRun', isDryRun);
+        uploadMutation.mutate(formData);
+    };
 
-        uploadMutation.mutate({ formData });
+    const handleResolve = (conflict, action) => {
+        resolveConflictMutation.mutate({
+            action,
+            conflictData: conflict
+        }, {
+            onSuccess: () => {
+                // הסרה מקומית מהרשימה
+                setUploadResult(prev => ({
+                    ...prev,
+                    conflicts: prev.conflicts.filter(c => c !== conflict)
+                }));
+            }
+        });
     };
 
     return (
-        <div className="container mx-auto p-6 space-y-8 max-w-4xl">
+        <div className="container mx-auto p-6 space-y-8 max-w-5xl" dir="rtl">
             <header>
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                    <UploadCloud className="text-blue-600" /> קליטת סידור עבודה (אקסל)
+                    <UploadCloud className="text-blue-600" /> קליטת אקסל הזמנות
                 </h1>
                 <p className="mt-2 text-gray-600">
-                    העלה את דוח ההזמנות היומי. המערכת תזהה לבד כניסות, עזיבות, ומיטות נדרשות.
+                    טעינת קובץ השיבוץ. לאחר הקליטה, יש לעבור למסך "סידור עבודה" כדי להפיץ את הנתונים לחדרים.
                 </p>
             </header>
 
@@ -74,7 +106,7 @@ export default function BookingManagementPage() {
                         <div className="space-y-2">
                             <Label>בחר מלון</Label>
                             <Select value={selectedHotel || ''} onValueChange={setSelectedHotel}>
-                                <SelectTrigger><SelectValue placeholder="בחר מלון..." /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="בחר..." /></SelectTrigger>
                                 <SelectContent>
                                     {hotels.map(h => <SelectItem key={h._id} value={h._id}>{h.name}</SelectItem>)}
                                 </SelectContent>
@@ -82,98 +114,75 @@ export default function BookingManagementPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label>קובץ אקסל</Label>
+                            <Label>קובץ XLSX</Label>
                             <div className="relative">
                                 <input type="file" accept=".xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                <div className="border border-input rounded-md p-2 bg-white flex items-center gap-2 text-sm text-gray-500">
-                                    <FileUp size={16}/> {file ? file.name : "לחץ לבחירת קובץ..."}
+                                <div className="border border-input rounded-md p-2 bg-white flex items-center gap-2 text-sm text-gray-500 h-10">
+                                    <FileUp size={16}/>
+                                    {file ? file.name : "לחץ לבחירה..."}
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex gap-4">
-                        {!previewData ? (
-                            <Button 
-                                onClick={() => handleProcess(true)} 
-                                disabled={!file || !selectedHotel || uploadMutation.isPending}
-                                className="w-full bg-blue-600 hover:bg-blue-700"
-                            >
-                                {uploadMutation.isPending ? <LoaderCircle className="animate-spin ml-2"/> : <UploadCloud className="ml-2"/>}
-                                נתח קובץ והצג שינויים
-                            </Button>
-                        ) : (
-                            <div className="flex gap-4 w-full animate-in fade-in">
-                                <Button variant="outline" onClick={() => setPreviewData(null)} className="flex-1">ביטול</Button>
-                                <Button 
-                                    onClick={() => handleProcess(false)} 
-                                    className="flex-1 bg-green-600 hover:bg-green-700"
-                                    disabled={uploadMutation.isPending}
-                                >
-                                    <CheckCircle className="ml-2 h-4 w-4"/>
-                                    אשר ועדכן את החדרים
-                                </Button>
-                            </div>
-                        )}
-                    </div>
+                    <Button 
+                        onClick={() => handleUpload(true)} 
+                        disabled={!file || !selectedHotel || uploadMutation.isPending}
+                        className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
+                    >
+                        {uploadMutation.isPending ? <LoaderCircle className="animate-spin ml-2"/> : <UploadCloud className="ml-2"/>}
+                        טען למערכת
+                    </Button>
                 </CardContent>
             </Card>
 
-            {/* תצוגה מקדימה של התוצאות */}
-            {previewData && (
-                <div className="space-y-4 animate-in slide-in-from-bottom-4">
+            {uploadResult && (
+                <div className="animate-in slide-in-from-bottom-4 duration-500 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="bg-blue-50 border-blue-200">
-                            <CardContent className="p-4 text-center">
-                                <p className="text-sm font-bold text-blue-800">חדרים לעדכון</p>
-                                <p className="text-3xl font-black text-blue-900">{previewData.details?.length || 0}</p>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-amber-50 border-amber-200">
-                            <CardContent className="p-4 text-center">
-                                <p className="text-sm font-bold text-amber-800">חדרים חדשים שייווצרו</p>
-                                <p className="text-3xl font-black text-amber-900">{previewData.createdRooms?.length || 0}</p>
-                            </CardContent>
-                        </Card>
                         <Card className="bg-green-50 border-green-200">
-                            <CardContent className="p-4 text-center">
-                                <p className="text-sm font-bold text-green-800">סטטוס תקינות</p>
-                                <p className="text-xl font-black text-green-900 mt-1">קובץ תקין ✅</p>
+                            <CardContent className="p-4 flex items-center gap-4">
+                                <CheckCircle className="text-green-600 h-8 w-8" />
+                                <div>
+                                    <p className="text-sm text-green-800 font-bold">תקינים</p>
+                                    <p className="text-2xl font-bold text-green-900">{uploadResult.validCount}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className={`${uploadResult.conflicts.length > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <CardContent className="p-4 flex items-center gap-4">
+                                <AlertTriangle className={`${uploadResult.conflicts.length > 0 ? 'text-red-600' : 'text-gray-400'} h-8 w-8`} />
+                                <div>
+                                    <p className={`text-sm font-bold ${uploadResult.conflicts.length > 0 ? 'text-red-800' : 'text-gray-500'}`}>התנגשויות</p>
+                                    <p className={`text-2xl font-bold ${uploadResult.conflicts.length > 0 ? 'text-red-900' : 'text-gray-600'}`}>{uploadResult.conflicts.length}</p>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
 
-                    <Card>
-                        <CardHeader><CardTitle>פירוט השינויים הצפויים</CardTitle></CardHeader>
-                        <CardContent className="max-h-64 overflow-y-auto">
-                            <table className="w-full text-sm text-right">
-                                <thead className="bg-slate-50 sticky top-0">
-                                    <tr>
-                                        <th className="p-2">חדר</th>
-                                        <th className="p-2">סטטוס זוהה</th>
-                                        <th className="p-2">משימות</th>
-                                        <th className="p-2">בקשות מיוחדות (מיטות/לולים)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {previewData.details?.map((room, idx) => (
-                                        <tr key={idx} className="border-b">
-                                            <td className="p-2 font-bold">{room.room}</td>
-                                            <td className="p-2">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold 
-                                                    ${room.status === 'arrival' ? 'bg-blue-100 text-blue-700' : 
-                                                      room.status === 'departure' ? 'bg-red-100 text-red-700' : 'bg-slate-100'}`}>
-                                                    {room.status === 'arrival' ? 'כניסה' : room.status === 'departure' ? 'עזיבה' : room.status}
-                                                </span>
-                                            </td>
-                                            <td className="p-2">{room.tasksCount}</td>
-                                            <td className="p-2 font-bold text-amber-600">{room.specialRequests > 0 ? `${room.specialRequests} ⚠️` : '-'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </CardContent>
-                    </Card>
+                    {uploadResult.conflicts.length > 0 && (
+                        <div className="bg-white rounded-lg border border-red-100 shadow-sm overflow-hidden">
+                            <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-2 text-red-800 font-bold">
+                                <AlertTriangle size={20}/> יש לפתור את ההתנגשויות הבאות:
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {uploadResult.conflicts.map((conflict, idx) => (
+                                    <div key={idx} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="bg-slate-200 text-slate-800 px-2 py-1 rounded text-xs font-bold">חדר {conflict.roomNumber}</span>
+                                                <span className="text-red-600 text-sm font-bold">כפילות תאריכים</span>
+                                            </div>
+                                            <p className="text-sm text-gray-600">יש כבר שיבוץ פעיל בתאריכים אלו.</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="outline" onClick={() => handleResolve(conflict, 'ignore')}>התעלם מהחדש</Button>
+                                            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleResolve(conflict, 'overwrite')}>דרוס את הישן</Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

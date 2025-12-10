@@ -1,17 +1,26 @@
 import express from 'express';
 import multer from 'multer';
-import { requireAuth, requireAdmin } from '../middlewares/authMiddleware.js';
-import { uploadSchedule } from '../controllers/bookingController.js';
+import { requireAuth, requireShiftManager } from '../middlewares/authMiddleware.js';
+import {
+    uploadSchedule,
+    getDailyDashboard,
+    resolveConflict,
+    assignRoomsToHousekeeper
+} from '../controllers/bookingController.js';
 
 const router = express.Router();
-
-// שימוש בזיכרון לעיבוד מהיר (Buffer)
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.use(requireAuth);
 
-// נתיב העלאה: שמרתי על השם המקורי '/upload'
-router.post('/upload', requireAdmin, upload.single('file'), uploadSchedule);
+// העלאת קובץ (אחמ"ש ומעלה)
+router.post('/upload', requireShiftManager, upload.single('file'), uploadSchedule);
+router.post('/resolve', requireShiftManager, resolveConflict);
+
+// הקצאה (אחמ"ש ומעלה)
+router.post('/assign', requireShiftManager, assignRoomsToHousekeeper);
+
+// דשבורד יומי (פתוח לכולם לצפייה)
+router.get('/daily', getDailyDashboard);
 
 export default router;

@@ -1,45 +1,56 @@
 import mongoose from 'mongoose';
 
 const taskSchema = new mongoose.Schema({
-  description: { type: String, required: true }, // "להוסיף לול", "לנקות שירותים"
+  description: { type: String, required: true, trim: true },
   isCompleted: { type: Boolean, default: false },
+  
+  // זה השדה הקריטי להפרדה:
+  // standard = צ'ק ליסט קבוע (שכבה 1)
+  // daily = מיטות/עריסות/הערות מיוחדות להיום (שכבה 2)
+  // maintenance = תקלות (שכבה 3)
   type: {
     type: String,
-    enum: ['standard', 'special', 'maintenance'], // special = חוסם (מיטות/לולים)
+    enum: ['standard', 'daily', 'maintenance'],
     default: 'standard'
   },
-  isBlocking: { type: Boolean, default: false } // אם true - אי אפשר לסיים חדר בלי זה
+  
+  date: { type: Date, default: null }, // רלוונטי ל-daily
+  addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  completedAt: { type: Date },
+  isSystemTask: { type: Boolean, default: false },
+  isHighlight: { type: Boolean, default: false } 
 });
+
+const historySchema = new mongoose.Schema({
+  cycleDate: { type: Date, default: Date.now },
+  cleanedBy: { type: String },
+  tasksSnapshot: [taskSchema]
+}, { _id: false });
 
 const roomSchema = new mongoose.Schema({
   hotel: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
-  roomNumber: { type: String, required: true }, // מספר חדר כטקסט (למשל '101')
-
-  // סטטוס תפעולי שרואה המנהל/חדרנית
+  roomNumber: { type: String, required: true, trim: true },
+  roomType: { type: mongoose.Schema.Types.ObjectId, ref: 'RoomType', required: true },
+  
   status: {
     type: String,
-    enum: ['clean', 'dirty', 'maintenance', 'inspection'],
-    default: 'clean'
+    enum: ['clean', 'dirty', 'maintenance'],
+    default: 'dirty',
+    index: true
   },
 
-  // נתונים "חיים" מהאקסל היומי (לתצוגה בלבד)
-  currentGuest: {
-    name: String,
-    pax: Number,      // סה"כ אנשים
-    babies: Number,   // סה"כ תינוקות
-    arrivalDate: Date,
-    departureDate: Date,
-    reservationStatus: { type: String, enum: ['arrival', 'departure', 'stayover', 'empty', 'back_to_back'] }
-  },
+  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+  assignmentDate: { type: Date, default: null, index: true },
+  
+  tasks: [taskSchema],
+  history: [historySchema],
+  
+  lastCleanedAt: { type: Date },
+  lastCleanedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  notes: { type: String, trim: true }
+}, { timestamps: true });
 
-  // רשימת המשימות להיום (מתאפסת כל בוקר בקליטת האקסל)
-  dailyTasks: [taskSchema],
-
-  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // חדרנית
-  lastUpdated: { type: Date, default: Date.now }
-});
-
-// מניעת כפילות חדרים באותו מלון
 roomSchema.index({ hotel: 1, roomNumber: 1 }, { unique: true });
 
-export default mongoose.model('Room', roomSchema);
+export default mongoose.models.Room || mongoose.model('Room', roomSchema);
