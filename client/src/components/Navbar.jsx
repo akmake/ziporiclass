@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
-    Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
-    Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud
+  Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
+  Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud, UserCog
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
@@ -41,28 +41,30 @@ const getNavGroups = (isAuthenticated, user) => {
   // כולם רואים את מסך העבודה, אבל המנהל רואה גם שיבוץ
   if (role === 'admin' || role === 'maintenance' || role === 'shift_manager' || role === 'housekeeper') {
       groups.operations = [
-          { to: '/maintenance', label: 'מסך עובד שטח', icon: Paintbrush }, // הגישה לזה מסוננת בשרת
+          { to: '/housekeeper', label: 'מסך עובד שטח', icon: Paintbrush }, // הגישה לזה מסוננת בשרת
       ];
 
       // רק מנהלים ואחראי משמרת
       if (role === 'admin' || role === 'shift_manager') {
           groups.operations.push(
-              { to: '/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud },
+              { to: '/admin/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud },
               { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
-              { to: '/admin/rooms-status', label: 'תמונת מצב', icon: Activity },
+              { to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog }, // <--- הוספתי את זה!
+              { to: '/admin/dashboard', label: 'תמונת מצב', icon: Activity },
           );
       }
       
       // מנהלים ואנשי תחזוקה
       if (role === 'admin' || role === 'maintenance') {
-           groups.operations.push({ to: '/admin/maintenance', label: 'מרכז תפעול', icon: Wrench });
+           groups.operations.push({ to: '/maintenance', label: 'מרכז תפעול', icon: Wrench });
       }
   }
 
   // 3. קבוצת אדמין כללי (Admin)
   if (role === 'admin') {
       groups.admin = [
-          { to: '/admin', label: 'דשבורד מנהל', icon: Shield },
+          { to: '/admin/users', label: 'ניהול משתמשים', icon: User },
+          { to: '/admin/hotels', label: 'ניהול מלונות', icon: Shield },
           { to: '/admin/commissions', label: 'דוח עמלות', icon: FileSpreadsheet },
           { to: '/admin/audit-logs', label: 'יומן פעילות', icon: History },
       ];
@@ -92,7 +94,7 @@ export default function Navbar() {
             {/* Mobile Top Bar */}
             <div className="md:hidden flex items-center justify-between bg-white dark:bg-slate-900 border-b h-16 px-4">
                <Link to="/" className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-amber-600 bg-clip-text text-transparent">
-                     ZIPORI CLASS
+                      ZIPORI CLASS
                 </Link>
 
                 <div className="flex items-center gap-4">
@@ -100,7 +102,7 @@ export default function Navbar() {
                   {isAuthenticated && user?.role !== 'maintenance' && user?.role !== 'housekeeper' && <LeadsBell />}
 
                   <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
-                     <Menu className="h-6 w-6" />
+                      <Menu className="h-6 w-6" />
                   </Button>
                 </div>
             </div>
