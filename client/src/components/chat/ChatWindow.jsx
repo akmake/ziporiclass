@@ -16,7 +16,7 @@ export default function ChatWindow({ currentUser, selectedContact, onBack }) {
   const [inputText, setInputText] = useState('');
   const [attachedOrder, setAttachedOrder] = useState(null);
   const [isOrderPickerOpen, setIsOrderPickerOpen] = useState(false);
-  
+
   // שימוש ב-Store
   const { messages, setMessages, emitTyping, typingUsers, addMessage } = useChatStore();
   const isContactTyping = typingUsers[selectedContact._id];
@@ -51,7 +51,6 @@ export default function ChatWindow({ currentUser, selectedContact, onBack }) {
   // --- ניהול הקלדה ---
   const handleInputChange = (e) => {
       setInputText(e.target.value);
-
       // שלח "מקליד" אם עוד לא שלחנו
       if (!typingTimeoutRef.current) {
           emitTyping(selectedContact._id, true);
@@ -99,7 +98,7 @@ export default function ChatWindow({ currentUser, selectedContact, onBack }) {
         status: 'sending'
     };
 
-    addMessage(optimisticMsg); // הוספה ל-Store
+    addMessage(optimisticMsg); // הוספה ל-Store (עכשיו זה יעבוד!)
     setInputText('');
     setAttachedOrder(null);
     scrollToBottom();
@@ -142,7 +141,7 @@ export default function ChatWindow({ currentUser, selectedContact, onBack }) {
       {/* Header */}
       <div className="flex items-center gap-3 p-3 bg-white border-b border-slate-200 shadow-sm z-10">
         <Button variant="ghost" size="icon" className="md:hidden" onClick={onBack}>
-           {/* חץ חזרה */} 
+           {/* חץ חזרה */}
            <span className="text-xl">➔</span>
         </Button>
         <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold">
@@ -151,7 +150,7 @@ export default function ChatWindow({ currentUser, selectedContact, onBack }) {
         <div>
           <h3 className="font-bold text-slate-800">{selectedContact.name}</h3>
           <span className="text-xs text-green-600">
-              {isContactTyping ? 'מקליד/ה...' : 'מחובר'}
+             {isContactTyping ? 'מקליד/ה...' : 'מחובר'}
           </span>
         </div>
       </div>
@@ -171,7 +170,7 @@ export default function ChatWindow({ currentUser, selectedContact, onBack }) {
                   onForward={(m) => setInputText(m.text)}
                 />
               ))}
-              
+
               {/* ✨ הבועה של ההקלדה ✨ */}
               {isContactTyping && <TypingIndicator />}
           </>

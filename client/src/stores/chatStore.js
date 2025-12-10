@@ -17,9 +17,12 @@ export const useChatStore = create((set, get) => ({
   activeContactId: null,
   messages: [],
   isLoadingContacts: false,
-  
+
   // מי מקליד לי כרגע? (מילון: { userId: true/false })
-  typingUsers: {}, 
+  typingUsers: {},
+
+  // 👇 התיקון הקריטי: הפונקציה שחסרה וגרמה לקריסה
+  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
 
   // --- חיבור והאזנה ---
   initializeSocket: (userId) => {
@@ -55,7 +58,7 @@ export const useChatStore = create((set, get) => ({
         // אם אני מסתכל על השיחה איתו, נעדכן את ה-V בזמן אמת
         if (state.activeContactId === byUserId) {
             set(prev => ({
-                messages: prev.messages.map(m => 
+                messages: prev.messages.map(m =>
                     (m.recipient === byUserId && !m.isRead) ? { ...m, isRead: true } : m
                 )
             }));
@@ -81,15 +84,15 @@ export const useChatStore = create((set, get) => ({
 
   selectContact: (contactId) => {
     set({ activeContactId: contactId });
-    
+
     if (contactId) {
         // 1. מאפסים מונה לוקאלי
         set((state) => ({
-          contacts: state.contacts.map(c => 
+          contacts: state.contacts.map(c =>
             c._id === contactId ? { ...c, unreadCount: 0 } : c
           )
         }));
-        
+
         // 2. שולחים לשרת שקראנו הכל (ב-Socket המהיר)
         socketService.emit('mark_as_read_realtime', { senderId: contactId });
     }
@@ -107,40 +110,41 @@ export const useChatStore = create((set, get) => ({
   // --- טיפול חכם בהודעה נכנסת ---
   handleIncomingMessage: (newMessage) => {
     const state = get();
-    const myId = socketService.socket?.userId; // הנחה שאנחנו יודעים מי אני
-
+    
     // בדיקה: האם אני נמצא כרגע בתוך השיחה הרלוונטית?
     // השיחה רלוונטית אם השולח הוא מי שאני מדבר איתו, או שאני השולח (הודעה שלי)
-    const isChatActive = state.activeContactId && 
+    const isChatActive = state.activeContactId &&
        (newMessage.sender === state.activeContactId || newMessage.recipient === state.activeContactId);
 
     // 1. עדכון חלון ההודעות (אם פתוח)
     if (isChatActive) {
-        set(prev => ({ messages: [...prev.messages, newMessage] }));
-        
+        // מונעים כפילויות אם ההודעה כבר קיימת (למשל מהעדכון האופטימי)
+        set(prev => {
+            const exists = prev.messages.some(m => m._id === newMessage._id || (m.tempId && m.tempId === newMessage.tempId));
+            if (exists) return { messages: prev.messages.map(m => (m.tempId === newMessage.tempId ? newMessage : m)) };
+            return { messages: [...prev.messages, newMessage] };
+        });
+
         // לוגיקת "קראתי":
         // אם ההודעה הגיעה מהצד השני (ולא אני שלחתי), ואני בשיחה -> סמן כנקרא מיד + בלי צליל
         if (newMessage.sender === state.activeContactId) {
              socketService.emit('mark_as_read_realtime', { senderId: newMessage.sender });
              // 🔇 לא מנגנים צליל כי אני בשיחה
-        } 
-        // אם אני שלחתי את ההודעה (ממכשיר אחר או מכאן) -> לא צריך צליל
+        }
     } else {
         // 🔔 אם אני לא בשיחה וההודעה לא ממני -> נגן צליל!
-        // (בדיקה נוספת שזה לא אני ששלחתי, למקרה שאני מחובר משני טאבים)
-        // שים לב: אנחנו לא יודעים את ה-ID שלי ב-Store ב-100%, אבל נניח שההודעה לא ממני אם היא מעלה מונה
         if (state.contacts.some(c => c._id === newMessage.sender)) {
              playNotificationSound();
         }
     }
-    
+
     // 2. עדכון רשימת אנשי הקשר (מונים ומיון)
     set((state) => {
         const updatedContacts = state.contacts.map(c => {
             if (c._id === newMessage.sender || c._id === newMessage.recipient) {
               const isChattingWithSender = state.activeContactId === newMessage.sender;
               let newCount = c.unreadCount || 0;
-              
+
               // העלאת מונה רק אם: ההודעה ממנו + אני לא בשיחה איתו
               if (newMessage.sender === c._id && !isChattingWithSender) {
                   newCount += 1;
@@ -167,7 +171,7 @@ export const useChatStore = create((set, get) => ({
 
         return { contacts: updatedContacts };
     });
-    
+
     // אם קיבלנו הודעה, סביר להניח שהוא הפסיק להקליד באותו רגע
     if (newMessage.sender) {
         set(state => ({ typingUsers: { ...state.typingUsers, [newMessage.sender]: false } }));
