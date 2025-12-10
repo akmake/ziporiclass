@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
   Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
-  Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud, UserCog
+  Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud, UserCog, BedDouble
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
@@ -39,25 +39,24 @@ const getNavGroups = (isAuthenticated, user) => {
 
   // 2. קבוצת תפעול (Shift Manager / Maintenance / Housekeeper)
   if (role === 'admin' || role === 'maintenance' || role === 'shift_manager' || role === 'housekeeper') {
-      groups.operations = [
-          // תיקון נתיב: מפנה ל-/maintenance כפי שמוגדר ב-App.jsx עבור HousekeeperView
-          { to: '/maintenance', label: 'מסך עובד שטח', icon: Paintbrush },
-      ];
+      // קישור למסך עובד (חדרנית/איש אחזקה בשטח)
+      groups.operations.push(
+          { to: '/maintenance', label: 'מסך עובד שטח', icon: Paintbrush }
+      );
 
-      // רק מנהלים ואחראי משמרת
+      // רק מנהלים ואחראי משמרת - כלי ניהול
       if (role === 'admin' || role === 'shift_manager') {
           groups.operations.push(
-            { to: '/admin/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud },
-            { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
-            { to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog },
-            { to: '/admin/rooms-status', label: 'תמונת מצב חדרים', icon: Activity }, // ✅ הוספתי
-            { to: '/admin/rooms/create', label: 'הקמת חדרים', icon: BedDouble }, // ✅ הוספתי
+              { to: '/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud }, // ✅ תוקן: הנתיב הנכון הוא /bookings
+              { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
+              { to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog },
+              { to: '/admin/rooms-status', label: 'תמונת מצב חדרים', icon: Activity }, // ✅ הוסף: תמונת מצב
+              { to: '/admin/rooms/create', label: 'הקמת חדרים', icon: BedDouble },     // ✅ הוסף: הקמת חדרים
           );
       }
       
-      // מנהלים ואנשי תחזוקה - קישור לדשבורד תפעולי
+      // מנהלים ואנשי תחזוקה - דשבורד ניהולי לתחזוקה
       if (role === 'admin' || role === 'maintenance') {
-           // תיקון נתיב: מפנה ל-/admin/maintenance כדי לא להתנגש עם מסך העובד
            groups.operations.push({ to: '/admin/maintenance', label: 'מרכז תפעול', icon: Wrench });
       }
   }
