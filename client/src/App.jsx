@@ -41,6 +41,7 @@ import ManageExtrasPage from '@/pages/admin/ManageExtrasPage.jsx';
 import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx";
 import CommissionsPage from "@/pages/admin/CommissionsPage.jsx";
 import BookingManagementPage from "@/pages/admin/BookingManagementPage.jsx";
+import RoomAssignmentPage from './pages/admin/RoomAssignmentPage'; // <--- הוספתי כאן
 
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
 import AutoLogout from "@/components/AutoLogout.jsx";
@@ -91,6 +92,7 @@ export default function App() {
 
             <Route path="rooms-status" element={<RoomStatusPage />} />
             <Route path="daily-plan" element={<AdminDailyDashboard />} />
+            <Route path="room-assignment" element={<RoomAssignmentPage />} />
 
             <Route path="orders" element={<ManageOrdersPage />} />
             <Route path="users" element={<ManageUsersPage />} />
