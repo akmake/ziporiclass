@@ -32,6 +32,11 @@ import pushRoutes from './routes/pushRoutes.js';
 import adminAuditRoutes from './routes/adminAudit.js'; // ✨ ייבוא הנתיב החדש
 import adminCommissionRoutes from './routes/adminCommissions.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import userRoutes from './routes/userRoutes.js'; // ✨ ייבוא הנתיב החדש
+
+
+
+
 
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -100,6 +105,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // --- חיבור נתיבי API ---
+app.use('/api/users', userRoutes); // ✨ חיבור הנתיב החדש כאן!
 app.use('/api/pricelists', priceListRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);

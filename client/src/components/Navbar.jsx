@@ -3,7 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import {
   Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
   Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud, UserCog
-} from "lucide-react";
+} from "lucide-react"; [cite_start]// [cite: 25]
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
 import { Button } from "@/components/ui/Button.jsx";
@@ -41,7 +41,7 @@ const getNavGroups = (isAuthenticated, user) => {
   // כולם רואים את מסך העבודה, אבל המנהל רואה גם שיבוץ
   if (role === 'admin' || role === 'maintenance' || role === 'shift_manager' || role === 'housekeeper') {
       groups.operations = [
-          { to: '/housekeeper', label: 'מסך עובד שטח', icon: Paintbrush }, // הגישה לזה מסוננת בשרת
+          [cite_start]{ to: '/housekeeper', label: 'מסך עובד שטח', icon: Paintbrush }, // הגישה לזה מסוננת בשרת [cite: 28]
       ];
 
       // רק מנהלים ואחראי משמרת
@@ -49,7 +49,7 @@ const getNavGroups = (isAuthenticated, user) => {
           groups.operations.push(
               { to: '/admin/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud },
               { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
-              { to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog }, // <--- הוספתי את זה!
+              [cite_start]{ to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog }, // <--- הוספתי את זה! [cite: 28]
               { to: '/admin/dashboard', label: 'תמונת מצב', icon: Activity },
           );
       }
