@@ -324,6 +324,8 @@ export default function ManageUsersPage() {
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="sales">איש מכירות</SelectItem>
+                                            <SelectItem value="housekeeper">חדרנית / עובד ניקיון</SelectItem> {/* ✨ הוספנו! */}
+                                            <SelectItem value="shift_manager">אחראי משמרת</SelectItem>
                                             <SelectItem value="maintenance">תחזוקה</SelectItem>
                                             <SelectItem value="admin">מנהל</SelectItem>
                                         </SelectContent>
