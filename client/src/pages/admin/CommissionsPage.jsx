@@ -5,10 +5,8 @@ import api from '@/utils/api.js';
 import { format, isSameMonth } from 'date-fns';
 import { he } from 'date-fns/locale';
 
-// ייבוא הקומפוננטה הכבדה מקובץ 2
-import CommissionGenerator from '@/components/CommissionGenerator.jsx'; // <-- וודא שהנתיב נכון
-
-// ייבוא פונקציית העזר מקובץ 1 (עבור הטבלה הקטנה)
+// ייבוא הרכיבים החדשים
+import CommissionGenerator from '@/components/CommissionGenerator.jsx'; 
 import { getReportSummary } from '@/utils/commissionLogic.js';
 
 // UI Components
@@ -54,7 +52,8 @@ export default function CommissionsPage() {
     );
 }
 
-// --- קומפוננטת עזר: טבלת סיכום קטנה ---
+// --- טבלאות עזר פנימיות ---
+
 function ReportSummaryTable({ items }) {
     const summaryData = useMemo(() => getReportSummary(items), [items]);
 
@@ -95,7 +94,6 @@ function ReportSummaryTable({ items }) {
     );
 }
 
-// --- קומפוננטת היסטוריה (הועתקה מהמקור) ---
 function ReportsHistory() {
     const { data: reports = [], isLoading } = useQuery({
         queryKey: ['commissionReports'],
@@ -185,7 +183,6 @@ function ReportsHistory() {
     );
 }
 
-// --- קומפוננטת דוח לפי תאריכים (הועתקה מהמקור) ---
 function CommissionsByArrivalDate() {
     const [selectedMonth, setSelectedMonth] = useState('all');
     const [showDetails, setShowDetails] = useState(false);

@@ -27,36 +27,27 @@ export const getAllOrders = async (req, res) => {
  */
 export const getOrdersForCommissionMap = async (req, res) => {
     try {
-        // שולפים רק הזמנות בסטטוס "בוצע" כי רק הן רלוונטיות לעמלות
-        const orders = await Order.find({ status: 'בוצע' })
-            .select('orderNumber createdBy createdByName closedBy closedByName optimaNumber total_price')
+        const orders = await Order.find({ status: { $in: ['בוצע', 'placed', 'converted'] } })
+            .select('orderNumber createdByName closedByName optimaNumber total_price')
             .lean();
 
-        // המרה למפה (Dictionary) לגישה מהירה ב-O(1)
         const ordersMap = {};
         orders.forEach(o => {
-            // המפתח הוא מספר ההזמנה (אופטימה) אם הוזן, או מספר ההזמנה הפנימי כגיבוי
             const key = o.optimaNumber ? o.optimaNumber.trim() : o.orderNumber.toString();
-            
             ordersMap[key] = {
                 id: o._id,
                 creator: o.createdByName || 'לא ידוע',
                 closer: o.closedByName || 'לא ידוע',
-                // אם היוצר והסוגר שונים - סימן שיש פיצול
                 isSplit: !!(o.createdByName && o.closedByName && o.createdByName !== o.closedByName)
             };
-            
-            // גיבוי: נשמור גם לפי מספר הזמנה פנימי למקרה שההתאמה היא לפי זה
+            // גיבוי גם לפי מספר פנימי
             ordersMap[o.orderNumber.toString()] = ordersMap[key];
         });
-
         res.json(ordersMap);
     } catch (error) {
-        console.error("Commission Map Error:", error);
-        res.status(500).json({ message: "שגיאה בטעינת נתוני מיפוי עמלות." });
+        res.status(500).json({ message: "שגיאה במיפוי עמלות" });
     }
 };
-
 /**
  * @desc    עדכון הזמנה קיימת (שינוי סטטוס, פרטים, או שיוך נציג)
  * @route   PUT /api/admin/orders/:id
@@ -121,3 +112,4 @@ export const deleteOrder = async (req, res) => {
         res.status(500).json({ message: 'שגיאה במחיקת ההזמנה' });
     }
 };
+

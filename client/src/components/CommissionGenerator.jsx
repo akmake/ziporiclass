@@ -6,12 +6,12 @@ import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
-// ייבוא הלוגיקה "הקדושה" מקובץ 1
+// ייבוא הקבועים והלוגיקה מקובץ 1
 import {
     parseMoney, cleanStr, findArrivalDate,
     INV_COL_ID, INV_COL_NAME, INV_COL_AMOUNT, INV_COL_NUM,
     RES_COL_CLERK, RES_COL_MASTER, RES_COL_PRICE, RES_COL_NAME, RES_COL_STATUS, RES_COL_CODE
-} from '@/utils/commissionLogic.js'; // <-- וודא שהנתיב הזה נכון!
+} from '@/utils/commissionLogic.js'; 
 
 // UI Components
 import { Button } from '@/components/ui/Button.jsx';
@@ -20,7 +20,6 @@ import { Checkbox } from '@/components/ui/Checkbox.jsx';
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Input } from '@/components/ui/Input.jsx';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { AlertTriangle, Save, Filter, CheckCircle2, Pencil, Database, Percent } from 'lucide-react';
 
 export default function CommissionGenerator({ onReportGenerated }) {
@@ -42,9 +41,17 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
     const queryClient = useQueryClient();
 
+    // 1. שליפת היסטוריית תשלומים (למנוע כפילויות)
     const { data: paidHistoryIds = [] } = useQuery({
         queryKey: ['paidCommissionsIds'],
         queryFn: async () => (await api.get('/admin/commissions/paid-ids')).data
+    });
+
+    // 2. שליפת מפת ההזמנות החדשה (עבור המנגנון ההיברידי)
+    const { data: dbOrdersMap = {} } = useQuery({
+        queryKey: ['ordersCommissionMap'],
+        queryFn: async () => (await api.get('/admin/orders/commission-map')).data,
+        staleTime: 1000 * 60 * 5 
     });
 
     const generateMutation = useMutation({
@@ -77,7 +84,6 @@ export default function CommissionGenerator({ onReportGenerated }) {
             try {
                 const data = new Uint8Array(evt.target.result);
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'dd/mm/yyyy' });
-
                 const sheetName = workbook.SheetNames[0];
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
 
@@ -95,7 +101,6 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const toastId = toast.loading('טוען הזמנות מהמערכת...');
         try {
             const { data: allOrders } = await api.get('/admin/orders');
-
             const relevantOrders = allOrders.filter(order =>
                 order.status === 'בוצע' &&
                 !paidHistoryIds.includes(order.orderNumber.toString())
@@ -103,7 +108,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
             if (relevantOrders.length === 0) {
                 toast.dismiss(toastId);
-                return toast.error('לא נמצאו הזמנות פתוחות (בוצעו ולא שולמו).');
+                return toast.error('לא נמצאו הזמנות פתוחות.');
             }
 
             const convertedData = relevantOrders.map(order => ({
@@ -118,7 +123,6 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
             processReservations(convertedData);
             toast.success(`נטענו ${convertedData.length} הזמנות פתוחות!`, { id: toastId });
-
         } catch (error) {
             console.error(error);
             toast.error('שגיאה בטעינת הנתונים', { id: toastId });
@@ -178,34 +182,128 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const newSelectedIds = new Set();
 
         reservationsData.forEach(row => {
-            const rowClerk = cleanStr(row[RES_COL_CLERK]);
-            if (!selectedClerks.has(rowClerk)) return;
-
+            // נתונים בסיסיים מהאקסל (רשת הביטחון)
+            const rowClerkExcel = cleanStr(row[RES_COL_CLERK]);
             let status = (row[RES_COL_STATUS] || "").toString().toLowerCase();
-            if (status.includes("can") || status.includes("בוטל")) return;
-
             let masterId = (row[RES_COL_MASTER] || "").toString().trim();
-            if (!masterId) return;
-
-            if (paidHistoryIds.includes(masterId)) return;
-
             let price = parseMoney(row[RES_COL_PRICE]);
             let arrivalDate = findArrivalDate(row);
+            let priceCode = cleanStr(row[RES_COL_CODE] || "");
 
-            if (!tempConsolidated[masterId]) {
-                tempConsolidated[masterId] = {
-                    masterId: masterId,
-                    guestName: cleanStr(row[RES_COL_NAME]),
-                    status: status,
-                    clerk: rowClerk,
-                    priceCode: cleanStr(row[RES_COL_CODE] || ""),
-                    totalOrderPrice: 0,
-                    manualFix: false,
-                    arrivalDate: arrivalDate
-                };
+            if (status.includes("can") || status.includes("בוטל")) return;
+            if (!masterId) return;
+            if (paidHistoryIds.includes(masterId)) return;
+
+            // =========================================================
+            // 🛑 מנגנון היברידי: בדיקה כפולה 🛑
+            // =========================================================
+            
+            const dbOrder = dbOrdersMap[masterId]; // האם ההזמנה קיימת במערכת שלנו?
+            
+            // תרחיש א': העולם החדש (יש מידע ב-DB ויש יוצר/סוגר)
+            if (dbOrder && dbOrder.creator && dbOrder.closer) {
+                
+                const isCreatorSelected = selectedClerks.has(dbOrder.creator);
+                const isCloserSelected = selectedClerks.has(dbOrder.closer);
+
+                // אם אף אחד מהם לא נבחר בסינון, מדלגים
+                if (!isCreatorSelected && !isCloserSelected) return; 
+
+                // מקרה מיוחד: היוצר הוא גם הסוגר (100% עמלה)
+                if (dbOrder.creator === dbOrder.closer) {
+                    if (!isCreatorSelected) return; // אם הוא לא נבחר, מדלגים
+                    
+                    if (!tempConsolidated[masterId]) {
+                        tempConsolidated[masterId] = {
+                            masterId: masterId,
+                            uniqueKey: masterId, // מפתח רגיל
+                            guestName: cleanStr(row[RES_COL_NAME]),
+                            status: status,
+                            clerk: dbOrder.creator, // לוקחים מה-DB
+                            priceCode: priceCode,
+                            totalOrderPrice: 0,
+                            manualFix: false,
+                            arrivalDate: arrivalDate,
+                            isSplit: false // אין פיצול
+                        };
+                    }
+                    tempConsolidated[masterId].totalOrderPrice += price;
+                } 
+                else {
+                    // פיצול אמיתי: יוצר (80%) וסוגר (20%)
+                    
+                    // חלק 1: היוצר
+                    if (isCreatorSelected) {
+                        const keyCreator = `${masterId}_creator`;
+                        if (!tempConsolidated[keyCreator]) {
+                            tempConsolidated[keyCreator] = {
+                                masterId: masterId,
+                                uniqueKey: keyCreator,
+                                guestName: cleanStr(row[RES_COL_NAME]),
+                                status: status,
+                                clerk: dbOrder.creator, 
+                                priceCode: priceCode,
+                                totalOrderPrice: 0,
+                                manualFix: false,
+                                arrivalDate: arrivalDate,
+                                isSplit: true,
+                                splitRole: 'creator', // מקבל 80%
+                                splitPartner: dbOrder.closer
+                            };
+                        }
+                        tempConsolidated[keyCreator].totalOrderPrice += price;
+                    }
+
+                    // חלק 2: הסוגר
+                    if (isCloserSelected) {
+                        const keyCloser = `${masterId}_closer`;
+                        if (!tempConsolidated[keyCloser]) {
+                            tempConsolidated[keyCloser] = {
+                                masterId: masterId,
+                                uniqueKey: keyCloser,
+                                guestName: cleanStr(row[RES_COL_NAME]),
+                                status: status,
+                                clerk: dbOrder.closer, 
+                                priceCode: priceCode,
+                                totalOrderPrice: 0,
+                                manualFix: false,
+                                arrivalDate: arrivalDate,
+                                isSplit: true,
+                                splitRole: 'closer', // מקבל 20%
+                                splitPartner: dbOrder.creator
+                            };
+                        }
+                        tempConsolidated[keyCloser].totalOrderPrice += price;
+                    }
+                }
+
+            } else {
+                // =========================================================
+                // תרחיש ב': Fallback (העולם הישן) - לוקחים מהאקסל
+                // =========================================================
+                if (!selectedClerks.has(rowClerkExcel)) return;
+
+                if (!tempConsolidated[masterId]) {
+                    tempConsolidated[masterId] = {
+                        masterId: masterId,
+                        uniqueKey: masterId,
+                        guestName: cleanStr(row[RES_COL_NAME]),
+                        status: status,
+                        clerk: rowClerkExcel, // מהאקסל
+                        priceCode: priceCode,
+                        totalOrderPrice: 0,
+                        manualFix: false,
+                        arrivalDate: arrivalDate,
+                        isSplit: false
+                    };
+                }
+                tempConsolidated[masterId].totalOrderPrice += price;
             }
-            tempConsolidated[masterId].totalOrderPrice += price;
         });
+
+        // =========================================================
+        // חישוב כספי סופי
+        // =========================================================
 
         const finalRows = Object.values(tempConsolidated).map(item => {
             let foundData = currentInvoicesMap["ID_" + item.masterId] || currentInvoicesMap["NAME_" + item.guestName];
@@ -214,7 +312,17 @@ export default function CommissionGenerator({ onReportGenerated }) {
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
             let isGroup = item.priceCode.includes("קבוצות");
-            let commissionRate = isGroup ? 0.015 : 0.03;
+            let baseRate = isGroup ? 0.015 : 0.03;
+            let commissionRate = baseRate;
+
+            // יישום הפיצול (אם קיים)
+            if (item.isSplit) {
+                if (item.splitRole === 'creator') {
+                    commissionRate = baseRate * 0.8; // 80% מהעמלה
+                } else if (item.splitRole === 'closer') {
+                    commissionRate = baseRate * 0.2; // 20% מהעמלה
+                }
+            }
 
             let expectedWithVat = item.totalOrderPrice * 1.18;
             let diff = Math.abs(expectedWithVat - finalInvoiceAmount);
@@ -226,7 +334,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
             }
 
             if (colorStatus === 'green') {
-                newSelectedIds.add(item.masterId);
+                newSelectedIds.add(item.uniqueKey); // שימוש במפתח הייחודי
             }
 
             let commissionToPay = finalInvoiceAmount * commissionRate;
@@ -239,7 +347,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
                 expectedWithVat,
                 colorStatus,
                 isGroup,
-                commissionRate: commissionRate * 100
+                commissionRate: commissionRate * 100 // להצגה באחוזים
             };
         });
 
@@ -253,7 +361,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
     const openFixDialog = (row) => {
         setRowToFix(row);
         setFixAmount(row.expectedWithVat > 0 ? Math.round(row.expectedWithVat) : row.finalInvoiceAmount);
-        const defaultRate = row.isGroup ? '1.5' : '3';
+        const defaultRate = row.commissionRate ? row.commissionRate.toString() : '3';
         setFixRate(row.manualRate ? row.manualRate.toString() : defaultRate);
         setFixNote('');
         setIsFixDialogOpen(true);
@@ -267,7 +375,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const calculatedCommission = newAmount * (rate / 100);
 
         const updatedRows = processedRows.map(r => {
-            if (r.masterId === rowToFix.masterId) {
+            if (r.uniqueKey === rowToFix.uniqueKey) { // שימוש במפתח הייחודי
                 return {
                     ...r,
                     finalInvoiceAmount: newAmount,
@@ -284,7 +392,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
         setProcessedRows(updatedRows);
         const newSelected = new Set(selectedRows);
-        newSelected.add(rowToFix.masterId);
+        newSelected.add(rowToFix.uniqueKey);
         setSelectedRows(newSelected);
 
         setIsFixDialogOpen(false);
@@ -292,7 +400,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
     };
 
     const handleGenerateReport = () => {
-        const rowsToSave = processedRows.filter(r => selectedRows.has(r.masterId));
+        const rowsToSave = processedRows.filter(r => selectedRows.has(r.uniqueKey));
         if (rowsToSave.length === 0) return toast.error("לא נבחרו שורות להפקה");
         if (!window.confirm(`האם להפיק דוח עבור ${rowsToSave.length} עסקאות?\nהנתונים יישמרו והעסקאות יסומנו כ"שולמו".`)) return;
         generateMutation.mutate(rowsToSave);
@@ -307,7 +415,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
     const visibleRows = processedRows.filter(r => r.colorStatus !== 'green' || r.manualFix);
     const hiddenGreenCount = processedRows.length - visibleRows.length;
-    const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.masterId)).reduce((sum, r) => sum + r.commissionToPay, 0);
+    const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.uniqueKey)).reduce((sum, r) => sum + r.commissionToPay, 0);
     const previewCommission = (parseFloat(fixAmount || 0) * (parseFloat(fixRate || 0) / 100));
 
     return (
@@ -426,9 +534,9 @@ export default function CommissionGenerator({ onReportGenerated }) {
                                     </thead>
                                     <tbody className="divide-y">
                                         {visibleRows.map(row => (
-                                            <tr key={row.masterId} className={`hover:bg-slate-50 transition-colors ${selectedRows.has(row.masterId) ? 'bg-green-50' : ''}`}>
+                                            <tr key={row.uniqueKey} className={`hover:bg-slate-50 transition-colors ${selectedRows.has(row.uniqueKey) ? 'bg-green-50' : ''}`}>
                                                 <td className="p-3 text-center">
-                                                    <Checkbox checked={selectedRows.has(row.masterId)} onCheckedChange={() => toggleRow(row.masterId)} />
+                                                    <Checkbox checked={selectedRows.has(row.uniqueKey)} onCheckedChange={() => toggleRow(row.uniqueKey)} />
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     <Button variant="ghost" size="icon" onClick={() => openFixDialog(row)} title="תיקון ידני">
@@ -441,14 +549,17 @@ export default function CommissionGenerator({ onReportGenerated }) {
                                                 <td className="p-3 text-right text-xs">
                                                     {row.arrivalDate ? format(row.arrivalDate, 'dd/MM/yy') : '-'}
                                                 </td>
-                                                <td className="p-3 text-right">{row.clerk}</td>
+                                                <td className="p-3 text-right">
+                                                    {row.clerk}
+                                                    {row.isSplit && <span className="mr-1 text-[10px] text-gray-400 bg-gray-100 px-1 rounded">{row.splitRole === 'creator' ? 'יוצר' : 'סוגר'}</span>}
+                                                </td>
                                                 <td className="p-3 text-gray-500 text-right">{row.totalOrderPrice.toLocaleString()}</td>
                                                 <td className="p-3 font-medium text-right">{row.expectedWithVat.toLocaleString()}</td>
                                                 <td className="p-3 font-bold text-right">{row.finalInvoiceAmount.toLocaleString()}</td>
                                                 <td className="p-3 text-purple-700 font-bold text-right">
                                                     {row.commissionToPay.toLocaleString()}
                                                     <span className="text-xs text-gray-400 font-normal mr-1">
-                                                        ({(row.commissionRate || (row.isGroup ? 1.5 : 3))}%)
+                                                        ({(row.commissionRate.toFixed(1))}%)
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-right">
