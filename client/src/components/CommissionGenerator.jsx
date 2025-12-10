@@ -1,17 +1,11 @@
 // client/src/components/CommissionGenerator.jsx
+
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-
-// ייבוא הקבועים והלוגיקה מקובץ 1
-import {
-    parseMoney, cleanStr, findArrivalDate,
-    INV_COL_ID, INV_COL_NAME, INV_COL_AMOUNT, INV_COL_NUM,
-    RES_COL_CLERK, RES_COL_MASTER, RES_COL_PRICE, RES_COL_NAME, RES_COL_STATUS, RES_COL_CODE
-} from '@/utils/commissionLogic.js'; 
 
 // UI Components
 import { Button } from '@/components/ui/Button.jsx';
@@ -20,7 +14,80 @@ import { Checkbox } from '@/components/ui/Checkbox.jsx';
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Input } from '@/components/ui/Input.jsx';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { AlertTriangle, Save, Filter, CheckCircle2, Pencil, Database, Percent } from 'lucide-react';
+
+// ============================================================================
+// 🛑 לוגיקה פנימית (Self-Contained Logic)
+// ============================================================================
+
+// הגדרות עמודות קשיחות (לפי קבצי המקור שלך)
+const INV_COL_ID = "c_folio_number";
+const INV_COL_NAME = "guest_name";
+const INV_COL_AMOUNT = "invoice_amount";
+const INV_COL_NUM = "c_invoice_number";
+
+const RES_COL_CLERK = "c_taken_clerk";
+const RES_COL_MASTER = "c_master_id";
+const RES_COL_PRICE = "price_local"; 
+const RES_COL_NAME = "guest_name";
+const RES_COL_STATUS = "c_reservation_status";
+const RES_COL_CODE = "c_price_code";
+
+const ARRIVAL_KEYWORDS = ["מתאריך", "c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
+
+function parseMoney(val) {
+    if (!val) return 0;
+    let cleanStr = val.toString().replace(/,/g, '').trim();
+    let num = parseFloat(cleanStr);
+    return isNaN(num) ? 0 : num;
+}
+
+function cleanStr(val) {
+    if (val === undefined || val === null) return "";
+    return val.toString().trim();
+}
+
+function findArrivalDate(row) {
+    if (row.eventDate) return new Date(row.eventDate);
+
+    const keys = Object.keys(row);
+    for (const key of keys) {
+        const lowerKey = key.toLowerCase();
+        if (ARRIVAL_KEYWORDS.some(k => lowerKey.includes(k))) {
+            const val = row[key];
+            if (!val) continue;
+
+            if (val instanceof Date && !isNaN(val)) return val;
+
+            if (typeof val === 'number' && val > 20000) {
+                return new Date(Math.round((val - 25569) * 86400 * 1000));
+            }
+
+            if (typeof val === 'string') {
+                const dateStr = val.trim().replace(/\./g, '/').replace(/-/g, '/');
+                if (dateStr.includes('/')) {
+                    const parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        let day = parseInt(parts[0]);
+                        let month = parseInt(parts[1]);
+                        let year = parseInt(parts[2]);
+                        if (year < 100) year += 2000;
+                        const d = new Date(year, month - 1, day);
+                        if (!isNaN(d.getTime())) return d;
+                    }
+                }
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) return d;
+            }
+        }
+    }
+    return null;
+}
+
+// ============================================================================
+// 🏁 הקומפוננטה הראשית
+// ============================================================================
 
 export default function CommissionGenerator({ onReportGenerated }) {
     const [invoicesMap, setInvoicesMap] = useState(null);
@@ -41,13 +108,13 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
     const queryClient = useQueryClient();
 
-    // 1. שליפת היסטוריית תשלומים (למנוע כפילויות)
+    // 1. שליפת היסטוריית תשלומים
     const { data: paidHistoryIds = [] } = useQuery({
         queryKey: ['paidCommissionsIds'],
         queryFn: async () => (await api.get('/admin/commissions/paid-ids')).data
     });
 
-    // 2. שליפת מפת ההזמנות החדשה (עבור המנגנון ההיברידי)
+    // 2. שליפת מפת ההזמנות (היברידית)
     const { data: dbOrdersMap = {} } = useQuery({
         queryKey: ['ordersCommissionMap'],
         queryFn: async () => (await api.get('/admin/orders/commission-map')).data,
@@ -123,6 +190,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
             processReservations(convertedData);
             toast.success(`נטענו ${convertedData.length} הזמנות פתוחות!`, { id: toastId });
+
         } catch (error) {
             console.error(error);
             toast.error('שגיאה בטעינת הנתונים', { id: toastId });
@@ -172,6 +240,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
         toast.success(`נטענו ${data.length} שורות הזמנות`);
     };
 
+    // --- הפונקציה הראשית לניתוח ---
     const handleAnalyze = () => {
         const currentInvoicesMap = invoicesMap || {};
 
@@ -182,7 +251,6 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const newSelectedIds = new Set();
 
         reservationsData.forEach(row => {
-            // נתונים בסיסיים מהאקסל (רשת הביטחון)
             const rowClerkExcel = cleanStr(row[RES_COL_CLERK]);
             let status = (row[RES_COL_STATUS] || "").toString().toLowerCase();
             let masterId = (row[RES_COL_MASTER] || "").toString().trim();
@@ -194,45 +262,22 @@ export default function CommissionGenerator({ onReportGenerated }) {
             if (!masterId) return;
             if (paidHistoryIds.includes(masterId)) return;
 
-            // =========================================================
-            // 🛑 מנגנון היברידי: בדיקה כפולה 🛑
-            // =========================================================
+            // --- 🛑 בדיקה היברידית 🛑 ---
+            const dbOrder = dbOrdersMap[masterId];
             
-            const dbOrder = dbOrdersMap[masterId]; // האם ההזמנה קיימת במערכת שלנו?
-            
-            // תרחיש א': העולם החדש (יש מידע ב-DB ויש יוצר/סוגר)
+            // תרחיש א: פיצול (העולם החדש)
             if (dbOrder && dbOrder.creator && dbOrder.closer) {
                 
+                // האם המשתמשים הנבחרים ב-UI רלוונטיים להזמנה זו?
                 const isCreatorSelected = selectedClerks.has(dbOrder.creator);
                 const isCloserSelected = selectedClerks.has(dbOrder.closer);
 
-                // אם אף אחד מהם לא נבחר בסינון, מדלגים
                 if (!isCreatorSelected && !isCloserSelected) return; 
 
-                // מקרה מיוחד: היוצר הוא גם הסוגר (100% עמלה)
-                if (dbOrder.creator === dbOrder.closer) {
-                    if (!isCreatorSelected) return; // אם הוא לא נבחר, מדלגים
+                // האם יש באמת פיצול (אנשים שונים)?
+                if (dbOrder.isSplit) {
                     
-                    if (!tempConsolidated[masterId]) {
-                        tempConsolidated[masterId] = {
-                            masterId: masterId,
-                            uniqueKey: masterId, // מפתח רגיל
-                            guestName: cleanStr(row[RES_COL_NAME]),
-                            status: status,
-                            clerk: dbOrder.creator, // לוקחים מה-DB
-                            priceCode: priceCode,
-                            totalOrderPrice: 0,
-                            manualFix: false,
-                            arrivalDate: arrivalDate,
-                            isSplit: false // אין פיצול
-                        };
-                    }
-                    tempConsolidated[masterId].totalOrderPrice += price;
-                } 
-                else {
-                    // פיצול אמיתי: יוצר (80%) וסוגר (20%)
-                    
-                    // חלק 1: היוצר
+                    // 1. שורה ליוצר (80%)
                     if (isCreatorSelected) {
                         const keyCreator = `${masterId}_creator`;
                         if (!tempConsolidated[keyCreator]) {
@@ -241,20 +286,19 @@ export default function CommissionGenerator({ onReportGenerated }) {
                                 uniqueKey: keyCreator,
                                 guestName: cleanStr(row[RES_COL_NAME]),
                                 status: status,
-                                clerk: dbOrder.creator, 
+                                clerk: dbOrder.creator, // מה-DB
                                 priceCode: priceCode,
                                 totalOrderPrice: 0,
                                 manualFix: false,
                                 arrivalDate: arrivalDate,
                                 isSplit: true,
-                                splitRole: 'creator', // מקבל 80%
-                                splitPartner: dbOrder.closer
+                                splitRole: 'creator' // 80%
                             };
                         }
                         tempConsolidated[keyCreator].totalOrderPrice += price;
                     }
 
-                    // חלק 2: הסוגר
+                    // 2. שורה לסוגר (20%)
                     if (isCloserSelected) {
                         const keyCloser = `${masterId}_closer`;
                         if (!tempConsolidated[keyCloser]) {
@@ -263,24 +307,41 @@ export default function CommissionGenerator({ onReportGenerated }) {
                                 uniqueKey: keyCloser,
                                 guestName: cleanStr(row[RES_COL_NAME]),
                                 status: status,
-                                clerk: dbOrder.closer, 
+                                clerk: dbOrder.closer, // מה-DB
                                 priceCode: priceCode,
                                 totalOrderPrice: 0,
                                 manualFix: false,
                                 arrivalDate: arrivalDate,
                                 isSplit: true,
-                                splitRole: 'closer', // מקבל 20%
-                                splitPartner: dbOrder.creator
+                                splitRole: 'closer' // 20%
                             };
                         }
                         tempConsolidated[keyCloser].totalOrderPrice += price;
                     }
+                } 
+                else {
+                    // יוצר וסוגר הם אותו אדם (100%), אבל לוקחים את השם מה-DB
+                    if (isCreatorSelected) {
+                        if (!tempConsolidated[masterId]) {
+                            tempConsolidated[masterId] = {
+                                masterId: masterId,
+                                uniqueKey: masterId,
+                                guestName: cleanStr(row[RES_COL_NAME]),
+                                status: status,
+                                clerk: dbOrder.creator, // מה-DB
+                                priceCode: priceCode,
+                                totalOrderPrice: 0,
+                                manualFix: false,
+                                arrivalDate: arrivalDate,
+                                isSplit: false
+                            };
+                        }
+                        tempConsolidated[masterId].totalOrderPrice += price;
+                    }
                 }
 
             } else {
-                // =========================================================
-                // תרחיש ב': Fallback (העולם הישן) - לוקחים מהאקסל
-                // =========================================================
+                // תרחיש ב: Fallback (העולם הישן - אקסל בלבד)
                 if (!selectedClerks.has(rowClerkExcel)) return;
 
                 if (!tempConsolidated[masterId]) {
@@ -301,13 +362,9 @@ export default function CommissionGenerator({ onReportGenerated }) {
             }
         });
 
-        // =========================================================
-        // חישוב כספי סופי
-        // =========================================================
-
+        // --- חישוב כספי סופי ---
         const finalRows = Object.values(tempConsolidated).map(item => {
             let foundData = currentInvoicesMap["ID_" + item.masterId] || currentInvoicesMap["NAME_" + item.guestName];
-
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
             let finalInvNum = foundData ? Array.from(foundData.numbers).join(" | ") : "";
 
@@ -315,13 +372,10 @@ export default function CommissionGenerator({ onReportGenerated }) {
             let baseRate = isGroup ? 0.015 : 0.03;
             let commissionRate = baseRate;
 
-            // יישום הפיצול (אם קיים)
+            // יישום הפיצול בפועל
             if (item.isSplit) {
-                if (item.splitRole === 'creator') {
-                    commissionRate = baseRate * 0.8; // 80% מהעמלה
-                } else if (item.splitRole === 'closer') {
-                    commissionRate = baseRate * 0.2; // 20% מהעמלה
-                }
+                if (item.splitRole === 'creator') commissionRate = baseRate * 0.8;
+                else if (item.splitRole === 'closer') commissionRate = baseRate * 0.2;
             }
 
             let expectedWithVat = item.totalOrderPrice * 1.18;
@@ -334,25 +388,22 @@ export default function CommissionGenerator({ onReportGenerated }) {
             }
 
             if (colorStatus === 'green') {
-                newSelectedIds.add(item.uniqueKey); // שימוש במפתח הייחודי
+                newSelectedIds.add(item.uniqueKey);
             }
-
-            let commissionToPay = finalInvoiceAmount * commissionRate;
 
             return {
                 ...item,
                 finalInvoiceAmount,
                 finalInvNum,
-                commissionToPay,
+                commissionToPay: finalInvoiceAmount * commissionRate,
                 expectedWithVat,
                 colorStatus,
                 isGroup,
-                commissionRate: commissionRate * 100 // להצגה באחוזים
+                commissionRate: commissionRate * 100
             };
         });
 
         const relevantRows = finalRows.filter(r => r.finalInvoiceAmount > 0 || r.expectedWithVat > 0);
-
         setProcessedRows(relevantRows);
         setSelectedRows(newSelectedIds);
         setStep(3);
@@ -369,13 +420,12 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
     const applyFix = () => {
         if (!rowToFix) return;
-
         const newAmount = parseFloat(fixAmount);
         const rate = parseFloat(fixRate);
         const calculatedCommission = newAmount * (rate / 100);
 
         const updatedRows = processedRows.map(r => {
-            if (r.uniqueKey === rowToFix.uniqueKey) { // שימוש במפתח הייחודי
+            if (r.uniqueKey === rowToFix.uniqueKey) {
                 return {
                     ...r,
                     finalInvoiceAmount: newAmount,
@@ -394,29 +444,26 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const newSelected = new Set(selectedRows);
         newSelected.add(rowToFix.uniqueKey);
         setSelectedRows(newSelected);
-
         setIsFixDialogOpen(false);
-        toast.success(`העסקה עודכנה לפי ${rate}%!`);
+        toast.success(`העסקה עודכנה!`);
     };
 
     const handleGenerateReport = () => {
         const rowsToSave = processedRows.filter(r => selectedRows.has(r.uniqueKey));
-        if (rowsToSave.length === 0) return toast.error("לא נבחרו שורות להפקה");
-        if (!window.confirm(`האם להפיק דוח עבור ${rowsToSave.length} עסקאות?\nהנתונים יישמרו והעסקאות יסומנו כ"שולמו".`)) return;
+        if (rowsToSave.length === 0) return toast.error("לא נבחרו שורות");
+        if (!window.confirm(`האם להפיק דוח?`)) return;
         generateMutation.mutate(rowsToSave);
     };
 
     const toggleRow = (id) => {
         const next = new Set(selectedRows);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
+        if (next.has(id)) next.delete(id); else next.add(id);
         setSelectedRows(next);
     };
 
     const visibleRows = processedRows.filter(r => r.colorStatus !== 'green' || r.manualFix);
     const hiddenGreenCount = processedRows.length - visibleRows.length;
     const totalSelectedCommission = processedRows.filter(r => selectedRows.has(r.uniqueKey)).reduce((sum, r) => sum + r.commissionToPay, 0);
-    const previewCommission = (parseFloat(fixAmount || 0) * (parseFloat(fixRate || 0) / 100));
 
     return (
         <div className="space-y-6 animate-in fade-in text-right">
@@ -608,7 +655,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
                                 <div className="mr-auto text-left">
                                     <span className="text-xs text-gray-500 block">עמלה שתחושב:</span>
-                                    <span className="font-bold text-lg text-purple-700">{previewCommission.toLocaleString(undefined, { maximumFractionDigits: 1 })} ₪</span>
+                                    <span className="font-bold text-lg text-purple-700">{((parseFloat(fixAmount) || 0) * (parseFloat(fixRate) || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 1 })} ₪</span>
                                 </div>
                             </div>
                             <p className="text-xs text-purple-600/70 mt-1">
