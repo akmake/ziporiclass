@@ -8,12 +8,12 @@ const MaintenanceRoute = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // רק מנהל או איש תחזוקה מורשים
-  if (user?.role === 'admin' || user?.role === 'maintenance') {
+  // ✨ התיקון: הוספנו את housekeeper לתנאי
+  if (user?.role === 'admin' || user?.role === 'maintenance' || user?.role === 'housekeeper') {
     return <Outlet />;
   }
 
-  // אם זה איש מכירות שמנסה להיכנס לתחזוקה - נזרוק אותו לדף הבית הרגיל
+  // אם זה משתמש אחר, נזרוק אותו לדף הבית
   return <Navigate to="/" replace />;
 };
 
