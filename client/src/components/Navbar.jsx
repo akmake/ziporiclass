@@ -47,10 +47,11 @@ const getNavGroups = (isAuthenticated, user) => {
       // רק מנהלים ואחראי משמרת
       if (role === 'admin' || role === 'shift_manager') {
           groups.operations.push(
-              { to: '/admin/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud },
-              { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
-              { to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog },
-              { to: '/admin/dashboard', label: 'תמונת מצב', icon: Activity },
+            { to: '/admin/bookings', label: 'קליטת סידור (אקסל)', icon: UploadCloud },
+            { to: '/admin/daily-plan', label: 'סידור עבודה', icon: CalendarDays },
+            { to: '/admin/room-assignment', label: 'שיבוץ חדרים', icon: UserCog },
+            { to: '/admin/rooms-status', label: 'תמונת מצב חדרים', icon: Activity }, // ✅ הוספתי
+            { to: '/admin/rooms/create', label: 'הקמת חדרים', icon: BedDouble }, // ✅ הוספתי
           );
       }
       
