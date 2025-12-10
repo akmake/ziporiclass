@@ -5,23 +5,29 @@ let io;
 export const initSocket = (httpServer) => {
     io = new Server(httpServer, {
         cors: {
-            origin: process.env.CLIENT_URL, // הכתובת של הריאקט
-            methods: ["GET", "POST"]
-        }
+            origin: [
+                "http://localhost:5173",
+                "https://zipori-client.onrender.com",
+                process.env.CLIENT_URL
+            ].filter(Boolean),
+            methods: ["GET", "POST"],
+            credentials: true
+        },
+        pingTimeout: 60000, // שומר על חיבור יציב
     });
 
     io.on('connection', (socket) => {
-        console.log('User connected:', socket.id);
+        console.log(`🔌 New Connection: ${socket.id}`);
 
-        // ברגע שמשתמש מתחבר, הוא מצטרף ל"חדר" עם ה-ID שלו
-        // כך נוכל לשלוח לו הודעות פרטיות בקלות
+        // הצטרפות לחדר פרטי
         socket.on('join_chat', (userId) => {
+            if (!userId) return;
             socket.join(userId);
-            console.log(`User ${userId} joined their private room`);
+            console.log(`👤 User ${userId} joined room: ${userId}`);
         });
 
         socket.on('disconnect', () => {
-            console.log('User disconnected');
+            console.log(`❌ Disconnected: ${socket.id}`);
         });
     });
 

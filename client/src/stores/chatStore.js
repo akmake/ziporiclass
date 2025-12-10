@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import api from '@/utils/api.js';
+import socketService from '@/utils/socketService.js';
 
 export const useChatStore = create((set, get) => ({
   contacts: [],
@@ -7,7 +8,26 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   isLoadingContacts: false,
 
-  // טעינת אנשי קשר + מונים מהשרת
+  // --- הפעלה גלובלית (נקרא מ-App.jsx) ---
+  initializeSocket: (userId) => {
+    socketService.connect(userId);
+
+    // האזנה להודעות נכנסות - עובד בכל דף באתר!
+    socketService.on('receive_message', (msg) => {
+        console.log("📩 New message received:", msg);
+        get().handleIncomingMessage(msg);
+    });
+
+    socketService.on('message_sent_confirmation', (msg) => {
+        get().handleIncomingMessage(msg);
+    });
+  },
+
+  disconnectSocket: () => {
+    socketService.disconnect();
+  },
+
+  // --- טעינת נתונים ---
   fetchContacts: async () => {
     set({ isLoadingContacts: true });
     try {
@@ -19,11 +39,10 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  // בחירת איש קשר וכניסה לחדר - מאפס את המונה שלו
   selectContact: (contactId) => {
     set({ activeContactId: contactId });
+    // איפוס מונה הודעות לוקאלי לאיש קשר שנבחר
     if (contactId) {
-        // מאפסים את המונה של איש הקשר הזה לוקאלית
         set((state) => ({
           contacts: state.contacts.map(c => 
             c._id === contactId ? { ...c, unreadCount: 0 } : c
@@ -32,49 +51,48 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  // עדכון בזמן אמת כשמגיעה הודעה (מהסוקט)
+  // --- הלב של המערכת: טיפול בהודעה ---
   handleIncomingMessage: (newMessage) => {
     const state = get();
     
-    // 1. האם ההודעה שייכת לשיחה הפתוחה כרגע?
+    // 1. הוספה לרשימת ההודעות אם אני בשיחה הרלוונטית
     const isRelevantToActiveChat = state.activeContactId && 
        (newMessage.sender === state.activeContactId || newMessage.recipient === state.activeContactId);
 
     if (isRelevantToActiveChat) {
-        // הוסף להודעות
-        set({ messages: [...state.messages, newMessage] });
-        
-        // אם אני המקבל ואני נמצא בשיחה - נסמן כנקרא מיד בשרת
+        set(prev => ({ messages: [...prev.messages, newMessage] }));
+        // אם אני המקבל - סמן שקראתי
         if (newMessage.recipient !== newMessage.sender) { 
              api.put('/chat/read', { senderId: newMessage.sender }); 
         }
     } 
     
-    // 2. עדכון הסרגל צד (מונה + הודעה אחרונה + הקפצה למעלה)
+    // 2. עדכון רשימת אנשי הקשר (מונים + הקפצה למעלה)
     set((state) => {
-        // מעדכנים את איש הקשר הרלוונטי
         const updatedContacts = state.contacts.map(c => {
             if (c._id === newMessage.sender || c._id === newMessage.recipient) {
               const isChattingWithSender = state.activeContactId === newMessage.sender;
+              let newCount = c.unreadCount || 0;
               
+              // העלאת מונה רק אם קיבלתי הודעה ואני לא בשיחה כרגע
+              if (newMessage.sender === c._id && !isChattingWithSender) {
+                  newCount += 1;
+              }
+
               return {
                 ...c,
                 lastMessage: { text: newMessage.text, createdAt: newMessage.createdAt },
-                // מעלים מונה רק אם: ההודעה מהצד השני + אני לא בשיחה איתו כרגע
-                unreadCount: (newMessage.sender === c._id && !isChattingWithSender) 
-                  ? (c.unreadCount || 0) + 1 
-                  : c.unreadCount
+                unreadCount: newCount
               };
             }
             return c;
         });
 
-        // מיון מחדש: מי שיש לו הכי הרבה הודעות שלא נקראו עולה למעלה, ואז לפי זמן
+        // מיון: הודעות שלא נקראו למעלה, אחר כך לפי זמן
         updatedContacts.sort((a, b) => {
             if ((b.unreadCount || 0) !== (a.unreadCount || 0)) {
                 return (b.unreadCount || 0) - (a.unreadCount || 0);
             }
-            // אם המונים זהים, נמיין לפי תאריך ההודעה האחרונה
             const dateA = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
             const dateB = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
             return dateB - dateA;
@@ -84,7 +102,5 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
-  // עדכונים ידניים להודעות (למשל מחיקה או טעינה ראשונית)
   setMessages: (msgs) => set({ messages: msgs }),
-  addMessage: (msg) => set(state => ({ messages: [...state.messages, msg] })),
 }));

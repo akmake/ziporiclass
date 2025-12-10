@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 
 /* Layout & Route Protection */
@@ -7,7 +8,6 @@ import SalesRoute from "@/components/routes/SalesRoute.jsx";
 import MaintenanceRoute from "@/components/routes/MaintenanceRoute.jsx";
 import PriceListManagerRoute from "@/components/routes/PriceListManagerRoute.jsx";
 import ShiftManagerRoute from "@/components/routes/ShiftManagerRoute.jsx";
-import UserRoute from "@/components/routes/UserRoute.jsx"; // וודא שיש לך כזה, או השתמש ב-ProtectedRoute
 
 /* Public Pages */
 import HomePage from "@/pages/HomePage.jsx";
@@ -22,7 +22,7 @@ import EditOrderPage from '@/pages/EditOrderPage.jsx';
 import LeadsPage from '@/pages/LeadsPage.jsx';
 import PricingLogicPage from '@/pages/PricingLogicPage.jsx';
 
-/* Chat Page - ✨ חדש */
+/* Chat Page */
 import ChatPage from '@/pages/ChatPage.jsx';
 
 /* Maintenance Pages */
@@ -50,7 +50,24 @@ import RoomAssignmentPage from './pages/admin/RoomAssignmentPage';
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
 import AutoLogout from "@/components/AutoLogout.jsx";
 
+// ✨ ייבוא ה-Stores
+import { useAuthStore } from '@/stores/authStore.js';
+import { useChatStore } from '@/stores/chatStore.js';
+
 export default function App() {
+  const { user } = useAuthStore();
+  const { initializeSocket, disconnectSocket, fetchContacts } = useChatStore();
+
+  // ✨ חיבור גלובלי לצ'אט - פועל תמיד ברקע
+  useEffect(() => {
+    if (user && user._id) {
+        fetchContacts();
+        initializeSocket(user._id);
+    } else {
+        disconnectSocket();
+    }
+  }, [user]);
+
   return (
     <>
       <PushNotificationManager />
@@ -61,14 +78,9 @@ export default function App() {
 
         <Route path="/" element={<Layout />}>
           <Route path="login" element={<LoginPage />} />
+          <Route path="chat" element={<ChatPage />} />
 
-          {/* --- ✨ מסך הצ'אט (זמין לכל משתמש מחובר) --- */}
-          <Route path="chat" element={
-             // אם אין לך UserRoute, תשתמש ב-ProtectedRoute או פשוט תוודא שה-Layout מטפל בזה
-             <ChatPage />
-          } />
-
-          {/* --- Sales & General Admin --- */}
+          {/* Sales & General Admin */}
           <Route element={<SalesRoute />}>
              <Route index element={<HomePage />} />
             <Route path="new-order" element={<OrderPage />} />
@@ -78,7 +90,7 @@ export default function App() {
             <Route path="sales-guide" element={<PricingLogicPage />} />
           </Route>
 
-          {/* --- Maintenance Workers --- */}
+          {/* Maintenance Workers */}
           <Route element={<MaintenanceRoute />}>
              <Route path="maintenance" element={<HousekeeperView />} />
           </Route>
@@ -87,22 +99,19 @@ export default function App() {
             <Route path="manage-pricelists" element={<ManagePriceListsPage />} />
           </Route>
 
-          {/* --- Shift Manager & Admin --- */}
+          {/* Shift Manager & Admin */}
           <Route element={<ShiftManagerRoute />}>
              <Route path="bookings" element={<BookingManagementPage />} />
           </Route>
 
-          {/* --- Admin Panel --- */}
+          {/* Admin Panel */}
           <Route path="admin" element={<AdminRoute />}>
             <Route index element={<AdminDashboardPage />} />
-
             <Route path="maintenance" element={<AdminMaintenanceDashboard />} />
             <Route path="rooms/create" element={<ManagePhysicalRoomsPage />} />
-
             <Route path="rooms-status" element={<RoomStatusPage />} />
             <Route path="daily-plan" element={<AdminDailyDashboard />} />
             <Route path="room-assignment" element={<RoomAssignmentPage />} />
-
             <Route path="orders" element={<ManageOrdersPage />} />
             <Route path="users" element={<ManageUsersPage />} />
             <Route path="hotels" element={<ManageHotelsPage />} />
