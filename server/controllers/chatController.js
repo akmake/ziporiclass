@@ -1,6 +1,7 @@
 import Message from '../models/Message.js';
 import User from '../models/userModel.js';
 import { getSocketIO } from '../socket.js';
+import { sendPushToUser } from '../utils/pushHandler.js'; // ✨ ייבוא הפונקציה החדשה
 
 // === מטריצת הרשאות ===
 const PERMISSION_MATRIX = {
@@ -42,8 +43,9 @@ export const getMessages = async (req, res) => {
 };
 
 export const sendMessage = async (req, res) => {
-    const { recipientId, text, orderId, isForwarded } = req.body; // הוספנו isForwarded
+    const { recipientId, text, orderId, isForwarded } = req.body;
     const senderId = req.user._id;
+    const senderName = req.user.name; // נדרש עבור ההתראה
 
     // 1. שמירה ב-DB
     const newMessage = await Message.create({
@@ -56,33 +58,35 @@ export const sendMessage = async (req, res) => {
 
     const populatedMessage = await newMessage.populate('relatedOrder', 'orderNumber customerName status');
 
-    // 2. שליחה בזמן אמת
+    // 2. שליחה בזמן אמת (Socket)
     try {
         const io = getSocketIO();
-        // שולחים למקבל
         io.to(recipientId).emit('receive_message', populatedMessage);
-        // שולחים גם לשולח (כדי לעדכן את ה-ID הזמני ב-Real ID אם צריך, או לסנכרון טאבים)
         io.to(senderId).emit('message_sent_confirmation', populatedMessage);
+        
+        // 3. ✨ שליחת Push Notification (אם המשתמש לא בתוך האפליקציה או המסך כבוי)
+        sendPushToUser(recipientId, {
+            title: `הודעה חדשה מ-${senderName}`,
+            body: text || (orderId ? 'צורפה הזמנה' : 'הודעה חדשה'),
+            url: '/chat' // לחיצה תוביל ישר לצ'אט
+        });
+
     } catch (err) {
-        console.error("Socket error:", err.message);
+        console.error("Notification error:", err.message);
     }
 
     res.status(201).json(populatedMessage);
 };
 
-// --- פונקציות חדשות ---
-
 export const markAsRead = async (req, res) => {
-    const { senderId } = req.body; // ה-ID של מי ששלח לי את ההודעות (שאני קורא עכשיו)
+    const { senderId } = req.body;
     const myId = req.user._id;
 
-    // מעדכן את כל ההודעות שלא נקראו בשיחה הזו
     await Message.updateMany(
         { sender: senderId, recipient: myId, isRead: false },
         { $set: { isRead: true } }
     );
 
-    // מודיע לשולח שהודעותיו נקראו
     try {
         const io = getSocketIO();
         io.to(senderId).emit('messages_read_update', { byUserId: myId });
@@ -101,7 +105,6 @@ export const deleteMessage = async (req, res) => {
     message.isDeleted = true;
     await message.save();
 
-    // עדכון בזמן אמת לשני הצדדים
     try {
         const io = getSocketIO();
         io.to(message.recipient.toString()).emit('message_deleted', { messageId });

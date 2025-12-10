@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
-import { Send, ArrowRight, Paperclip, LoaderCircle, X, MoreVertical } from 'lucide-react';
+import { Send, ArrowRight, Paperclip, LoaderCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button.jsx';
 import { Input } from '@/components/ui/Input.jsx';
 import MessageBubble from '@/components/chat/MessageBubble.jsx';
 import OrderPickerDialog from '@/components/chat/OrderPickerDialog.jsx';
 
-// פונקציות API
+// ✨ קובץ הצליל (חייב להיות ב-public)
+const notifSound = new Audio('/notification.mp3');
+
 const fetchMessages = async (otherUserId) => (await api.get(`/chat/messages/${otherUserId}`)).data;
 const sendMessageApi = (data) => api.post('/chat/send', data);
 const markReadApi = (senderId) => api.put('/chat/read', { senderId });
@@ -20,7 +22,6 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
   const [isOrderPickerOpen, setIsOrderPickerOpen] = useState(false);
   
   const messagesEndRef = useRef(null);
-  const queryClient = useQueryClient();
 
   // 1. טעינת היסטוריה
   const { data: initialMessages, isLoading } = useQuery({
@@ -29,68 +30,61 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
     staleTime: 0,
   });
 
-  // סנכרון ראשוני
   useEffect(() => {
     if (initialMessages) {
       setMessages(initialMessages);
       scrollToBottom();
-      // סימון כנקרא כשנכנסים לשיחה
       markReadIfNeeded(initialMessages);
     }
   }, [initialMessages, selectedContact._id]);
 
-  // פונקציית עזר לסימון כנקרא
   const markReadIfNeeded = (msgs) => {
     const hasUnread = msgs.some(m => m.sender === selectedContact._id && !m.isRead);
     if (hasUnread) {
-      markReadApi(selectedContact._id); // API call
-      // אופטימיסטי לוקאלי
+      markReadApi(selectedContact._id);
       setMessages(prev => prev.map(m => m.sender === selectedContact._id ? { ...m, isRead: true } : m));
     }
   };
 
-  // 2. האזנה לסוקט
+  // 2. האזנה לסוקט + ✨ צליל
   useEffect(() => {
-    // קבלת הודעה
     const handleReceiveMessage = (newMessage) => {
-      // אם ההודעה שייכת לשיחה הנוכחית
+      // האם ההודעה שייכת לשיחה הנוכחית?
       if (newMessage.sender === selectedContact._id || newMessage.sender === currentUser._id) {
         setMessages((prev) => {
-            // מניעת כפילויות (אם זה הגיע מה-Confirm שלי)
             const exists = prev.find(m => m._id === newMessage._id || (m.tempId && m.tempId === newMessage.tempId));
             if (exists) return prev; 
             return [...prev, newMessage];
         });
         scrollToBottom();
         
-        // אם אני המקבל - סמן כנקרא
+        // אם ההודעה התקבלה מהצד השני:
         if (newMessage.sender === selectedContact._id) {
+            // 1. נגן צליל ✨
+            notifSound.play().catch(e => console.log("Sound blocked by browser interaction policy"));
+            
+            // 2. סמן כנקרא
             markReadApi(selectedContact._id);
         }
       }
     };
 
-    // אישור שהודעה ששלחתי נשמרה (עדכון ID זמני לקבוע)
     const handleSentConfirmation = (savedMsg) => {
-        setMessages(prev => prev.map(m => 
-            (m.tempId && m.content === savedMsg.content) ? savedMsg : m
-        ));
+        setMessages(prev => prev.map(m => (m.tempId && m.content === savedMsg.content) ? savedMsg : m));
     };
 
-    // הצד השני קרא את ההודעות שלי
     const handleReadUpdate = ({ byUserId }) => {
         if (byUserId === selectedContact._id) {
             setMessages(prev => prev.map(m => m.sender === currentUser._id ? { ...m, isRead: true } : m));
         }
     };
 
-    // הודעה נמחקה
     const handleDeleted = ({ messageId }) => {
         setMessages(prev => prev.map(m => m._id === messageId ? { ...m, isDeleted: true } : m));
     };
 
     socket.on('receive_message', handleReceiveMessage);
-    socket.on('message_sent_confirmation', handleSentConfirmation); // לוודא שיש ב-Server
+    socket.on('message_sent_confirmation', handleSentConfirmation);
     socket.on('messages_read_update', handleReadUpdate);
     socket.on('message_deleted', handleDeleted);
 
@@ -108,11 +102,10 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
     }, 100);
   };
 
-  // שליחה (עם Optimistic UI)
   const handleSend = async () => {
     if ((!inputText.trim() && !attachedOrder)) return;
 
-    const tempId = Date.now().toString(); // מזהה זמני
+    const tempId = Date.now().toString(); 
     const payload = {
       recipientId: selectedContact._id,
       text: inputText,
@@ -120,7 +113,6 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
       isForwarded: false
     };
 
-    // 1. הוספה למסך מיד (Optimistic)
     const optimisitcMsg = {
         _id: tempId,
         tempId: tempId,
@@ -130,7 +122,7 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
         createdAt: new Date().toISOString(),
         isRead: false,
         isDeleted: false,
-        status: 'sending' // דגל ל-UI
+        status: 'sending'
     };
 
     setMessages(prev => [...prev, optimisitcMsg]);
@@ -138,29 +130,22 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
     setAttachedOrder(null);
     scrollToBottom();
 
-    // 2. שליחה לשרת
     try {
       const { data: sentMessage } = await sendMessageApi(payload);
-      // מחליפים את ההודעה הזמנית בהודעה האמיתית מהשרת
       setMessages(prev => prev.map(m => m.tempId === tempId ? sentMessage : m));
     } catch (error) {
       console.error("Error sending:", error);
-      // כאן אפשר לסמן הודעה באדום שנכשלה
     }
   };
 
-  // פונקציות עבור התפריט (Forward/Delete) בתוך הבועה
   const handleDeleteMessage = (msgId) => {
       if(window.confirm('למחוק הודעה זו?')) {
-          deleteMessageApi(msgId); // השרת ישלח סוקט לעדכון המסך
+          deleteMessageApi(msgId);
       }
   };
 
   const handleForwardMessage = (msg) => {
-      // פשוט מעתיק את הטקסט לשורת הכתיבה ומוסיף הערה (במימוש מלא פותחים רשימת אנשי קשר)
       setInputText(msg.text);
-      // בפרודקשן היית פותח מודל בחירת אנשי קשר ושולח עם isForwarded: true
-      toast('הטקסט הועתק. שלח לאיש קשר אחר.', { icon: '↪️' });
   };
 
   const handleKeyDown = (e) => {
