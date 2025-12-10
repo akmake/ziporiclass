@@ -1,8 +1,6 @@
-// server/controllers/admin/orderAdminController.js
-
 import Order from '../../models/Order.js';
-import User from '../../models/userModel.js'; // ✨ ייבוא מודל משתמש
-import { logAction } from '../../utils/auditLogger.js'; // ✨ ייבוא לוגר לתיעוד
+import User from '../../models/userModel.js'; 
+import { logAction } from '../../utils/auditLogger.js'; 
 
 /**
  * @desc    קבלת כל ההזמנות במערכת (למנהלים)
@@ -11,7 +9,6 @@ import { logAction } from '../../utils/auditLogger.js'; // ✨ ייבוא לוג
  */
 export const getAllOrders = async (req, res) => {
   try {
-    console.log('Fetching all orders from MongoDB...');
     const orders = await Order.find({})
         .sort({ createdAt: -1 })
         .populate('user', 'name email')
@@ -24,13 +21,49 @@ export const getAllOrders = async (req, res) => {
 };
 
 /**
+ * @desc    שליפת מפה של הזמנות לחישוב עמלות (חדש)
+ * @route   GET /api/admin/orders/commission-map
+ * @access  Admin
+ */
+export const getOrdersForCommissionMap = async (req, res) => {
+    try {
+        // שולפים רק הזמנות בסטטוס "בוצע" כי רק הן רלוונטיות לעמלות
+        const orders = await Order.find({ status: 'בוצע' })
+            .select('orderNumber createdBy createdByName closedBy closedByName optimaNumber total_price')
+            .lean();
+
+        // המרה למפה (Dictionary) לגישה מהירה ב-O(1)
+        const ordersMap = {};
+        orders.forEach(o => {
+            // המפתח הוא מספר ההזמנה (אופטימה) אם הוזן, או מספר ההזמנה הפנימי כגיבוי
+            const key = o.optimaNumber ? o.optimaNumber.trim() : o.orderNumber.toString();
+            
+            ordersMap[key] = {
+                id: o._id,
+                creator: o.createdByName || 'לא ידוע',
+                closer: o.closedByName || 'לא ידוע',
+                // אם היוצר והסוגר שונים - סימן שיש פיצול
+                isSplit: !!(o.createdByName && o.closedByName && o.createdByName !== o.closedByName)
+            };
+            
+            // גיבוי: נשמור גם לפי מספר הזמנה פנימי למקרה שההתאמה היא לפי זה
+            ordersMap[o.orderNumber.toString()] = ordersMap[key];
+        });
+
+        res.json(ordersMap);
+    } catch (error) {
+        console.error("Commission Map Error:", error);
+        res.status(500).json({ message: "שגיאה בטעינת נתוני מיפוי עמלות." });
+    }
+};
+
+/**
  * @desc    עדכון הזמנה קיימת (שינוי סטטוס, פרטים, או שיוך נציג)
  * @route   PUT /api/admin/orders/:id
  * @access  Admin
  */
 export const updateOrder = async (req, res) => {
   const { id } = req.params;
-  // ✨ הוספנו את newUserId לחילוץ מה-body
   const { customerName, customerPhone, status, notes, newUserId } = req.body;
 
   try {
@@ -45,7 +78,7 @@ export const updateOrder = async (req, res) => {
     if (status) order.status = status;
     if (notes) order.notes = notes;
 
-    // --- ✨ לוגיקה לשינוי שיוך נציג ✨ ---
+    // --- לוגיקה לשינוי שיוך נציג ---
     if (newUserId && newUserId !== order.user.toString()) {
         const newUser = await User.findById(newUserId);
         if (!newUser) {
@@ -53,19 +86,15 @@ export const updateOrder = async (req, res) => {
         }
 
         const oldName = order.salespersonName || 'נציג קודם';
-        
-        // עדכון השדות
-        order.user = newUser._id;
-        order.salespersonName = newUser.name; // עדכון השם לתצוגה ולדוחות
 
-        // תיעוד ב-Audit Log
+        order.user = newUser._id;
+        order.salespersonName = newUser.name; 
+
         await logAction(req, 'UPDATE', 'Order', order._id, `שיוך ההזמנה שונה מ-${oldName} ל-${newUser.name}`);
     }
-    // -------------------------------------------
 
     const updatedOrder = await order.save();
-    
-    // החזרת אובייקט מלא עם ה-populate כדי שהטבלה תתעדכן מיד בקליינט
+
     await updatedOrder.populate('user', 'name email');
     await updatedOrder.populate('hotel', 'name');
 

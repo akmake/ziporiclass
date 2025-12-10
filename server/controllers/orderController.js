@@ -1,16 +1,15 @@
-// server/controllers/orderController.js (מכיל את כל הפונקציות הקיימות + התיקון)
-
 import Order from '../models/Order.js';
 import PriceList from '../models/PriceList.js';
 import RoomType from '../models/RoomType.js';
 import { calculateRoomTotalPrice } from '../lib/priceCalculator.js';
 import { getNextSequenceValue } from '../models/Counter.js';
 import nodemailer from 'nodemailer';
-import { logAction } from '../utils/auditLogger.js'; 
-import { catchAsync } from '../middlewares/errorHandler.js'; // נניח ייבוא קיים
-import AppError from '../utils/AppError.js'; // נניח ייבוא קיים
+import { logAction } from '../utils/auditLogger.js';
+// ייבואים שהיו בקובץ המקורי שלך (הנחה שמגיעים מנתיבים אלו)
+import { catchAsync } from '../middlewares/errorHandler.js';
+import AppError from '../utils/AppError.js';
 
-// פונקציית עזר לחישוב מחיר סופי
+// פונקציית עזר לחישוב מחיר סופי (נשמרה מהמקור)
 const calculateFinalTotal = (roomsPrice, extras, discountPercent) => {
     let extrasTotal = 0;
     if (extras && Array.isArray(extras)) {
@@ -94,6 +93,11 @@ export const createOrder = async (req, res) => {
             hotel,
             user: req.user.id,
             salespersonName: req.user.name,
+            
+            // ✨ תוספת חדשה: שמירת היוצר לחישוב עמלות
+            createdBy: req.user.id,
+            createdByName: req.user.name,
+
             customerName,
             customerPhone,
             customerEmail,
@@ -120,14 +124,27 @@ export const updateOrder = async (req, res) => {
     try {
         const {
             hotel, rooms, notes, customerName, customerPhone, status, total_price, numberOfNights,
-            extras, discountPercent, customerEmail, eventDate
+            extras, discountPercent, customerEmail, eventDate,
+            optimaNumber // ✨ פרמטר חדש לסגירה
         } = req.body;
 
         const order = await Order.findById(req.params.id);
 
         if (!order) return res.status(404).json({ message: 'ההזמנה לא נמצאה' });
-        if (order.user.toString() !== req.user.id && req.user.role !== 'admin') {
+        
+        // בדיקת הרשאה: בעלים, אדמין, או אם מנסים לשנות ל'בוצע' (סגירה ע"י אחר)
+        if (order.user.toString() !== req.user.id && req.user.role !== 'admin' && status !== 'בוצע') {
             return res.status(403).json({ message: 'אין הרשאה לערוך הזמנה זו' });
+        }
+
+        // ✨ לוגיקת סגירה: אם משנים ל'בוצע', חובה מספר אופטימה
+        if (status === 'בוצע' && order.status !== 'בוצע') {
+            if (!optimaNumber) {
+                return res.status(400).json({ message: 'חובה להזין מספר הזמנה מאופטימה כדי לסגור עסקה.' });
+            }
+            order.closedBy = req.user.id;
+            order.closedByName = req.user.name;
+            order.optimaNumber = optimaNumber;
         }
 
         // --- בדיקת שינויים ללוג ---
@@ -200,6 +217,9 @@ export const updateOrder = async (req, res) => {
         order.extras = currentExtras;
         order.discountPercent = currentDiscount;
         order.total_price = finalPrice;
+        
+        // עדכון אופציונלי של המספר גם ללא שינוי סטטוס
+        if (optimaNumber) order.optimaNumber = optimaNumber;
 
         const updatedOrder = await order.save();
 
@@ -234,13 +254,42 @@ export const getAllOrders = async (req, res) => {
     }
 };
 
+// ✨ פונקציה חדשה: חיפוש גלובלי (עבור המסך החצי גלוי)
+export const searchAllOrders = async (req, res) => {
+    try {
+        const { query } = req.query;
+        if (!query) return res.json([]);
+
+        // חיפוש לפי שם, טלפון או מספר הזמנה. מחזירים רק הזמנות שעדיין לא בוטלו
+        const orders = await Order.find({
+            $and: [
+                { status: { $ne: 'cancelled' } },
+                {
+                    $or: [
+                        { customerName: { $regex: query, $options: 'i' } },
+                        { customerPhone: { $regex: query, $options: 'i' } },
+                        { orderNumber: !isNaN(query) ? Number(query) : null }
+                    ].filter(Boolean)
+                }
+            ]
+        })
+        .select('orderNumber customerName customerPhone status hotel total_price createdByName createdAt optimaNumber user') 
+        .populate('hotel', 'name')
+        .sort({ createdAt: -1 })
+        .limit(10); // מגבלת תוצאות
+
+        res.json(orders);
+    } catch (error) {
+        console.error("Search error:", error);
+        res.status(500).json({ message: "שגיאה בחיפוש הזמנות." });
+    }
+};
+
 export const getOrderById = async (req, res) => {
     try {
         const order = await Order.findById(req.params.id).populate('user', 'name').populate('hotel', 'name');
         if (!order) return res.status(404).json({ message: 'ההזמנה לא נמצאה' });
-        if (order.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(403).json({ message: 'אין הרשאה לצפות בהזמנה זו' });
-        }
+        // הסרת בדיקת ההרשאה המחמירה כדי לאפשר למוכרת אחרת לצפות בהזמנה שמצאה בחיפוש
         res.json(order);
     } catch (error) {
         res.status(500).json({ message: "שגיאה בטעינת ההזמנה" });
@@ -348,51 +397,40 @@ export const sendOrderEmail = async (req, res) => {
     }
 };
 
-
-/**
- * @desc    שליפת סטטיסטיקות ממוקדות: סך עסקאות פתוחות ושווין, וכן עסקאות שנסגרו החודש.
- * @route   GET /api/orders/my-stats
- * @access  Private (User)
- * * ✨ הפונקציה המתוקנת לפתרון באג "בהמתנה" ✨
- */
 export const getMyOrderStats = catchAsync(async (req, res) => {
     const userId = req.user._id;
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); 
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    // 1. הזמנות פתוחות (Pending/בהמתנה/בטיפול)
     const openOrders = await Order.aggregate([
-        { 
-            $match: { 
-                user: userId, 
-                // ✨ התיקון: כולל את הסטטוס העברי 'בהמתנה' ואת סטטוסים דומים.
-                status: { $in: ['בהמתנה', 'sent', 'in_progress', 'בטיפול'] } 
-            } 
+        {
+            $match: {
+                user: userId,
+                status: { $in: ['בהמתנה', 'sent', 'in_progress', 'בטיפול'] }
+            }
         },
-        { 
-            $group: { 
+        {
+            $group: {
                 _id: null,
                 count: { $sum: 1 },
-                totalValue: { $sum: "$total_price" } 
-            } 
+                totalValue: { $sum: "$total_price" }
+            }
         }
     ]);
 
-    // 2. הזמנות שנסגרו החודש (בוצע)
     const monthlySales = await Order.aggregate([
-        { 
-            $match: { 
-                user: userId, 
-                // סטטוס סגור/בוצע
-                status: 'בוצע', 
-                createdAt: { $gte: thirtyDaysAgo } 
-            } 
+        {
+            $match: {
+                user: userId,
+                status: 'בוצע',
+                createdAt: { $gte: thirtyDaysAgo }
+            }
         },
-        { 
-            $group: { 
+        {
+            $group: {
                 _id: null,
                 count: { $sum: 1 },
-                totalValue: { $sum: "$total_price" } 
-            } 
+                totalValue: { $sum: "$total_price" }
+            }
         }
     ]);
 

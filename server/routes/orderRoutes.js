@@ -1,8 +1,6 @@
-// server/routes/orderRoutes.js (מכיל את כל הראוטים הקיימים + החדש)
-
 import express from 'express';
-import multer from 'multer'; 
-import { requireAuth } from '../middlewares/authMiddleware.js'; 
+import multer from 'multer';
+import { requireAuth } from '../middlewares/authMiddleware.js';
 import {
     createOrder,
     getMyOrders,
@@ -11,7 +9,8 @@ import {
     getOrderById,
     getPublicQuoteById,
     sendOrderEmail,
-    getMyOrderStats // ✨ ייבוא הפונקציה החדשה
+    getMyOrderStats,
+    searchAllOrders // ✨ התווסף
 } from '../controllers/orderController.js';
 
 // הגדרת אחסון זמני בזיכרון
@@ -20,10 +19,10 @@ const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 
 // ⬇️ --- נתיבים ציבוריים --- ⬇️
-router.get('/public/:id', getPublicQuoteById); 
+router.get('/public/:id', getPublicQuoteById);
 
 // ⬇️ --- נתיבים מוגנים (דורשים כניסה) --- ⬇️
-router.use(requireAuth); 
+router.use(requireAuth);
 
 router.route('/')
     .post(createOrder);
@@ -31,15 +30,16 @@ router.route('/')
 router.route('/my-orders')
     .get(getMyOrders);
 
-// ✨✨✨ הראוט החדש לסטטיסטיקה (שינוי בשם הנתיב הקודם stats) ✨✨✨
-// אם היה נתיב stats ישן, נתיב זה מחליף אותו.
-router.get('/my-stats', getMyOrderStats); 
+router.get('/my-stats', getMyOrderStats);
+
+// ✨ נתיב החיפוש החדש
+router.get('/search', searchAllOrders);
 
 router.route('/:id')
     .get(getOrderById)
     .put(updateOrder)
     .delete(deleteOrder);
-    
+
 router.post('/:id/email', upload.single('pdf'), sendOrderEmail); // שימוש ב-multer
 
 export default router;

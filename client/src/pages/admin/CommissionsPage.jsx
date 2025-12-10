@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import {
     FileSpreadsheet, AlertTriangle, Save, Filter,
-    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar, Percent, Database
+    CheckCircle2, Pencil, ChevronDown, ChevronUp, Trophy, Calendar, Percent, Database, Split
 } from 'lucide-react';
 
 // --- הגדרות עמודות קשיחות (בדיוק כמו בקובץ המקורי) ---
@@ -38,7 +38,7 @@ const RES_COL_CODE = "c_price_code";
 // עמודות תאריך אפשריות (כולל "מתאריך" שביקשת)
 const ARRIVAL_KEYWORDS = ["מתאריך", "c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
 
-// --- פונקציות עזר ---
+// --- פונקציות עזר (מקורי) ---
 
 function parseMoney(val) {
     if (!val) return 0;
@@ -52,7 +52,7 @@ function cleanStr(val) {
     return val.toString().trim();
 }
 
-// ✨ פונקציית זיהוי תאריך (הלוגיקה שביקשת)
+// ✨ פונקציית זיהוי תאריך (הלוגיקה המקורית)
 function findArrivalDate(row) {
     // תמיכה בטעינה מה-DB
     if (row.eventDate) return new Date(row.eventDate);
@@ -64,7 +64,7 @@ function findArrivalDate(row) {
         // בדיקה אם שם העמודה מכיל את אחת ממילות המפתח
         if (ARRIVAL_KEYWORDS.some(k => lowerKey.includes(k))) {
             const val = row[key];
-            
+
             if (!val) continue;
 
             // אם זה כבר אובייקט תאריך
@@ -78,7 +78,7 @@ function findArrivalDate(row) {
             // מחרוזות
             if (typeof val === 'string') {
                 const dateStr = val.trim().replace(/\./g, '/').replace(/-/g, '/');
-                
+
                 // פורמט עם לוכסנים: DD/MM/YYYY או DD/MM/YY
                 if (dateStr.includes('/')) {
                     const parts = dateStr.split('/');
@@ -88,12 +88,12 @@ function findArrivalDate(row) {
                         let year = parseInt(parts[2]);
                         // השלמת שנה (24 -> 2024)
                         if (year < 100) year += 2000;
-                        
+
                         const d = new Date(year, month - 1, day);
                         if (!isNaN(d.getTime())) return d;
                     }
                 }
-                
+
                 // פורמט סטנדרטי אחר
                 const d = new Date(dateStr);
                 if (!isNaN(d.getTime())) return d;
@@ -196,7 +196,7 @@ export default function CommissionsPage() {
 }
 
 // ============================================================================
-// 🟢 קומפוננטה 1: המחולל (Generator) - לוגיקה קשיחה
+// 🟢 קומפוננטה 1: המחולל (Generator) - לוגיקה קשיחה + היברידית
 // ============================================================================
 function CommissionGenerator({ onReportGenerated }) {
     const [invoicesMap, setInvoicesMap] = useState(null);
@@ -212,7 +212,7 @@ function CommissionGenerator({ onReportGenerated }) {
     const [isFixDialogOpen, setIsFixDialogOpen] = useState(false);
     const [rowToFix, setRowToFix] = useState(null);
     const [fixAmount, setFixAmount] = useState('');
-    const [fixRate, setFixRate] = useState(''); 
+    const [fixRate, setFixRate] = useState('');
     const [fixNote, setFixNote] = useState('');
 
     const queryClient = useQueryClient();
@@ -220,6 +220,12 @@ function CommissionGenerator({ onReportGenerated }) {
     const { data: paidHistoryIds = [] } = useQuery({
         queryKey: ['paidCommissionsIds'],
         queryFn: async () => (await api.get('/admin/commissions/paid-ids')).data
+    });
+
+    // ✨ שליפת נתוני מיפוי עמלות (מי יצר/מי סגר) לצורך הפיצול
+    const { data: dbOrdersMap = {} } = useQuery({ 
+        queryKey: ['commissionMap'], 
+        queryFn: async () => (await api.get('/admin/orders/commission-map')).data 
     });
 
     const generateMutation = useMutation({
@@ -252,10 +258,10 @@ function CommissionGenerator({ onReportGenerated }) {
             try {
                 const data = new Uint8Array(evt.target.result);
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'dd/mm/yyyy' });
-                
+
                 const sheetName = workbook.SheetNames[0];
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
-                
+
                 if (type === 'invoices') processInvoices(jsonData);
                 else processReservations(jsonData);
             } catch (error) {
@@ -271,9 +277,9 @@ function CommissionGenerator({ onReportGenerated }) {
         const toastId = toast.loading('טוען הזמנות מהמערכת...');
         try {
             const { data: allOrders } = await api.get('/admin/orders');
-            
-            const relevantOrders = allOrders.filter(order => 
-                order.status === 'בוצע' && 
+
+            const relevantOrders = allOrders.filter(order =>
+                order.status === 'בוצע' &&
                 !paidHistoryIds.includes(order.orderNumber.toString())
             );
 
@@ -289,8 +295,8 @@ function CommissionGenerator({ onReportGenerated }) {
                 [RES_COL_MASTER]: order.orderNumber.toString(),
                 [RES_COL_PRICE]: order.total_price / 1.18, // המרה למחיר נטו (כי המערכת מחשבת מע"מ על זה)
                 [RES_COL_NAME]: order.customerName,
-                [RES_COL_CODE]: "REGULAR", 
-                "eventDate": order.eventDate 
+                [RES_COL_CODE]: "REGULAR",
+                "eventDate": order.eventDate
             }));
 
             processReservations(convertedData);
@@ -347,17 +353,18 @@ function CommissionGenerator({ onReportGenerated }) {
         toast.success(`נטענו ${data.length} שורות הזמנות`);
     };
 
+    // --- הפונקציה המרכזית שעודכנה: אנליזה ופיצול עמלות ---
     const handleAnalyze = () => {
-        const currentInvoicesMap = invoicesMap || {}; 
-        
+        const currentInvoicesMap = invoicesMap || {};
+
         if (!reservationsData) return toast.error("אין נתוני הזמנות לניתוח");
         if (selectedClerks.size === 0) return toast.error("בחר לפחות נציג אחד");
 
         const tempConsolidated = {};
         const newSelectedIds = new Set();
 
+        // 1. אגרגציה ראשונית של שורות האקסל (למניעת כפילויות שורות באקסל עצמו)
         reservationsData.forEach(row => {
-            // לוגיקה קשיחה: שימוש בקבועים המקוריים בלבד
             const rowClerk = cleanStr(row[RES_COL_CLERK]);
             if (!selectedClerks.has(rowClerk)) return;
 
@@ -369,9 +376,7 @@ function CommissionGenerator({ onReportGenerated }) {
 
             if (paidHistoryIds.includes(masterId)) return;
 
-            // הלוגיקה החשובה: שימוש ב-price_local
-            let price = parseMoney(row[RES_COL_PRICE]); 
-
+            let price = parseMoney(row[RES_COL_PRICE]);
             let arrivalDate = findArrivalDate(row);
 
             if (!tempConsolidated[masterId]) {
@@ -379,8 +384,8 @@ function CommissionGenerator({ onReportGenerated }) {
                     masterId: masterId,
                     guestName: cleanStr(row[RES_COL_NAME]),
                     status: status,
-                    clerk: rowClerk,
-                    priceCode: cleanStr(row[RES_COL_CODE] || ""), 
+                    clerk: rowClerk, // שם הנציג המקורי מהאקסל (fallback)
+                    priceCode: cleanStr(row[RES_COL_CODE] || ""),
                     totalOrderPrice: 0,
                     manualFix: false,
                     arrivalDate: arrivalDate
@@ -389,7 +394,8 @@ function CommissionGenerator({ onReportGenerated }) {
             tempConsolidated[masterId].totalOrderPrice += price;
         });
 
-        const finalRows = Object.values(tempConsolidated).map(item => {
+        // 2. עיבוד, הצלבה ופיצול (flatMap מאפשר להחזיר 2 שורות במקום 1)
+        const finalRows = Object.values(tempConsolidated).flatMap(item => {
             let foundData = currentInvoicesMap["ID_" + item.masterId] || currentInvoicesMap["NAME_" + item.guestName];
 
             let finalInvoiceAmount = foundData ? parseFloat(foundData.amount) : 0;
@@ -408,22 +414,82 @@ function CommissionGenerator({ onReportGenerated }) {
                 else if (expectedWithVat < finalInvoiceAmount) colorStatus = 'yellow';
             }
 
+            // חישוב עמלה כוללת
+            let totalCommissionToPay = finalInvoiceAmount * commissionRate;
+
+            // בדיקת "ירוק" להוספה אוטומטית לבחירה
             if (colorStatus === 'green') {
                 newSelectedIds.add(item.masterId);
             }
 
-            let commissionToPay = finalInvoiceAmount * commissionRate;
+            // === ✨ לוגיקה היברידית חדשה: בדיקה מול ה-DB ופיצול ✨ ===
+            
+            const dbInfo = dbOrdersMap[item.masterId]; 
+            // הערה: dbOrdersMap מגיע מ-useQuery למעלה, ממופה לפי masterId
 
-            return {
-                ...item,
-                finalInvoiceAmount,
-                finalInvNum,
-                commissionToPay,
-                expectedWithVat,
-                colorStatus,
-                isGroup,
-                commissionRate: commissionRate * 100
-            };
+            // תרחיש א': יש נתונים מהמערכת ויש פיצול (יוצר != סוגר)
+            if (dbInfo && dbInfo.isSplit) {
+                // הוספת ID הסוגר לרשימת הנבחרים אם העסקה תקינה
+                if (colorStatus === 'green') {
+                    newSelectedIds.add(item.masterId + '_closer');
+                }
+
+                return [
+                    // שורה 1: היוצרת (80%)
+                    {
+                        ...item,
+                        clerk: dbInfo.creator, // לוקחים את השם מה-DB
+                        role: 'יוצרת',
+                        splitPercent: '80%',
+                        finalInvoiceAmount, // מציגים את הסכום המלא לרפרנס
+                        finalInvNum,
+                        commissionToPay: totalCommissionToPay * 0.8,
+                        expectedWithVat,
+                        colorStatus,
+                        isGroup,
+                        commissionRate: commissionRate * 100,
+                        isSplit: true
+                    },
+                    // שורה 2: הסוגרת (20%)
+                    {
+                        ...item,
+                        masterId: item.masterId + '_closer', // ID וירטואלי ייחודי לטבלה
+                        realMasterId: item.masterId, // למסד הנתונים
+                        clerk: dbInfo.closer, // לוקחים את השם מה-DB
+                        role: 'סוגרת',
+                        splitPercent: '20%',
+                        finalInvoiceAmount: 0, // כדי לא לסכום כפול בדוחות
+                        finalInvNum,
+                        commissionToPay: totalCommissionToPay * 0.2,
+                        expectedWithVat, // מציגים לרפרנס
+                        colorStatus,
+                        isGroup,
+                        commissionRate: commissionRate * 100,
+                        isSplit: true
+                    }
+                ];
+            } 
+            
+            // תרחיש ב' (Fallback): אין נתונים ב-DB או שהיוצר והסוגר זהים -> 100% לאדם אחד
+            else {
+                // אם יש שם ב-DB (שהוא יחיד), נעדיף אותו כי הוא מעודכן. אם לא, נישאר עם האקסל.
+                const finalClerkName = dbInfo ? dbInfo.creator : item.clerk;
+
+                return [{
+                    ...item,
+                    clerk: finalClerkName,
+                    role: 'מלא',
+                    splitPercent: '100%',
+                    finalInvoiceAmount,
+                    finalInvNum,
+                    commissionToPay: totalCommissionToPay,
+                    expectedWithVat,
+                    colorStatus,
+                    isGroup,
+                    commissionRate: commissionRate * 100,
+                    isSplit: false
+                }];
+            }
         });
 
         const relevantRows = finalRows.filter(r => r.finalInvoiceAmount > 0 || r.expectedWithVat > 0);
@@ -436,17 +502,17 @@ function CommissionGenerator({ onReportGenerated }) {
     const openFixDialog = (row) => {
         setRowToFix(row);
         setFixAmount(row.expectedWithVat > 0 ? Math.round(row.expectedWithVat) : row.finalInvoiceAmount);
-        
+
         const defaultRate = row.isGroup ? '1.5' : '3';
         setFixRate(row.manualRate ? row.manualRate.toString() : defaultRate);
-        
+
         setFixNote('');
         setIsFixDialogOpen(true);
     };
 
     const applyFix = () => {
         if (!rowToFix) return;
-        
+
         const newAmount = parseFloat(fixAmount);
         const rate = parseFloat(fixRate);
 
@@ -514,7 +580,8 @@ function CommissionGenerator({ onReportGenerated }) {
                         <CardHeader><CardTitle>2. דו"ח הזמנות (250)</CardTitle></CardHeader>
                         <CardContent className="text-center space-y-4">
                             <input type="file" onChange={(e) => handleFileUpload(e, 'reservations')} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/>
-                            
+
+
                             <div className="relative flex py-2 items-center">
                                 <div className="flex-grow border-t border-gray-300"></div>
                                 <span className="flex-shrink-0 mx-4 text-gray-400 text-xs">או</span>
@@ -608,7 +675,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                             <th className="p-3 text-right">הזמנה</th>
                                             <th className="p-3 text-right">אורח</th>
                                             <th className="p-3 text-right">ת. הגעה</th>
-                                            <th className="p-3 text-right">נציג</th>
+                                            <th className="p-3 text-right">נציג (תפקיד)</th>
                                             <th className="p-3 text-right">ללא מע"מ</th>
                                             <th className="p-3 text-right">צפוי (כולל)</th>
                                             <th className="p-3 text-right">בפועל</th>
@@ -628,15 +695,21 @@ function CommissionGenerator({ onReportGenerated }) {
                                                     </Button>
                                                 </td>
                                                 <td className="p-3 text-xs text-right">{row.finalInvNum}</td>
-                                                <td className="p-3 font-mono text-right">{row.masterId}</td>
+                                                <td className="p-3 font-mono text-right">
+                                                    {row.realMasterId || row.masterId}
+                                                    {row.isSplit && <span className="mr-2 text-[10px] bg-blue-100 text-blue-700 px-1 rounded border border-blue-200">מפוצל</span>}
+                                                </td>
                                                 <td className="p-3 text-right">{row.guestName}</td>
                                                 <td className="p-3 text-right text-xs">
                                                     {row.arrivalDate ? format(row.arrivalDate, 'dd/MM/yy') : '-'}
                                                 </td>
-                                                <td className="p-3 text-right">{row.clerk}</td>
+                                                <td className="p-3 text-right">
+                                                    <span className="font-bold">{row.clerk}</span>
+                                                    {row.isSplit && <span className="text-xs text-gray-500 mr-1 block">({row.role} - {row.splitPercent})</span>}
+                                                </td>
                                                 <td className="p-3 text-gray-500 text-right">{row.totalOrderPrice.toLocaleString()}</td>
                                                 <td className="p-3 font-medium text-right">{row.expectedWithVat.toLocaleString()}</td>
-                                                <td className="p-3 font-bold text-right">{row.finalInvoiceAmount.toLocaleString()}</td>
+                                                <td className="p-3 font-bold text-right">{row.finalInvoiceAmount > 0 ? row.finalInvoiceAmount.toLocaleString() : '-'}</td>
                                                 <td className="p-3 text-purple-700 font-bold text-right">
                                                     {row.commissionToPay.toLocaleString()}
                                                     <span className="text-xs text-gray-400 font-normal mr-1">
@@ -686,7 +759,7 @@ function CommissionGenerator({ onReportGenerated }) {
                                     className="font-bold text-lg border-purple-300 text-purple-800 w-24"
                                 />
                                 <span className="text-purple-700 font-bold"><Percent size={18}/></span>
-                                
+
                                 <div className="mr-auto text-left">
                                     <span className="text-xs text-gray-500 block">עמלה שתחושב:</span>
                                     <span className="font-bold text-lg text-purple-700">{previewCommission.toLocaleString(undefined, { maximumFractionDigits: 1 })} ₪</span>
@@ -860,14 +933,14 @@ function CommissionsByArrivalDate() {
                     <div className="flex flex-col sm:flex-row gap-4 items-end">
                         <div className="w-full sm:w-64">
                             <Label className="mb-2 block">בחר חודש לפעילות (מתוך הקיים)</Label>
-                            
+
                             {/* ✨ במקום תאריך - דרופדאון חכם */}
                             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="בחר חודש..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {availableMonths.length === 0 ? 
+                                    {availableMonths.length === 0 ?
                                         <SelectItem value="none" disabled>אין נתונים היסטוריים</SelectItem> :
                                         availableMonths.map(mStr => {
                                             const [y, m] = mStr.split('-');

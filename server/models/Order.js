@@ -22,18 +22,29 @@ const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: Number, unique: true, required: true },
     hotel: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true },
+    
+    // הבעלים הנוכחי של ההזמנה (לצורך הרשאות עריכה)
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     salespersonName: { type: String, required: true },
+
+    // === ✨ שדות חדשים לחישוב עמלות מפוצל ===
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // מי יצר
+    createdByName: { type: String }, // גיבוי שם היוצר
     
+    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // מי סגר (שינה לבוצע)
+    closedByName: { type: String, default: null },
+    
+    optimaNumber: { type: String, trim: true, default: null }, // המספר מאופטימה לאימות
+    // ==========================================
+
     customerName: { type: String, required: true, trim: true },
     customerPhone: { type: String, trim: true },
     customerEmail: { type: String, trim: true, lowercase: true },
     eventDate: { type: Date, default: Date.now },
 
-    // ✨ סטטוסים וסיבת דחייה
     status: {
       type: String,
-      enum: ['sent', 'placed', 'not_relevant', 'בהמתנה', 'בוצע', 'לא רלוונטי', 'cancelled'],
+      enum: ['sent', 'placed', 'not_relevant', 'בהמתנה', 'בוצע', 'לא רלוונטי', 'cancelled', 'in_progress', 'בטיפול'],
       default: 'בהמתנה',
     },
     rejectionReason: { type: String, trim: true, default: null },
