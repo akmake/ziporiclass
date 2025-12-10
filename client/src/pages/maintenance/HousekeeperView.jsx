@@ -72,6 +72,12 @@ export default function HousekeeperView() {
         }
     });
 
+    // --- הפונקציה שהייתה חסרה ---
+    const handleReportSubmit = () => {
+        if (!reportText.trim() || !activeRoomId) return;
+        reportIssueMutation.mutate({ roomId: activeRoomId, description: reportText });
+    };
+
     const handleRefresh = () => {
         queryClient.invalidateQueries(['myRooms', selectedHotel]);
         toast.success('רענון בוצע');
@@ -123,7 +129,6 @@ export default function HousekeeperView() {
                     const isClean = room.status === 'clean';
                     const isOpen = activeRoomId === room._id;
 
-                    // פילוח משימות לתצוגה
                     const maintenanceTasks = room.tasks.filter(t => t.type === 'maintenance');
                     const bookingTasks = room.tasks.filter(t => t.type === 'daily' && t.isSystemTask);
                     const standardTasks = room.tasks.filter(t => t.type === 'standard');
