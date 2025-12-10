@@ -5,11 +5,9 @@ import api from '@/utils/api.js';
 import { format, isSameMonth } from 'date-fns';
 import { he } from 'date-fns/locale';
 
-// ייבוא הרכיבים החדשים
 import CommissionGenerator from '@/components/CommissionGenerator.jsx'; 
 import { getReportSummary } from '@/utils/commissionLogic.js';
 
-// UI Components
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
@@ -52,7 +50,7 @@ export default function CommissionsPage() {
     );
 }
 
-// --- טבלאות עזר פנימיות ---
+// --- טבלאות עזר ---
 
 function ReportSummaryTable({ items }) {
     const summaryData = useMemo(() => getReportSummary(items), [items]);

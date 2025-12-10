@@ -1,11 +1,17 @@
 // client/src/components/CommissionGenerator.jsx
-
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/utils/api.js';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+
+// ייבוא הקבועים מקובץ ה-utils
+import {
+    parseMoney, cleanStr, findArrivalDate,
+    INV_COL_ID, INV_COL_NAME, INV_COL_AMOUNT, INV_COL_NUM,
+    RES_COL_CLERK, RES_COL_MASTER, RES_COL_PRICE, RES_COL_NAME, RES_COL_STATUS, RES_COL_CODE
+} from '@/utils/commissionLogic.js';
 
 // UI Components
 import { Button } from '@/components/ui/Button.jsx';
@@ -16,78 +22,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/Input.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { AlertTriangle, Save, Filter, CheckCircle2, Pencil, Database, Percent } from 'lucide-react';
-
-// ============================================================================
-// 🛑 לוגיקה פנימית (Self-Contained Logic)
-// ============================================================================
-
-// הגדרות עמודות קשיחות (לפי קבצי המקור שלך)
-const INV_COL_ID = "c_folio_number";
-const INV_COL_NAME = "guest_name";
-const INV_COL_AMOUNT = "invoice_amount";
-const INV_COL_NUM = "c_invoice_number";
-
-const RES_COL_CLERK = "c_taken_clerk";
-const RES_COL_MASTER = "c_master_id";
-const RES_COL_PRICE = "price_local"; 
-const RES_COL_NAME = "guest_name";
-const RES_COL_STATUS = "c_reservation_status";
-const RES_COL_CODE = "c_price_code";
-
-const ARRIVAL_KEYWORDS = ["מתאריך", "c_arrival", "arrival", "checkin", "arrival_date", "תאריך הגעה"];
-
-function parseMoney(val) {
-    if (!val) return 0;
-    let cleanStr = val.toString().replace(/,/g, '').trim();
-    let num = parseFloat(cleanStr);
-    return isNaN(num) ? 0 : num;
-}
-
-function cleanStr(val) {
-    if (val === undefined || val === null) return "";
-    return val.toString().trim();
-}
-
-function findArrivalDate(row) {
-    if (row.eventDate) return new Date(row.eventDate);
-
-    const keys = Object.keys(row);
-    for (const key of keys) {
-        const lowerKey = key.toLowerCase();
-        if (ARRIVAL_KEYWORDS.some(k => lowerKey.includes(k))) {
-            const val = row[key];
-            if (!val) continue;
-
-            if (val instanceof Date && !isNaN(val)) return val;
-
-            if (typeof val === 'number' && val > 20000) {
-                return new Date(Math.round((val - 25569) * 86400 * 1000));
-            }
-
-            if (typeof val === 'string') {
-                const dateStr = val.trim().replace(/\./g, '/').replace(/-/g, '/');
-                if (dateStr.includes('/')) {
-                    const parts = dateStr.split('/');
-                    if (parts.length === 3) {
-                        let day = parseInt(parts[0]);
-                        let month = parseInt(parts[1]);
-                        let year = parseInt(parts[2]);
-                        if (year < 100) year += 2000;
-                        const d = new Date(year, month - 1, day);
-                        if (!isNaN(d.getTime())) return d;
-                    }
-                }
-                const d = new Date(dateStr);
-                if (!isNaN(d.getTime())) return d;
-            }
-        }
-    }
-    return null;
-}
-
-// ============================================================================
-// 🏁 הקומפוננטה הראשית
-// ============================================================================
 
 export default function CommissionGenerator({ onReportGenerated }) {
     const [invoicesMap, setInvoicesMap] = useState(null);
@@ -114,7 +48,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
         queryFn: async () => (await api.get('/admin/commissions/paid-ids')).data
     });
 
-    // 2. שליפת מפת ההזמנות (היברידית)
+    // 2. שליפת מפת ההזמנות (היברידית) - לצורך בדיקת פיצול בלבד
     const { data: dbOrdersMap = {} } = useQuery({
         queryKey: ['ordersCommissionMap'],
         queryFn: async () => (await api.get('/admin/orders/commission-map')).data,
@@ -190,7 +124,6 @@ export default function CommissionGenerator({ onReportGenerated }) {
 
             processReservations(convertedData);
             toast.success(`נטענו ${convertedData.length} הזמנות פתוחות!`, { id: toastId });
-
         } catch (error) {
             console.error(error);
             toast.error('שגיאה בטעינת הנתונים', { id: toastId });
@@ -240,7 +173,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
         toast.success(`נטענו ${data.length} שורות הזמנות`);
     };
 
-    // --- הפונקציה הראשית לניתוח ---
+    // --- הפונקציה הראשית לניתוח (הלוגיקה המתוקנת) ---
     const handleAnalyze = () => {
         const currentInvoicesMap = invoicesMap || {};
 
@@ -250,7 +183,9 @@ export default function CommissionGenerator({ onReportGenerated }) {
         const tempConsolidated = {};
         const newSelectedIds = new Set();
 
+        // 1. רצים על האקסל - זה המקור האבסולוטי!
         reservationsData.forEach(row => {
+            // נתונים בסיסיים מהאקסל (רשת הביטחון)
             const rowClerkExcel = cleanStr(row[RES_COL_CLERK]);
             let status = (row[RES_COL_STATUS] || "").toString().toLowerCase();
             let masterId = (row[RES_COL_MASTER] || "").toString().trim();
@@ -258,90 +193,75 @@ export default function CommissionGenerator({ onReportGenerated }) {
             let arrivalDate = findArrivalDate(row);
             let priceCode = cleanStr(row[RES_COL_CODE] || "");
 
+            // סינונים בסיסיים
             if (status.includes("can") || status.includes("בוטל")) return;
             if (!masterId) return;
             if (paidHistoryIds.includes(masterId)) return;
 
-            // --- 🛑 בדיקה היברידית 🛑 ---
+            // =========================================================
+            // 🛑 צומת ההחלטה: האם יש פיצול ב-DB? 🛑
+            // =========================================================
+            
             const dbOrder = dbOrdersMap[masterId];
             
-            // תרחיש א: פיצול (העולם החדש)
-            if (dbOrder && dbOrder.creator && dbOrder.closer) {
+            // תנאי לפיצול: ההזמנה קיימת ב-DB, ויש לה דגל isSplit=true (כלומר היוצר והסוגר שונים)
+            if (dbOrder && dbOrder.isSplit) {
+                // --- תרחיש חדש: חישוב מפוצל ---
                 
-                // האם המשתמשים הנבחרים ב-UI רלוונטיים להזמנה זו?
                 const isCreatorSelected = selectedClerks.has(dbOrder.creator);
                 const isCloserSelected = selectedClerks.has(dbOrder.closer);
 
-                if (!isCreatorSelected && !isCloserSelected) return; 
+                // אם אף אחד מהצדדים לא נבחר בסינון, מדלגים
+                if (!isCreatorSelected && !isCloserSelected) return;
 
-                // האם יש באמת פיצול (אנשים שונים)?
-                if (dbOrder.isSplit) {
-                    
-                    // 1. שורה ליוצר (80%)
-                    if (isCreatorSelected) {
-                        const keyCreator = `${masterId}_creator`;
-                        if (!tempConsolidated[keyCreator]) {
-                            tempConsolidated[keyCreator] = {
-                                masterId: masterId,
-                                uniqueKey: keyCreator,
-                                guestName: cleanStr(row[RES_COL_NAME]),
-                                status: status,
-                                clerk: dbOrder.creator, // מה-DB
-                                priceCode: priceCode,
-                                totalOrderPrice: 0,
-                                manualFix: false,
-                                arrivalDate: arrivalDate,
-                                isSplit: true,
-                                splitRole: 'creator' // 80%
-                            };
-                        }
-                        tempConsolidated[keyCreator].totalOrderPrice += price;
+                // 1. שורה ליוצר (80%)
+                if (isCreatorSelected) {
+                    const keyCreator = `${masterId}_creator`;
+                    if (!tempConsolidated[keyCreator]) {
+                        tempConsolidated[keyCreator] = {
+                            masterId: masterId,
+                            uniqueKey: keyCreator,
+                            guestName: cleanStr(row[RES_COL_NAME]),
+                            status: status,
+                            clerk: dbOrder.creator, // שם מה-DB
+                            priceCode: priceCode,
+                            totalOrderPrice: 0,
+                            manualFix: false,
+                            arrivalDate: arrivalDate,
+                            isSplit: true,
+                            splitRole: 'creator' // 80%
+                        };
                     }
+                    tempConsolidated[keyCreator].totalOrderPrice += price;
+                }
 
-                    // 2. שורה לסוגר (20%)
-                    if (isCloserSelected) {
-                        const keyCloser = `${masterId}_closer`;
-                        if (!tempConsolidated[keyCloser]) {
-                            tempConsolidated[keyCloser] = {
-                                masterId: masterId,
-                                uniqueKey: keyCloser,
-                                guestName: cleanStr(row[RES_COL_NAME]),
-                                status: status,
-                                clerk: dbOrder.closer, // מה-DB
-                                priceCode: priceCode,
-                                totalOrderPrice: 0,
-                                manualFix: false,
-                                arrivalDate: arrivalDate,
-                                isSplit: true,
-                                splitRole: 'closer' // 20%
-                            };
-                        }
-                        tempConsolidated[keyCloser].totalOrderPrice += price;
+                // 2. שורה לסוגר (20%)
+                if (isCloserSelected) {
+                    const keyCloser = `${masterId}_closer`;
+                    if (!tempConsolidated[keyCloser]) {
+                        tempConsolidated[keyCloser] = {
+                            masterId: masterId,
+                            uniqueKey: keyCloser,
+                            guestName: cleanStr(row[RES_COL_NAME]),
+                            status: status,
+                            clerk: dbOrder.closer, // שם מה-DB
+                            priceCode: priceCode,
+                            totalOrderPrice: 0,
+                            manualFix: false,
+                            arrivalDate: arrivalDate,
+                            isSplit: true,
+                            splitRole: 'closer' // 20%
+                        };
                     }
-                } 
-                else {
-                    // יוצר וסוגר הם אותו אדם (100%), אבל לוקחים את השם מה-DB
-                    if (isCreatorSelected) {
-                        if (!tempConsolidated[masterId]) {
-                            tempConsolidated[masterId] = {
-                                masterId: masterId,
-                                uniqueKey: masterId,
-                                guestName: cleanStr(row[RES_COL_NAME]),
-                                status: status,
-                                clerk: dbOrder.creator, // מה-DB
-                                priceCode: priceCode,
-                                totalOrderPrice: 0,
-                                manualFix: false,
-                                arrivalDate: arrivalDate,
-                                isSplit: false
-                            };
-                        }
-                        tempConsolidated[masterId].totalOrderPrice += price;
-                    }
+                    tempConsolidated[keyCloser].totalOrderPrice += price;
                 }
 
             } else {
-                // תרחיש ב: Fallback (העולם הישן - אקסל בלבד)
+                // =========================================================
+                // תרחיש ברירת מחדל: אין פיצול ב-DB (או שההזמנה לא קיימת שם)
+                // חוזרים להתנהגות הישנה: הכל לפי השם שבאקסל!
+                // =========================================================
+                
                 if (!selectedClerks.has(rowClerkExcel)) return;
 
                 if (!tempConsolidated[masterId]) {
@@ -350,7 +270,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
                         uniqueKey: masterId,
                         guestName: cleanStr(row[RES_COL_NAME]),
                         status: status,
-                        clerk: rowClerkExcel, // מהאקסל
+                        clerk: rowClerkExcel, // שם מהאקסל
                         priceCode: priceCode,
                         totalOrderPrice: 0,
                         manualFix: false,
@@ -372,7 +292,7 @@ export default function CommissionGenerator({ onReportGenerated }) {
             let baseRate = isGroup ? 0.015 : 0.03;
             let commissionRate = baseRate;
 
-            // יישום הפיצול בפועל
+            // יישום הפיצול בפועל (באחוזים)
             if (item.isSplit) {
                 if (item.splitRole === 'creator') commissionRate = baseRate * 0.8;
                 else if (item.splitRole === 'closer') commissionRate = baseRate * 0.2;

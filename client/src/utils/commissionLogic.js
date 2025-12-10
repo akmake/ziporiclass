@@ -1,6 +1,6 @@
 // client/src/utils/commissionLogic.js
 
-// --- הגדרות עמודות קשיחות ---
+// --- הגדרות עמודות קשיחות (בדיוק כמו בקוד שעבד) ---
 // חשבוניות (442)
 export const INV_COL_ID = "c_folio_number";
 export const INV_COL_NAME = "guest_name";

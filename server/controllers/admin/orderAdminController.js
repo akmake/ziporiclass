@@ -1,6 +1,6 @@
 import Order from '../../models/Order.js';
-import User from '../../models/userModel.js';
-import { logAction } from '../../utils/auditLogger.js';
+import User from '../../models/userModel.js'; 
+import { logAction } from '../../utils/auditLogger.js'; 
 
 /**
  * @desc    קבלת כל ההזמנות במערכת (למנהלים)
@@ -21,49 +21,35 @@ export const getAllOrders = async (req, res) => {
 };
 
 /**
- * @desc    שליפת מפה של הזמנות לחישוב עמלות (היברידי - תיקון לפיצול)
+ * @desc    שליפת מפה של הזמנות לחישוב עמלות (חדש)
  * @route   GET /api/admin/orders/commission-map
  * @access  Admin
  */
 export const getOrdersForCommissionMap = async (req, res) => {
     try {
-        // שולפים הזמנות שנסגרו ("בוצע")
         const orders = await Order.find({ status: { $in: ['בוצע', 'placed', 'converted'] } })
             .select('orderNumber createdByName closedByName optimaNumber total_price')
             .lean();
 
         const ordersMap = {};
         orders.forEach(o => {
-            // המפתח הוא מספר אופטימה (אם קיים) או מספר ההזמנה
-            // trim() קריטי כדי למנוע אי התאמות בגלל רווחים
-            const key = o.optimaNumber ? o.optimaNumber.toString().trim() : o.orderNumber.toString();
-
-            const creator = o.createdByName ? o.createdByName.trim() : 'לא ידוע';
-            const closer = o.closedByName ? o.closedByName.trim() : 'לא ידוע';
-
-            // האם יש פיצול? רק אם יש שני שמות שונים ושניהם קיימים
-            const isSplit = !!(creator && closer && creator !== closer && closer !== 'לא ידוע');
-
+            const key = o.optimaNumber ? o.optimaNumber.trim() : o.orderNumber.toString();
             ordersMap[key] = {
                 id: o._id,
-                creator: creator,
-                closer: closer,
-                isSplit: isSplit
+                creator: o.createdByName || 'לא ידוע',
+                closer: o.closedByName || 'לא ידוע',
+                isSplit: !!(o.createdByName && o.closedByName && o.createdByName !== o.closedByName)
             };
-
-            // שומרים גיבוי גם לפי מספר ההזמנה הפנימי (למקרה שלא הזינו אופטימה או הזינו את הפנימי בטעות)
+            // גיבוי גם לפי מספר פנימי
             ordersMap[o.orderNumber.toString()] = ordersMap[key];
         });
-
         res.json(ordersMap);
     } catch (error) {
-        console.error("Commission Map Error:", error);
-        res.status(500).json({ message: "שגיאה בטעינת נתוני מיפוי עמלות." });
+        res.status(500).json({ message: "שגיאה במיפוי עמלות" });
     }
 };
-
 /**
- * @desc    עדכון הזמנה קיימת
+ * @desc    עדכון הזמנה קיימת (שינוי סטטוס, פרטים, או שיוך נציג)
  * @route   PUT /api/admin/orders/:id
  * @access  Admin
  */
@@ -77,24 +63,29 @@ export const updateOrder = async (req, res) => {
       return res.status(404).json({ message: "ההזמנה לא נמצאה." });
     }
 
+    // עדכונים רגילים
     if (customerName) order.customerName = customerName;
     if (customerPhone) order.customerPhone = customerPhone;
     if (status) order.status = status;
     if (notes) order.notes = notes;
 
-    // שינוי שיוך נציג
+    // --- לוגיקה לשינוי שיוך נציג ---
     if (newUserId && newUserId !== order.user.toString()) {
         const newUser = await User.findById(newUserId);
         if (!newUser) {
             return res.status(404).json({ message: "המשתמש החדש לא נמצא במערכת" });
         }
+
         const oldName = order.salespersonName || 'נציג קודם';
+
         order.user = newUser._id;
-        order.salespersonName = newUser.name;
+        order.salespersonName = newUser.name; 
+
         await logAction(req, 'UPDATE', 'Order', order._id, `שיוך ההזמנה שונה מ-${oldName} ל-${newUser.name}`);
     }
 
     const updatedOrder = await order.save();
+
     await updatedOrder.populate('user', 'name email');
     await updatedOrder.populate('hotel', 'name');
 
@@ -121,3 +112,4 @@ export const deleteOrder = async (req, res) => {
         res.status(500).json({ message: 'שגיאה במחיקת ההזמנה' });
     }
 };
+
