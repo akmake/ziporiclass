@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
   Menu, X, LogOut, Home, PlusCircle, User, ChevronDown, FileText, ListOrdered, Shield,
-  Mail, Calculator, Wrench, CalendarDays, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud, UserCog, BedDouble
+  Mail, Calculator, Wrench, CalendarDays,LayoutDashboard, Activity, Paintbrush, History, FileSpreadsheet, UploadCloud, UserCog, BedDouble
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/stores/authStore.js";
@@ -64,8 +64,7 @@ const getNavGroups = (isAuthenticated, user) => {
   // 3. קבוצת אדמין כללי (Admin)
   if (role === 'admin') {
       groups.admin = [
-          { to: '/admin/users', label: 'ניהול משתמשים', icon: User },
-          { to: '/admin/hotels', label: 'ניהול מלונות', icon: Shield },
+          { to: '/admin', label: 'דשבורד ניהולי', icon: LayoutDashboard },
           { to: '/admin/commissions', label: 'דוח עמלות', icon: FileSpreadsheet },
           { to: '/admin/audit-logs', label: 'יומן פעילות', icon: History },
       ];
