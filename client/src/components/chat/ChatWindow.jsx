@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/utils/api.js';
-import { Send, ArrowRight, Paperclip, LoaderCircle, X } from 'lucide-react';
+import { Send, Paperclip, LoaderCircle, X, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button.jsx';
 import { Input } from '@/components/ui/Input.jsx';
 import MessageBubble from '@/components/chat/MessageBubble.jsx';
 import OrderPickerDialog from '@/components/chat/OrderPickerDialog.jsx';
-
-// ✨ קובץ הצליל (חייב להיות ב-public)
-const notifSound = new Audio('/notification.mp3');
+import { useChatStore } from '@/stores/chatStore.js';
 
 const fetchMessages = async (otherUserId) => (await api.get(`/chat/messages/${otherUserId}`)).data;
 const sendMessageApi = (data) => api.post('/chat/send', data);
-const markReadApi = (senderId) => api.put('/chat/read', { senderId });
 const deleteMessageApi = (msgId) => api.delete(`/chat/${msgId}`);
 
-export default function ChatWindow({ socket, currentUser, selectedContact, onBack }) {
+export default function ChatWindow({ currentUser, selectedContact, onBack }) {
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState([]);
   const [attachedOrder, setAttachedOrder] = useState(null);
   const [isOrderPickerOpen, setIsOrderPickerOpen] = useState(false);
   
+  // שימוש ב-Store
+  const { messages, setMessages, emitTyping, typingUsers, addMessage } = useChatStore();
+  const isContactTyping = typingUsers[selectedContact._id];
+
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   // 1. טעינת היסטוריה
   const { data: initialMessages, isLoading } = useQuery({
@@ -34,67 +35,12 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
     if (initialMessages) {
       setMessages(initialMessages);
       scrollToBottom();
-      markReadIfNeeded(initialMessages);
     }
   }, [initialMessages, selectedContact._id]);
 
-  const markReadIfNeeded = (msgs) => {
-    const hasUnread = msgs.some(m => m.sender === selectedContact._id && !m.isRead);
-    if (hasUnread) {
-      markReadApi(selectedContact._id);
-      setMessages(prev => prev.map(m => m.sender === selectedContact._id ? { ...m, isRead: true } : m));
-    }
-  };
-
-  // 2. האזנה לסוקט + ✨ צליל
   useEffect(() => {
-    const handleReceiveMessage = (newMessage) => {
-      // האם ההודעה שייכת לשיחה הנוכחית?
-      if (newMessage.sender === selectedContact._id || newMessage.sender === currentUser._id) {
-        setMessages((prev) => {
-            const exists = prev.find(m => m._id === newMessage._id || (m.tempId && m.tempId === newMessage.tempId));
-            if (exists) return prev; 
-            return [...prev, newMessage];
-        });
-        scrollToBottom();
-        
-        // אם ההודעה התקבלה מהצד השני:
-        if (newMessage.sender === selectedContact._id) {
-            // 1. נגן צליל ✨
-            notifSound.play().catch(e => console.log("Sound blocked by browser interaction policy"));
-            
-            // 2. סמן כנקרא
-            markReadApi(selectedContact._id);
-        }
-      }
-    };
-
-    const handleSentConfirmation = (savedMsg) => {
-        setMessages(prev => prev.map(m => (m.tempId && m.content === savedMsg.content) ? savedMsg : m));
-    };
-
-    const handleReadUpdate = ({ byUserId }) => {
-        if (byUserId === selectedContact._id) {
-            setMessages(prev => prev.map(m => m.sender === currentUser._id ? { ...m, isRead: true } : m));
-        }
-    };
-
-    const handleDeleted = ({ messageId }) => {
-        setMessages(prev => prev.map(m => m._id === messageId ? { ...m, isDeleted: true } : m));
-    };
-
-    socket.on('receive_message', handleReceiveMessage);
-    socket.on('message_sent_confirmation', handleSentConfirmation);
-    socket.on('messages_read_update', handleReadUpdate);
-    socket.on('message_deleted', handleDeleted);
-
-    return () => {
-      socket.off('receive_message', handleReceiveMessage);
-      socket.off('message_sent_confirmation', handleSentConfirmation);
-      socket.off('messages_read_update', handleReadUpdate);
-      socket.off('message_deleted', handleDeleted);
-    };
-  }, [socket, selectedContact._id, currentUser._id]);
+    scrollToBottom();
+  }, [messages, isContactTyping]); // גלילה גם כשהוא מתחיל להקליד
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -102,10 +48,36 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
     }, 100);
   };
 
+  // --- ניהול הקלדה ---
+  const handleInputChange = (e) => {
+      setInputText(e.target.value);
+
+      // שלח "מקליד" אם עוד לא שלחנו
+      if (!typingTimeoutRef.current) {
+          emitTyping(selectedContact._id, true);
+      }
+
+      // איפוס הטיימר
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+      // קבע טיימר לעוד 2 שניות - אם לא הוקלד כלום, שלח "הפסיק"
+      typingTimeoutRef.current = setTimeout(() => {
+          emitTyping(selectedContact._id, false);
+          typingTimeoutRef.current = null;
+      }, 2000);
+  };
+
   const handleSend = async () => {
     if ((!inputText.trim() && !attachedOrder)) return;
 
-    const tempId = Date.now().toString(); 
+    // ניקוי הקלדה מיידי
+    if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+        emitTyping(selectedContact._id, false);
+    }
+
+    const tempId = Date.now().toString();
     const payload = {
       recipientId: selectedContact._id,
       text: inputText,
@@ -113,10 +85,12 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
       isForwarded: false
     };
 
-    const optimisitcMsg = {
+    // עדכון אופטימי
+    const optimisticMsg = {
         _id: tempId,
         tempId: tempId,
         sender: currentUser._id,
+        recipient: selectedContact._id, // חשוב ללוגיקה ב-Store
         text: inputText,
         relatedOrder: attachedOrder,
         createdAt: new Date().toISOString(),
@@ -125,14 +99,15 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
         status: 'sending'
     };
 
-    setMessages(prev => [...prev, optimisitcMsg]);
+    addMessage(optimisticMsg); // הוספה ל-Store
     setInputText('');
     setAttachedOrder(null);
     scrollToBottom();
 
     try {
       const { data: sentMessage } = await sendMessageApi(payload);
-      setMessages(prev => prev.map(m => m.tempId === tempId ? sentMessage : m));
+      // החלפת ההודעה הזמנית באמיתית נעשית אוטומטית כי השרת שולח confirmation ב-Socket
+      // וה-Store שלנו מטפל בזה ב-handleIncomingMessage
     } catch (error) {
       console.error("Error sending:", error);
     }
@@ -144,10 +119,6 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
       }
   };
 
-  const handleForwardMessage = (msg) => {
-      setInputText(msg.text);
-  };
-
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -155,19 +126,33 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
     }
   };
 
+  // אנימציית הקלדה (שלוש נקודות)
+  const TypingIndicator = () => (
+      <div className="flex w-full mb-2 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="bg-white border border-gray-100 px-4 py-3 rounded-xl rounded-tl-none shadow-sm flex items-center gap-1">
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+          </div>
+      </div>
+  );
+
   return (
-    <div className="flex flex-col h-full relative bg-[#efeae2]">
+    <div className="flex flex-col h-full relative">
       {/* Header */}
       <div className="flex items-center gap-3 p-3 bg-white border-b border-slate-200 shadow-sm z-10">
         <Button variant="ghost" size="icon" className="md:hidden" onClick={onBack}>
-          <ArrowRight className="h-5 w-5 text-slate-600" />
+           {/* חץ חזרה */} 
+           <span className="text-xl">➔</span>
         </Button>
         <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold">
           {selectedContact.name.charAt(0)}
         </div>
         <div>
           <h3 className="font-bold text-slate-800">{selectedContact.name}</h3>
-          <span className="text-xs text-green-600">מחובר</span>
+          <span className="text-xs text-green-600">
+              {isContactTyping ? 'מקליד/ה...' : 'מחובר'}
+          </span>
         </div>
       </div>
 
@@ -176,15 +161,20 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
         {isLoading ? (
           <div className="flex justify-center pt-10"><LoaderCircle className="animate-spin text-slate-400" /></div>
         ) : (
-          messages.map((msg) => (
-            <MessageBubble
-              key={msg._id}
-              message={msg}
-              isMe={msg.sender === currentUser._id}
-              onDelete={handleDeleteMessage}
-              onForward={handleForwardMessage}
-            />
-          ))
+          <>
+              {messages.map((msg, index) => (
+                <MessageBubble
+                  key={msg._id || msg.tempId || index}
+                  message={msg}
+                  isMe={msg.sender === currentUser._id}
+                  onDelete={handleDeleteMessage}
+                  onForward={(m) => setInputText(m.text)}
+                />
+              ))}
+              
+              {/* ✨ הבועה של ההקלדה ✨ */}
+              {isContactTyping && <TypingIndicator />}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -213,10 +203,10 @@ export default function ChatWindow({ socket, currentUser, selectedContact, onBac
           </Button>
 
           <Input
-            className="border-none shadow-none focus-visible:ring-0 resize-none py-3 max-h-32 min-h-[40px]"
+            className="border-none shadow-none focus-visible:ring-0 resize-none py-3 max-h-32 min-h-[40px] bg-transparent"
             placeholder="הקלד הודעה..."
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange} // השינוי כאן מפעיל את ההקלדה
             onKeyDown={handleKeyDown}
             autoComplete="off"
           />
