@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/utils/api.js';
+import { Link } from 'react-router-dom'; // ✨ הוספתי
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useAuthStore } from '@/stores/authStore.js';
@@ -19,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { 
     Hotel, FilePlus2, BadgePercent, User, Phone, Activity, StickyNote, 
     Eye, Maximize2, Tag, Calendar, Mail, Save, AlertTriangle, 
-    CheckCircle2, BedDouble, Users, ScrollText 
+    CheckCircle2, BedDouble, ScrollText, Edit // ✨ אייקון עריכה
 } from 'lucide-react';
 import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
 
@@ -630,7 +631,7 @@ export default function OrderPage() {
                 </div>
             )}
 
-            {/* איזור הסגירה - קבוע למטה */}
+            {/* איזור הסגירה + כפתור עריכה */}
             <div className="pt-4 mt-2 border-t bg-slate-50 -mx-6 -mb-6 p-6 shadow-inner z-10">
                 <Label className="mb-2 block font-bold text-green-700 text-base">סגירת עסקה (קבלת עמלה):</Label>
                 <div className="flex gap-2">
@@ -648,7 +649,15 @@ export default function OrderPage() {
                         <CheckCircle2 size={16}/> סגור עסקה
                     </Button>
                 </div>
-                <div className="mt-3 flex justify-end">
+                
+                {/* ✨ כפתור המעבר לעריכה מלאה ✨ */}
+                <div className="mt-4 flex justify-between items-center">
+                     <Button variant="outline" asChild className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                        <Link to={`/edit-order/${duplicateOrder?._id}`}>
+                            <Edit className="ml-2 h-4 w-4"/> מעבר לעריכה מלאה (ושינוי פרטים)
+                        </Link>
+                    </Button>
+
                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600 h-8" onClick={() => setDuplicateOrder(null)}>התעלם והמשך ביצירה</Button>
                 </div>
             </div>
