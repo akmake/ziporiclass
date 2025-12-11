@@ -25,7 +25,7 @@ export default function HousekeeperView() {
     const { data: hotels = [] } = useQuery({ queryKey: ['hotels'], queryFn: fetchHotels });
 
     useEffect(() => {
-        if (hotels.length > 0 && !selectedHotel) setSelectedHotel(hotels[0]._id);
+        if (hotels.length > 0 && !selectedHotel) setSelectedHotel(hotels[1]._id);
     }, [hotels]);
 
     const { data: rooms = [], isLoading, isFetching } = useQuery({
