@@ -1,2 +1,3 @@
-2025/12/11-20:53:00.091 de58 Creating DB C:\Users\yosef dahan\Documents\GitHub\ziporiclass\server\.wwebjs_auth\session\Default\Session Storage since it was missing.
-2025/12/11-20:53:00.106 de58 Reusing MANIFEST C:\Users\yosef dahan\Documents\GitHub\ziporiclass\server\.wwebjs_auth\session\Default\Session Storage/MANIFEST-000001
+2025/12/11-20:54:53.919 a470 Reusing MANIFEST C:\Users\yosef dahan\Documents\GitHub\ziporiclass\server\.wwebjs_auth\session\Default\Session Storage/MANIFEST-000001
+2025/12/11-20:54:53.920 a470 Recovering log #3
+2025/12/11-20:54:53.920 a470 Reusing old log C:\Users\yosef dahan\Documents\GitHub\ziporiclass\server\.wwebjs_auth\session\Default\Session Storage/000003.log 
