@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import api from '@/utils/api.js';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { useAuthStore } from '@/stores/authStore.js'; // ✨ ייבוא ה-store
+import { useAuthStore } from '@/stores/authStore.js';
 
 import { AddRoomForm } from '@/components/orders/AddRoomForm';
 import { OrderSummaryTable } from '@/components/orders/OrderSummaryTable';
@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/Input.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
-import { Hotel, FilePlus2, BadgePercent, User, Phone, Activity, StickyNote, Eye, Maximize2, Tag, Calendar, Mail, Save } from 'lucide-react';
+import { Hotel, FilePlus2, BadgePercent, User, Phone, Activity, StickyNote, Eye, Maximize2, Tag, Calendar, Mail, Save, AlertTriangle, CheckCircle2 } from 'lucide-react'; // ✨ הוספתי אייקונים
 import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
 
 const fetchHotels = async () => (await api.get('/admin/hotels')).data;
@@ -36,6 +36,16 @@ const fetchRoomTypes = async (hotelId) => {
 
 const createOrder = (orderData) => {
   return api.post('/orders', orderData);
+};
+
+// ✨ פונקציה לעדכון סטטוס (בשביל חטיפת ההזמנה)
+const updateExistingOrder = (payload) => api.put(`/orders/${payload.orderId}`, payload);
+
+// ✨ פונקציית חיפוש
+const searchExistingOrder = async (query) => {
+    if (!query || query.length < 3) return [];
+    const { data } = await api.get(`/orders/search?query=${query}`);
+    return data;
 };
 
 const modules = {
@@ -66,15 +76,20 @@ export default function OrderPage() {
     customerPhone: '',
     customerEmail: '',
     eventDate: new Date().toISOString().split('T')[0],
-    status: 'בהמתנה',
+    status: 'בהמתנה', // ✨ הסטטוס הקובע
     notes: '',
   });
 
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [tempNotes, setTempNotes] = useState('');
   const [nextAction, setNextAction] = useState('reset');
+  
+  // ✨ State לדיאלוג הכפילות
+  const [duplicateOrder, setDuplicateOrder] = useState(null);
+  const [optimaNumberForClosure, setOptimaNumberForClosure] = useState('');
+
   const queryClient = useQueryClient();
-  const { user } = useAuthStore(); // ✨ שליפת המשתמש
+  const { user } = useAuthStore();
 
   const { data: hotels = [], isLoading: isLoadingHotels } = useQuery({
       queryKey: ['hotels'],
@@ -92,6 +107,56 @@ export default function OrderPage() {
     queryFn: () => fetchRoomTypes(selectedHotel),
     enabled: !!selectedHotel,
   });
+
+  // ✨ אפקט לחיפוש אוטומטי של כפילויות
+  useEffect(() => {
+      const checkDuplicate = async () => {
+          // מחפשים רק אם הזינו שם או טלפון
+          const query = orderDetails.customerPhone || orderDetails.customerName;
+          if (!query || query.length < 3) return;
+
+          try {
+              const results = await searchExistingOrder(query);
+              // מסננים: מחפשים רק הזמנות פעילות ('בהמתנה')
+              // שינוי: מחפשים אצל כולם, לא רק אצלי
+              const activeDuplicate = results.find(o => o.status === 'בהמתנה');
+
+              if (activeDuplicate) {
+                  setDuplicateOrder(activeDuplicate);
+              }
+          } catch (err) {
+              console.error(err);
+          }
+      };
+
+      // Debounce של 800ms
+      const timer = setTimeout(checkDuplicate, 800);
+      return () => clearTimeout(timer);
+  }, [orderDetails.customerName, orderDetails.customerPhone]);
+
+
+  // ✨ מוטציה לסגירת ההזמנה הכפולה
+  const closeDuplicateMutation = useMutation({
+      mutationFn: updateExistingOrder,
+      onSuccess: () => {
+          toast.success("ההזמנה הקיימת נסגרה על שמך בהצלחה!");
+          setDuplicateOrder(null);
+          setOptimaNumberForClosure('');
+          // אופציונלי: איפוס הטופס הנוכחי כי כבר סגרנו את העסקה
+          setOrderDetails({ ...orderDetails, customerName: '', customerPhone: '' });
+      },
+      onError: (err) => toast.error(err.response?.data?.message || "שגיאה בסגירת ההזמנה")
+  });
+
+  const handleCloseDuplicate = () => {
+      if (!optimaNumberForClosure) return toast.error("חובה להזין מספר הזמנה מאופטימה");
+      
+      closeDuplicateMutation.mutate({
+          orderId: duplicateOrder._id,
+          status: 'בוצע',
+          optimaNumber: optimaNumberForClosure
+      });
+  };
 
   const { mutate: saveOrder, isPending: isSaving } = useMutation({
     mutationFn: createOrder,
@@ -221,7 +286,7 @@ export default function OrderPage() {
 
       <Card className="shadow-lg">
           <CardHeader>
-              <CardTitle className="flex items-center gap-2">פרטי הפנייה</CardTitle>
+               <CardTitle className="flex items-center gap-2">פרטי הפנייה</CardTitle>
           </CardHeader>
           <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
@@ -346,7 +411,7 @@ export default function OrderPage() {
                     <CardTitle>סיכום הזמנה</CardTitle>
                     <CardDescription>
                         {rooms.length > 0 || extras.length > 0
-                            ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.`
+                          ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.`
                             : 'הטבלה תתעדכן לאחר הוספת פריטים.'}
                     </CardDescription>
                 </div>
@@ -460,6 +525,70 @@ export default function OrderPage() {
             <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={() => setIsNotesDialogOpen(false)}>ביטול</Button>
                 <Button onClick={handleSaveNotesFromDialog}>שמור הערות</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ✨ דיאלוג מניעת כפילויות חכם ✨ */}
+      <Dialog open={!!duplicateOrder} onOpenChange={(o) => !o && setDuplicateOrder(null)}>
+        <DialogContent className="border-t-4 border-t-amber-500 max-w-lg">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-amber-700 text-xl">
+                    <AlertTriangle className="h-6 w-6"/> נמצאה הזמנה פתוחה ללקוח זה!
+                </DialogTitle>
+                <DialogDescription>
+                    במקום ליצור כפילות, באפשרותך לסגור את ההזמנה הקיימת ולרשום את העמלה על שמך.
+                </DialogDescription>
+            </DialogHeader>
+
+            {duplicateOrder && (
+                <div className="space-y-4 py-4 bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm">
+                    <div className="flex justify-between items-center border-b pb-2">
+                        <span className="font-bold text-gray-700">הזמנה #{duplicateOrder.orderNumber}</span>
+                        <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-bold">{duplicateOrder.status}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                             <span className="block text-xs text-gray-500">שם לקוח:</span>
+                             <span className="font-medium">{duplicateOrder.customerName}</span>
+                        </div>
+                        <div>
+                             <span className="block text-xs text-gray-500">נוצרה ע"י:</span>
+                             <span className="font-medium">{duplicateOrder.createdByName || 'לא ידוע'}</span>
+                        </div>
+                         <div>
+                             <span className="block text-xs text-gray-500">סכום:</span>
+                             <span className="font-bold text-slate-800">{duplicateOrder.total_price?.toLocaleString()} ₪</span>
+                        </div>
+                         <div>
+                             <span className="block text-xs text-gray-500">מלון:</span>
+                             <span className="font-medium">{duplicateOrder.hotel?.name || '-'}</span>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                        <Label className="mb-2 block font-bold text-green-700">סגירת העסקה (קבלת עמלה):</Label>
+                        <div className="flex gap-2">
+                            <Input 
+                                placeholder="הזן מספר הזמנה מאופטימה..." 
+                                value={optimaNumberForClosure}
+                                onChange={e => setOptimaNumberForClosure(e.target.value)}
+                                className="bg-white border-green-300 focus:ring-green-500"
+                            />
+                            <Button 
+                                onClick={handleCloseDuplicate}
+                                className="bg-green-600 hover:bg-green-700 gap-2 shrink-0"
+                                disabled={!optimaNumberForClosure}
+                            >
+                                <CheckCircle2 size={16}/> סגור עסקה
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:justify-between">
+                 <Button variant="ghost" className="text-gray-400" onClick={() => setDuplicateOrder(null)}>התעלם והמשך ביצירה</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
