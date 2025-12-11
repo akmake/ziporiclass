@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/Progress.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
 import { Input } from '@/components/ui/Input.jsx';
 import { 
-    Paintbrush, RefreshCw, Trophy, ArrowUpDown, AlertTriangle 
+    Paintbrush, RefreshCw, Trophy, ArrowUpDown 
 } from 'lucide-react';
 import RoomCard from '@/components/maintenance/RoomCard.jsx';
 
@@ -16,7 +16,7 @@ const fetchMyRooms = async (hotelId) => (await api.get(`/rooms/${hotelId}`)).dat
 
 export default function HousekeeperView() {
     const [selectedHotel, setSelectedHotel] = useState(null);
-    const [isPrioritySort, setIsPrioritySort] = useState(false); // false = לפי חדר, true = לפי דחיפות
+    const [isPrioritySort, setIsPrioritySort] = useState(false); // ברירת מחדל: לפי חדר
     const [isReportOpen, setIsReportOpen] = useState(false);
     const [reportText, setReportText] = useState('');
     const [reportingRoomId, setReportingRoomId] = useState(null);
@@ -24,6 +24,7 @@ export default function HousekeeperView() {
     const queryClient = useQueryClient();
     const { data: hotels = [] } = useQuery({ queryKey: ['hotels'], queryFn: fetchHotels });
 
+    // בחירה אוטומטית של המלון הראשון (ניתן להסיר אם תרצה בחירה ידנית)
     useEffect(() => {
         if (hotels.length > 0 && !selectedHotel) setSelectedHotel(hotels[1]._id);
     }, [hotels]);
@@ -34,22 +35,69 @@ export default function HousekeeperView() {
         enabled: !!selectedHotel,
     });
 
-    // --- מוטציות ---
+    // --- מוטציות עם עדכון אופטימי (Optimistic Updates) ---
     
+    // 1. סימון משימה (צ'ק בוקס)
     const toggleTaskMutation = useMutation({
         mutationFn: ({ roomId, taskId, isCompleted }) =>
             api.patch(`/rooms/${roomId}/tasks/${taskId}`, { isCompleted }),
-        onSuccess: () => queryClient.invalidateQueries(['myRooms', selectedHotel]),
-        onError: () => toast.error("שגיאה בעדכון משימה")
+        
+        // מתבצע *לפני* שהשרת עונה
+        onMutate: async ({ roomId, taskId, isCompleted }) => {
+            // מבטלים רענונים ברקע כדי לא לדרוס את העדכון שלנו
+            await queryClient.cancelQueries(['myRooms', selectedHotel]);
+            // שומרים את המצב הקודם למקרה של שגיאה
+            const previousRooms = queryClient.getQueryData(['myRooms', selectedHotel]);
+
+            // מעדכנים את הקאש ידנית מיד!
+            queryClient.setQueryData(['myRooms', selectedHotel], (oldRooms) => {
+                return oldRooms.map(room => {
+                    if (room._id !== roomId) return room;
+                    return {
+                        ...room,
+                        tasks: room.tasks.map(t => t._id === taskId ? { ...t, isCompleted } : t)
+                    };
+                });
+            });
+
+            return { previousRooms };
+        },
+        onError: (err, newTodo, context) => {
+            // אם הייתה שגיאה - משחזרים
+            queryClient.setQueryData(['myRooms', selectedHotel], context.previousRooms);
+            toast.error("שגיאה בעדכון משימה");
+        },
+        onSettled: () => {
+            // אחרי שהכל נגמר - מוודאים סנכרון עם השרת
+            queryClient.invalidateQueries(['myRooms', selectedHotel]);
+        }
     });
 
+    // 2. עדכון סטטוס חדר (סיימתי לנקות)
     const statusMutation = useMutation({
         mutationFn: ({ roomId, status }) => api.patch(`/rooms/${roomId}/status`, { status }),
-        onSuccess: () => {
-            toast.success('סטטוס חדר עודכן!');
-            queryClient.invalidateQueries(['myRooms', selectedHotel]);
+        
+        onMutate: async ({ roomId, status }) => {
+            await queryClient.cancelQueries(['myRooms', selectedHotel]);
+            const previousRooms = queryClient.getQueryData(['myRooms', selectedHotel]);
+
+            queryClient.setQueryData(['myRooms', selectedHotel], (oldRooms) => {
+                return oldRooms.map(room => {
+                    if (room._id !== roomId) return room;
+                    return { ...room, status };
+                });
+            });
+
+            return { previousRooms };
         },
-        onError: () => toast.error("שגיאה בעדכון סטטוס")
+        onError: (err, vars, context) => {
+            queryClient.setQueryData(['myRooms', selectedHotel], context.previousRooms);
+            toast.error("שגיאה בעדכון סטטוס");
+        },
+        onSettled: () => {
+            toast.success('עודכן בהצלחה!');
+            queryClient.invalidateQueries(['myRooms', selectedHotel]);
+        }
     });
 
     const reportIssueMutation = useMutation({
@@ -74,23 +122,24 @@ export default function HousekeeperView() {
         return { total, completed, percent };
     }, [rooms]);
 
-    // 2. מיון החדרים
+    // 2. מיון חכם
     const sortedRooms = useMemo(() => {
         const baseRooms = [...rooms];
 
-        // מיון ברירת מחדל: לפי מספר חדר (פיזי)
+        // ברירת מחדל: לפי מספר חדר
         baseRooms.sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }));
 
-        // אם המשתמש בחר מיון לפי דחיפות - ממיינים מחדש
         if (isPrioritySort) {
+            // מיון לפי דחיפות
             return baseRooms.sort((a, b) => {
-                // קודם מלוכלכים
                 const aIsClean = a.status === 'clean';
                 const bIsClean = b.status === 'clean';
+                
+                // נקי תמיד בסוף
                 if (aIsClean && !bIsClean) return 1;
                 if (!aIsClean && bIsClean) return -1;
 
-                // בתוך המלוכלכים: לפי דחיפות
+                // בתוך המלוכלכים: דחיפות
                 const priorityScore = (status) => {
                     if (status === 'back_to_back') return 4;
                     if (status === 'arrival') return 3;
@@ -101,8 +150,8 @@ export default function HousekeeperView() {
                 const scoreA = priorityScore(a.dashboardStatus);
                 const scoreB = priorityScore(b.dashboardStatus);
                 
-                if (scoreA !== scoreB) return scoreB - scoreA; // הגבוה ראשון
-                return 0; // אם הדחיפות זהה, נשאר המיון המקורי (מספר חדר)
+                if (scoreA !== scoreB) return scoreB - scoreA;
+                return 0;
             });
         }
 
