@@ -119,7 +119,8 @@
   "scripts": {
     "dev": "nodemon app.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "puppeteer install"
   },
   "keywords": [],
   "author": "",
