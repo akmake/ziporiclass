@@ -1,5 +1,7 @@
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+const { Client, RemoteAuth } = pkg; // שים לב: החלפנו ל-RemoteAuth
+import { MongoStore } from 'wwebjs-mongo';
+import mongoose from 'mongoose'; // חייב לייבא את מונגוס
 import qrcode from 'qrcode-terminal';
 import InboundEmail from '../models/InboundEmail.js';     
 import ReferrerAlias from '../models/ReferrerAlias.js';   
@@ -12,16 +14,35 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
+// משתנה גלובלי ללקוח כדי למנוע יצירה כפולה
+let client;
 
-export const initWhatsAppListener = () => {
-    console.log('🔄 מפעיל את שירות הוואטסאפ...');
+export const initWhatsAppListener = async () => {
+    // מונע הפעלה כפולה אם הפונקציה נקראת פעמיים
+    if (client) return;
+
+    console.log('🔄 מפעיל את שירות הוואטסאפ (מצב RemoteAuth)...');
+
+    // אנו מוודאים שמונגו מחובר לפני יצירת החנות
+    if (mongoose.connection.readyState !== 1) {
+        console.log('⏳ ממתין לחיבור למונגו...');
+        await new Promise(resolve => mongoose.connection.once('open', resolve));
+    }
+
+    // יצירת חנות לשמירת הסשן בתוך מונגו
+    const store = new MongoStore({ mongoose: mongoose });
+
+    client = new Client({
+        // שימוש באסטרטגיית RemoteAuth לשמירה ב-DB
+        authStrategy: new RemoteAuth({
+            store: store,
+            backupSyncIntervalMs: 300000 // גיבוי סשן כל 5 דקות
+        }),
+        puppeteer: {
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
+    });
 
     client.on('qr', (qr) => {
         console.log('QR RECEIVED. Scan this with your phone:');
@@ -29,7 +50,18 @@ export const initWhatsAppListener = () => {
     });
 
     client.on('ready', () => {
-        console.log('✅ WhatsApp Client is ready!');
+        console.log('✅ WhatsApp Client is ready! (Session saved in DB)');
+    });
+
+    // טיפול בניתוקים וטעינת הברקוד מחדש אם צריך
+    client.on('disconnected', (reason) => {
+        console.log('❌ WhatsApp disconnected:', reason);
+        // השרת ינסה להתחבר מחדש אוטומטית ע"י הלוגיקה של הספרייה, 
+        // אבל במקרה של ניתוק לוגי, נצטרך לסרוק שוב.
+    });
+
+    client.on('remote_session_saved', () => {
+        console.log('💾 WhatsApp session saved to MongoDB successfully');
     });
 
     client.on('message', async (msg) => {
@@ -46,14 +78,10 @@ export const initWhatsAppListener = () => {
             if (match && match[1]) {
                 const senderPhone = msg.from.replace('@c.us', '');
                 
-                // --- תיקון: שליפת שם ללא קריסה ---
-                // במקום הפונקציה getContact שקורסת, אנחנו בודקים אם השם הגיע עם ההודעה עצמה.
-                // אם אין שם, נשתמש במספר הטלפון.
                 let senderRealName = senderPhone;
                 if (msg._data && msg._data.notifyName) {
                     senderRealName = msg._data.notifyName;
                 }
-                // --------------------------------
 
                 let rawName = match[1].trim().split(/\n/)[0];
                 const finalReferrer = await getOfficialReferrerName(rawName);
@@ -66,9 +94,7 @@ export const initWhatsAppListener = () => {
                     body: body,
                     receivedAt: new Date(),
                     status: 'new',
-                    
-                    parsedName: senderRealName, // השם שהצלחנו לחלץ או הטלפון
-                    
+                    parsedName: senderRealName,
                     parsedPhone: senderPhone,
                     parsedNote: body,
                     referrer: finalReferrer, 
@@ -88,5 +114,5 @@ export const initWhatsAppListener = () => {
         }
     });
 
-    client.initialize();
+    await client.initialize();
 };
