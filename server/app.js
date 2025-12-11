@@ -1,5 +1,17 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-dotenv.config();
+
+// --- 1. טעינת משתני סביבה (חייב להיות ראשון!) ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// טעינה מפורשת של קובץ .env מהתיקייה הנוכחית
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+// בדיקה בטרמינל שהכתובת נטענה (לצורך דיבוג)
+console.log('🔍 Mongo URI Status:', process.env.MONGO_URI ? '✅ Loaded' : '❌ MISSING');
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,11 +19,8 @@ import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
 import mongoose from 'mongoose';
 import csurf from 'csurf';
-import http from 'http'; // ✨ חדש
-import { initSocket } from './socket.js'; // ✨ חדש
-
-import path from 'path';
-import { fileURLToPath } from 'url';
+import http from 'http'; 
+import { initSocket } from './socket.js'; 
 
 // --- ייבוא נתיבים ---
 import authRoutes from './routes/auth.js';
@@ -35,26 +44,32 @@ import adminAuditRoutes from './routes/adminAudit.js';
 import adminCommissionRoutes from './routes/adminCommissions.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import userRoutes from './routes/userRoutes.js';
-import chatRoutes from './routes/chatRoutes.js'; // ✨ נתיב הצ'אט החדש
+import chatRoutes from './routes/chatRoutes.js'; 
+import { initWhatsAppListener } from './services/whatsappService.js'; // הבוט שלך
 
-try {
-  await mongoose.connect(process.env.MONGO_URI);
-  console.log('✔ Mongo connected');
-} catch (err) {
-  console.error('Mongo connection error:', err);
-  process.exit(1);
-}
+// --- 2. חיבור למסד הנתונים ---
+const connectDB = async () => {
+  try {
+    if (!process.env.MONGO_URI) {
+      throw new Error('MONGO_URI is missing in .env file');
+    }
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('✔ Mongo connected successfully');
+  } catch (err) {
+    console.error('❌ Mongo connection error:', err.message);
+    // לא עוצרים את השרת כדי שתוכל לראות את השגיאה, אבל ה-DB לא יעבוד
+  }
+};
+connectDB();
 
 const app = express();
-// ✨ יצירת שרת HTTP שעוטף את Express
+// יצירת שרת HTTP
 const httpServer = http.createServer(app);
-// ✨ הפעלת Socket.io
+// הפעלת Socket.io
 initSocket(httpServer);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 app.use(helmet({ crossOriginResourcePolicy: false }));
+
 const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
@@ -63,6 +78,7 @@ const allowedOrigins = [
 ];
 
 const filteredOrigins = allowedOrigins.filter(Boolean);
+
 app.use(cors({
   origin: filteredOrigins,
   credentials: true
@@ -72,20 +88,24 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(mongoSanitize());
 
+// הגדרת תיקיית העלאות
 const uploadsPath = path.join(__dirname, 'uploads');
 app.use('/uploads', express.static(uploadsPath));
 
+// הגנת CSRF
 const csrfProtection = csurf({
   cookie: {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production', // true רק בפרודקשן
     sameSite: 'None'
   },
 });
 
+// נתיבים שלא דורשים CSRF (כמו וובהוקים)
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
+// קבלת טוקן CSRF
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   const token = req.csrfToken();
   res.cookie('XSRF-TOKEN', token, {
@@ -96,6 +116,7 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.json({ csrfToken: token });
 });
 
+// החלת CSRF על שאר ה-API
 app.use('/api', (req, res, next) => {
   if (
     req.path.startsWith('/auth') ||
@@ -107,7 +128,7 @@ app.use('/api', (req, res, next) => {
   csrfProtection(req, res, next);
 });
 
-// --- חיבור נתיבי API ---
+// --- חיבור כל הראוטים ---
 app.use('/api/users', userRoutes);
 app.use('/api/pricelists', priceListRoutes);
 app.use('/api/orders', orderRoutes);
@@ -127,8 +148,9 @@ app.use('/api/push', pushRoutes);
 app.use('/api/admin/audit', adminAuditRoutes);
 app.use('/api/admin/commissions', adminCommissionRoutes);
 app.use('/api/bookings', bookingRoutes);
-app.use('/api/chat', chatRoutes); // ✨ כאן חיברנו את הצ'אט
+app.use('/api/chat', chatRoutes);
 
+// הגשת קבצי הקליינט (React)
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuildPath));
 
@@ -141,13 +163,17 @@ app.use('*', (req, res) => {
 
   res.sendFile(indexHtmlPath, (err) => {
     if (err) {
-      res.status(500).send(`Error serving index.html: ${err.message}.`);
+      if (!res.headersSent) {
+         res.status(500).send(`Error serving index.html: ${err.message}.`);
+      }
     }
   });
 });
 
+// --- 3. הפעלת הבוט ---
+initWhatsAppListener();
+
 const PORT = process.env.PORT || 4000;
-// ✨ שימוש ב-httpServer במקום app.listen
 httpServer.listen(PORT, () => console.log(`✔ Server & Socket running on port ${PORT}`));
 
 export default app;
