@@ -1,15 +1,13 @@
-// server/services/whatsappService.js
-
-import pkg from 'whatsapp-web.js';
-const { Client, RemoteAuth } = pkg;
-import { MongoStore } from 'wwebjs-mongo';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
 import mongoose from 'mongoose';
 import qrcode from 'qrcode-terminal';
+import pino from 'pino';
 import InboundEmail from '../models/InboundEmail.js';
 import ReferrerAlias from '../models/ReferrerAlias.js';
 import { sendPushToAll } from '../utils/pushHandler.js';
 
-// פונקציית עזר למציאת שם המפנה
+// פונקציית עזר למציאת שם המפנה (מהקוד המקורי שלך)
 async function getOfficialReferrerName(rawName) {
     if (!rawName) return null;
     const cleanName = rawName.trim().replace(/[.,;!?-]$/, '');
@@ -17,128 +15,116 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-let client;
+// פונקציית עזר לחילוץ טקסט מהודעת Baileys (המבנה שם מורכב יותר)
+const getMessageText = (msg) => {
+    if (!msg.message) return '';
+    return msg.message.conversation || 
+           msg.message.extendedTextMessage?.text || 
+           msg.message.imageMessage?.caption || 
+           '';
+};
 
-export const initWhatsAppListener = async () => {
-    if (client) return;
+let sock;
 
-    console.log('🔄 מפעיל את שירות הוואטסאפ (גרסה מותאמת לענן)...');
+async function startWhatsApp() {
+    console.log('🔄 מפעיל את Baileys WhatsApp Listener...');
 
     // וידוא חיבור למונגו
     if (mongoose.connection.readyState !== 1) {
-        console.log('⏳ ממתין לחיבור למונגו...');
         await new Promise(resolve => mongoose.connection.once('open', resolve));
     }
 
-    const store = new MongoStore({ mongoose: mongoose });
+    // ניהול אותנטיקציה (שומר תיקייה מקומית 'auth_info_baileys')
+    // הערה: ב-Render התיקייה תימחק ב-Deploy חדש, אז תצטרך לסרוק שוב.
+    // לפתרון קבוע ב-Render צריך לחבר את זה ל-Mongo, אבל זה הקוד הפשוט והעובד מיידית.
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
-    client = new Client({
-        authStrategy: new RemoteAuth({
-            store: store,
-            clientId: 'zipori-main-session', // מזהה קבוע לסשן
-            backupSyncIntervalMs: 60000
-        }),
-        // הגדלת זמן המתנה לאותנטיקציה - מונע נפילות בטעינה איטית בענן
-        authTimeoutMs: 60000, 
-        
-        puppeteer: {
-            // שימוש בנתיב מהסביבה אם קיים (קריטי ל-Render/Heroku), אחרת לוקאל
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
-            
-            // שימוש ב-Headless החדש של כרום (יציב יותר)
-            headless: 'new', 
-            
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',      // מונע קריסות זיכרון בסביבת דוקר
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',             // חוסך המון זיכרון (קריטי לשרתים קטנים)
-                '--disable-gpu'
-            ],
-            // מונע Timeout בטעינת הדף הראשון
-            timeout: 0 
+    sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false, // אנחנו מטפלים ב-QR ידנית
+        logger: pino({ level: 'silent' }), // משתיק לוגים מיותרים
+        browser: ["Zipori System", "Chrome", "10.0"], // מזהה דפדפן פיקטיבי
+        connectTimeoutMs: 60000,
+    });
+
+    // ניהול אירועי חיבור
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            console.log('QR RECEIVED. Scan this with your phone:');
+            qrcode.generate(qr, { small: true });
+        }
+
+        if (connection === 'close') {
+            const shouldReconnect = (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('❌ Connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
+            if (shouldReconnect) {
+                startWhatsApp();
+            }
+        } else if (connection === 'open') {
+            console.log('✅ WhatsApp (Baileys) Connected!');
         }
     });
 
-    client.on('qr', (qr) => {
-        console.log('QR RECEIVED. Scan this with your phone:');
-        qrcode.generate(qr, { small: true });
-    });
+    // שמירת קרדנציאלים כשהם מתעדכנים
+    sock.ev.on('creds.update', saveCreds);
 
-    client.on('ready', () => {
-        console.log('✅ WhatsApp Client is ready! (Connected to persistent session)');
-    });
+    // האזנה להודעות חדשות
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return;
 
-    client.on('remote_session_saved', () => {
-        console.log('💾 Session saved to DB...');
-    });
+        for (const msg of messages) {
+            try {
+                if (msg.key.fromMe) continue; // מתעלם מהודעות שאני שלחתי
 
-    // טיפול בניתוקים - ניסיון התחברות מחדש
-    client.on('disconnected', (reason) => {
-        console.log('❌ Client was logged out', reason);
-        // אופציונלי: אפשר להוסיף כאן לוגיקה לאתחול מחדש
-    });
+                const body = getMessageText(msg);
+                
+                // === הלוגיקה העסקית שלך ===
+                if (!body.includes('שלום הגעתי דרך')) continue;
 
-    client.on('message', async (msg) => {
-        try {
-            const body = msg.body || '';
+                const regex = /שלום הגעתי דרך\s+(.+)/i;
+                const match = body.match(regex);
 
-            // סינון ראשוני - רק הודעות עם "שלום הגעתי דרך"
-            if (!body.includes('שלום הגעתי דרך')) {
-                return;
-            }
+                if (match && match[1]) {
+                    // חילוץ מספר טלפון (Baileys נותן פורמט 97250...@s.whatsapp.net)
+                    const senderPhone = msg.key.remoteJid.replace('@s.whatsapp.net', '');
+                    const senderRealName = msg.pushName || senderPhone;
 
-            const regex = /שלום הגעתי דרך\s+(.+)/i;
-            const match = body.match(regex);
+                    let rawName = match[1].trim().split(/\n/)[0];
+                    const finalReferrer = await getOfficialReferrerName(rawName);
 
-            if (match && match[1]) {
-                const senderPhone = msg.from.replace('@c.us', '');
+                    console.log(`🎯 זוהה ליד (Baileys): ${senderRealName}, מפנה: ${finalReferrer}`);
 
-                let senderRealName = senderPhone;
-                if (msg._data && msg._data.notifyName) {
-                    senderRealName = msg._data.notifyName;
+                    // שמירה ב-DB (בדיוק כמו בקוד הקודם)
+                    await InboundEmail.create({
+                        from: 'WhatsApp',
+                        type: 'הודעת וואטסאפ',
+                        body: body,
+                        receivedAt: new Date(),
+                        status: 'new',
+                        parsedName: senderRealName,
+                        parsedPhone: senderPhone,
+                        parsedNote: body,
+                        referrer: finalReferrer,
+                        hotel: null,
+                        handledBy: null
+                    });
+
+                    // שליחת Push
+                    sendPushToAll({
+                        title: `ליד חדש: ${senderRealName}`,
+                        body: `הגיע דרך: ${finalReferrer}`,
+                        url: '/leads'
+                    });
                 }
-
-                let rawName = match[1].trim().split(/\n/)[0];
-                const finalReferrer = await getOfficialReferrerName(rawName);
-
-                console.log(`🎯 זוהה ליד: ${senderRealName}, מפנה: ${finalReferrer}`);
-
-                // שמירה ב-DB
-                await InboundEmail.create({
-                    from: 'WhatsApp',
-                    type: 'הודעת וואטסאפ',
-                    body: body,
-                    receivedAt: new Date(),
-                    status: 'new',
-                    parsedName: senderRealName,
-                    parsedPhone: senderPhone,
-                    parsedNote: body,
-                    referrer: finalReferrer,
-                    hotel: null,
-                    handledBy: null
-                });
-
-                // שליחת התראה (Push)
-                sendPushToAll({
-                    title: `ליד חדש: ${senderRealName}`,
-                    body: `הגיע דרך: ${finalReferrer}`,
-                    url: '/leads'
-                });
+            } catch (err) {
+                console.error('Error processing message:', err);
             }
-
-        } catch (error) {
-            console.error('❌ Error processing WhatsApp message:', error);
         }
     });
+}
 
-    // הפעלה
-    try {
-        await client.initialize();
-    } catch (err) {
-        console.error('❌ Failed to initialize WhatsApp client:', err);
-    }
+export const initWhatsAppListener = () => {
+    startWhatsApp().catch(err => console.error("Baileys Init Error:", err));
 };
