@@ -1,4 +1,4 @@
-import { makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys';
+import { makeWASocket, DisconnectReason, BufferJSON, initAuthCreds } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import mongoose from 'mongoose';
 import qrcode from 'qrcode-terminal';
@@ -7,6 +7,76 @@ import InboundEmail from '../models/InboundEmail.js';
 import ReferrerAlias from '../models/ReferrerAlias.js';
 import { sendPushToAll } from '../utils/pushHandler.js';
 
+// === 1. הגדרת מודל מהיר לשמירת סשן במונגו ===
+const sessionSchema = new mongoose.Schema({
+    _id: String, // המפתח (למשל 'creds' או מפתחות הצפנה)
+    data: Object // המידע עצמו
+});
+const Session = mongoose.models.WhatsAppSession || mongoose.model('WhatsAppSession', sessionSchema);
+
+// === 2. פונקציית Auth מותאמת למונגו (מחליפה את הקבצים) ===
+const useMongoDBAuthState = async () => {
+    // פונקציה לכתיבת מידע
+    const writeData = async (data, key) => {
+        try {
+            await Session.findByIdAndUpdate(key, { data }, { upsert: true });
+        } catch (error) {
+            console.error('Failed to save session to DB:', error);
+        }
+    };
+
+    // פונקציה לקריאת מידע
+    const readData = async (key) => {
+        try {
+            const doc = await Session.findById(key);
+            return doc ? doc.data : null;
+        } catch (error) {
+            console.error('Failed to read session from DB:', error);
+            return null;
+        }
+    };
+
+    // טעינת או יצירת קרדנציאלים
+    const creds = await readData('creds') || initAuthCreds();
+
+    return {
+        state: {
+            creds,
+            keys: {
+                get: async (type, ids) => {
+                    const data = {};
+                    await Promise.all(ids.map(async (id) => {
+                        let value = await readData(`${type}-${id}`);
+                        if (type === 'app-state-sync-key' && value) {
+                            value = BufferJSON.reviver(null, value);
+                        }
+                        if (value) data[id] = value;
+                    }));
+                    return data;
+                },
+                set: async (data) => {
+                    const tasks = [];
+                    for (const category in data) {
+                        for (const id in data[category]) {
+                            const value = data[category][id];
+                            const key = `${category}-${id}`;
+                            // מחיקה או שמירה
+                            if (value === null) {
+                                tasks.push(Session.findByIdAndDelete(key));
+                            } else {
+                                tasks.push(writeData(value, key));
+                            }
+                        }
+                    }
+                    await Promise.all(tasks);
+                }
+            }
+        },
+        saveCreds: () => writeData(creds, 'creds')
+    };
+};
+
+// === 3. לוגיקה עסקית (זיהוי לידים) ===
 async function getOfficialReferrerName(rawName) {
     if (!rawName) return null;
     const cleanName = rawName.trim().replace(/[.,;!?-]$/, '');
@@ -25,22 +95,22 @@ const getMessageText = (msg) => {
 let sock;
 
 async function startWhatsApp() {
-    console.log('🔄 מפעיל את Baileys WhatsApp Listener (גרסה יציבה)...');
+    console.log('🔄 מפעיל את Baileys עם שמירה ל-MongoDB...');
 
     if (mongoose.connection.readyState !== 1) {
         await new Promise(resolve => mongoose.connection.once('open', resolve));
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    // שימוש באותנטיקציה מול מונגו במקום קבצים
+    const { state, saveCreds } = await useMongoDBAuthState();
 
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ["Zipori Server", "Chrome", "10.0"],
-        // === תיקון 1: הגדרות רשת למניעת ניתוקים ===
+        browser: ["Zipori Cloud", "Chrome", "10.0"],
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 10000, // שולח פינג כל 10 שניות
+        keepAliveIntervalMs: 10000,
         retryRequestDelayMs: 2000
     });
 
@@ -53,45 +123,36 @@ async function startWhatsApp() {
         }
 
         if (connection === 'close') {
-            // זיהוי אם הניתוק הוא "בעיטה" (לוגאאוט) או סתם נפילה
             const shouldReconnect = (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
             console.log('❌ Connection closed. Reconnecting:', shouldReconnect);
-            
-            // אם זה סתם ניתוק רשת, נסה להתחבר שוב מיד
             if (shouldReconnect) {
                 startWhatsApp();
+            } else {
+                console.log('⚠️ נותקנו סופית (Logout). יש למחוק את הסשן ממונגו כדי לסרוק מחדש.');
+                // אופציונלי: כאן אפשר למחוק את הסשן מה-DB אוטומטית
             }
         } else if (connection === 'open') {
-            console.log('✅ WhatsApp Connected! Ready for NEW messages.');
+            console.log('✅ WhatsApp Connected & Saved to DB!');
         }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        // בודקים כל הודעה שנכנסת
         for (const msg of messages) {
             try {
                 if (msg.key.fromMe) continue;
 
-                // === תיקון 2: התעלמות מהודעות ישנות (היסטוריה) ===
-                // אם ההודעה בת יותר מ-2 דקות (120 שניות), דלג עליה
+                // סינון הודעות ישנות (מעל 2 דקות)
                 const messageTimestamp = typeof msg.messageTimestamp === 'number' 
                     ? msg.messageTimestamp 
                     : msg.messageTimestamp.low;
-                
-                const secondsAgo = (Date.now() / 1000) - messageTimestamp;
-                
-                if (secondsAgo > 120) {
-                    // לוג שקט כדי שתדע שזה קורה
-                    // console.log(`⏳ Skipped old message (${Math.round(secondsAgo)}s ago)`);
-                    continue;
-                }
+                if ((Date.now() / 1000) - messageTimestamp > 120) continue;
 
                 const body = getMessageText(msg);
                 
-                // לוג דיבוג לשרת: מראה כל הודעה שנכנסת בזמן אמת
-                console.log(`📩 הודעה נכנסה: ${body.substring(0, 30)}...`);
+                // לוג לשרת
+                console.log(`📩 הודעה: ${body.substring(0, 30)}...`);
 
                 if (!body.includes('שלום הגעתי דרך')) continue;
 
@@ -104,7 +165,7 @@ async function startWhatsApp() {
                     let rawName = match[1].trim().split(/\n/)[0];
                     const finalReferrer = await getOfficialReferrerName(rawName);
 
-                    console.log(`🎯 ליד חדש זוהה ונשמר: ${senderRealName}`);
+                    console.log(`🎯 ליד חדש נשמר: ${senderRealName}`);
 
                     await InboundEmail.create({
                         from: 'WhatsApp',
