@@ -1,12 +1,13 @@
 import pkg from 'whatsapp-web.js';
-const { Client, RemoteAuth } = pkg; // שים לב: החלפנו ל-RemoteAuth
+const { Client, RemoteAuth } = pkg;
 import { MongoStore } from 'wwebjs-mongo';
-import mongoose from 'mongoose'; // חייב לייבא את מונגוס
+import mongoose from 'mongoose';
 import qrcode from 'qrcode-terminal';
 import InboundEmail from '../models/InboundEmail.js';     
 import ReferrerAlias from '../models/ReferrerAlias.js';   
 import { sendPushToAll } from '../utils/pushHandler.js';  
 
+// פונקציית עזר לזיהוי שם מפנה
 async function getOfficialReferrerName(rawName) {
     if (!rawName) return null;
     const cleanName = rawName.trim().replace(/[.,;!?-]$/, ''); 
@@ -14,35 +15,47 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-// משתנה גלובלי ללקוח כדי למנוע יצירה כפולה
 let client;
 
 export const initWhatsAppListener = async () => {
-    // מונע הפעלה כפולה אם הפונקציה נקראת פעמיים
+    // מונע הפעלה כפולה אם הפונקציה נקראת פעמיים בטעות
     if (client) return;
 
-    console.log('🔄 מפעיל את שירות הוואטסאפ (מצב RemoteAuth)...');
+    console.log('🔄 מפעיל את שירות הוואטסאפ (RemoteAuth + ClientID)...');
 
-    // אנו מוודאים שמונגו מחובר לפני יצירת החנות
+    // 1. שלב קריטי: מוודאים שמונגו מחובר לפני שמנסים לשמור בו את הסשן
     if (mongoose.connection.readyState !== 1) {
         console.log('⏳ ממתין לחיבור למונגו...');
         await new Promise(resolve => mongoose.connection.once('open', resolve));
+        console.log('✔ מונגו מחובר, ממשיך בטעינת הוואטסאפ...');
     }
 
-    // יצירת חנות לשמירת הסשן בתוך מונגו
+    // 2. הגדרת החנות במונגו - זה מה ששומר את הנתונים ב-DB במקום בקובץ
     const store = new MongoStore({ mongoose: mongoose });
 
+    // 3. יצירת הלקוח עם מזהה קבוע
     client = new Client({
-        // שימוש באסטרטגיית RemoteAuth לשמירה ב-DB
         authStrategy: new RemoteAuth({
             store: store,
-            backupSyncIntervalMs: 300000 // גיבוי סשן כל 5 דקות
+            clientId: 'zipori-production-session', // <--- התיקון: שם קבוע שיישמר ב-DB ולא ישתנה בריסטרט
+            backupSyncIntervalMs: 60000 // גיבוי הסשן למונגו כל דקה
         }),
         puppeteer: {
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // מונע קריסות זכרון בסביבת דוקר/רנדר
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ],
+            timeout: 0
         }
     });
+
+    // --- אירועים ---
 
     client.on('qr', (qr) => {
         console.log('QR RECEIVED. Scan this with your phone:');
@@ -50,24 +63,18 @@ export const initWhatsAppListener = async () => {
     });
 
     client.on('ready', () => {
-        console.log('✅ WhatsApp Client is ready! (Session saved in DB)');
-    });
-
-    // טיפול בניתוקים וטעינת הברקוד מחדש אם צריך
-    client.on('disconnected', (reason) => {
-        console.log('❌ WhatsApp disconnected:', reason);
-        // השרת ינסה להתחבר מחדש אוטומטית ע"י הלוגיקה של הספרייה, 
-        // אבל במקרה של ניתוק לוגי, נצטרך לסרוק שוב.
+        console.log('✅ WhatsApp Client is ready! (Connected via MongoDB)');
     });
 
     client.on('remote_session_saved', () => {
-        console.log('💾 WhatsApp session saved to MongoDB successfully');
+        console.log('💾 Session saved to MongoDB...');
     });
 
     client.on('message', async (msg) => {
         try {
             const body = msg.body || '';
 
+            // בדיקה אם ההודעה רלוונטית
             if (!body.includes('שלום הגעתי דרך')) {
                 return; 
             }
@@ -78,6 +85,7 @@ export const initWhatsAppListener = async () => {
             if (match && match[1]) {
                 const senderPhone = msg.from.replace('@c.us', '');
                 
+                // ניסיון לחלץ שם פרטי (עם הגנה מקריסה)
                 let senderRealName = senderPhone;
                 if (msg._data && msg._data.notifyName) {
                     senderRealName = msg._data.notifyName;
@@ -88,6 +96,7 @@ export const initWhatsAppListener = async () => {
 
                 console.log(`🎯 זוהה ליד: ${senderRealName}, מפנה: ${finalReferrer}`);
 
+                // יצירת הליד ב-DB
                 await InboundEmail.create({
                     from: 'WhatsApp',
                     type: 'הודעת וואטסאפ',
@@ -102,6 +111,7 @@ export const initWhatsAppListener = async () => {
                     handledBy: null
                 });
 
+                // שליחת התראה
                 sendPushToAll({
                     title: `ליד חדש: ${senderRealName}`,
                     body: `הגיע דרך: ${finalReferrer}`,
@@ -114,5 +124,6 @@ export const initWhatsAppListener = async () => {
         }
     });
 
+    // הפעלה
     await client.initialize();
 };
