@@ -1,5 +1,7 @@
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+const { Client, RemoteAuth } = pkg; // שינוי מ-LocalAuth ל-RemoteAuth
+import { MongoStore } from 'wwebjs-mongo'; // ייבוא ה-Store של מונגו
+import mongoose from 'mongoose';
 import qrcode from 'qrcode-terminal';
 import InboundEmail from '../models/InboundEmail.js';     
 import ReferrerAlias from '../models/ReferrerAlias.js';   
@@ -12,16 +14,42 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
+let client; // הגדרת המשתנה בחוץ
 
-export const initWhatsAppListener = () => {
-    console.log('🔄 מפעיל את שירות הוואטסאפ...');
+export const initWhatsAppListener = async () => {
+    if (client) return; // מניעת אתחול כפול
+
+    console.log('🔄 מפעיל את שירות הוואטסאפ (עם שמירה ל-MongoDB)...');
+
+    // 1. וידוא שיש חיבור ל-MongoDB לפני שמאתחלים את ה-Store
+    if (mongoose.connection.readyState !== 1) {
+        console.log('⏳ ממתין לחיבור למונגו...');
+        await new Promise(resolve => mongoose.connection.once('open', resolve));
+    }
+
+    // 2. יצירת ה-Store שמחובר למונגו
+    const store = new MongoStore({ mongoose: mongoose });
+
+    // 3. הגדרת הקליינט עם RemoteAuth
+    client = new Client({
+        authStrategy: new RemoteAuth({
+            store: store,
+            clientId: 'zipori-session', // מזהה ייחודי לסשן בתוך הדאטהבייס
+            backupSyncIntervalMs: 300000 // גיבוי סשן כל 5 דקות
+        }),
+        puppeteer: {
+            headless: true,
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // חשוב לשרתים עם זיכרון מוגבל
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ]
+        }
+    });
 
     client.on('qr', (qr) => {
         console.log('QR RECEIVED. Scan this with your phone:');
@@ -29,7 +57,12 @@ export const initWhatsAppListener = () => {
     });
 
     client.on('ready', () => {
-        console.log('✅ WhatsApp Client is ready!');
+        console.log('✅ WhatsApp Client is ready! (Connected to persistent session)');
+    });
+
+    // לוג לאישור שהסשן נשמר לדאטהבייס
+    client.on('remote_session_saved', () => {
+        console.log('💾 Session saved to MongoDB...');
     });
 
     client.on('message', async (msg) => {
@@ -46,14 +79,12 @@ export const initWhatsAppListener = () => {
             if (match && match[1]) {
                 const senderPhone = msg.from.replace('@c.us', '');
                 
-                // --- תיקון: שליפת שם ללא קריסה ---
-                // במקום הפונקציה getContact שקורסת, אנחנו בודקים אם השם הגיע עם ההודעה עצמה.
-                // אם אין שם, נשתמש במספר הטלפון.
+                // --- מנגנון חילוץ שם ---
                 let senderRealName = senderPhone;
                 if (msg._data && msg._data.notifyName) {
                     senderRealName = msg._data.notifyName;
                 }
-                // --------------------------------
+                // -----------------------
 
                 let rawName = match[1].trim().split(/\n/)[0];
                 const finalReferrer = await getOfficialReferrerName(rawName);
@@ -66,9 +97,7 @@ export const initWhatsAppListener = () => {
                     body: body,
                     receivedAt: new Date(),
                     status: 'new',
-                    
-                    parsedName: senderRealName, // השם שהצלחנו לחלץ או הטלפון
-                    
+                    parsedName: senderRealName,
                     parsedPhone: senderPhone,
                     parsedNote: body,
                     referrer: finalReferrer, 
@@ -88,5 +117,5 @@ export const initWhatsAppListener = () => {
         }
     });
 
-    client.initialize();
+    await client.initialize();
 };
