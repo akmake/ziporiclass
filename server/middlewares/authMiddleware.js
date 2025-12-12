@@ -41,41 +41,11 @@ export const requireAuth = async (req, res, next) => {
 // --- בדיקות הרשאה ספציפיות ---
 
 // רק מנהל
-// server/middlewares/authMiddleware.js
-
 export const requireAdmin = (req, res, next) => {
-    // --- 🛑 מלכודת דיבוג - התחלה ---
-    console.log("========================================");
-    console.log("🛑 ADMIN CHECK TRAP TRIGGERED");
-    
-    // בדיקה 1: האם בכלל זוהה משתמש?
-    if (!req.user) {
-        console.log("❌ CRITICAL: req.user is UNDEFINED!");
-        return res.status(401).json({ message: 'לא מחובר (req.user חסר)' });
-    }
-
-    // בדיקה 2: מה השרת רואה בפועל?
-    console.log(`👤 User Email: '${req.user.email}'`);
-    console.log(`🆔 User ID:    '${req.user._id}'`);
-    console.log(`🔑 User Role:  '${req.user.role}'`); // <--- זה הערך הקובע!
-    
-    // השוואה לערך שאתה מצפה לו
-    if (req.user.role === 'admin') {
-        console.log("✅ ACCESS GRANTED: User is admin.");
-    } else {
-        console.log("⛔ ACCESS DENIED: User is NOT admin inside the server memory.");
-    }
-    console.log("========================================");
-    // --- 🛑 מלכודת דיבוג - סוף ---
-
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ 
-            message: 'גישה נדחתה: הרשאת מנהל נדרשת',
-            debug_info: `Server sees role: ${req.user.role}` // שלח את זה לקליינט כדי שתראה בעיניים
-        });
-    }
-
-    next();
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'גישה נדחתה: הרשאת מנהל נדרשת' });
+  }
+  next();
 };
 
 // מנהל + אחראי משמרת (למשל: לשיבוץ חדרים או העלאת קבצים)
