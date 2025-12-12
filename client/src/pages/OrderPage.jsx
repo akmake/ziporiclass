@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/utils/api.js';
-import { Link } from 'react-router-dom'; // ✨ הוספתי
+import { Link } from 'react-router-dom';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useAuthStore } from '@/stores/authStore.js';
@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { 
     Hotel, FilePlus2, BadgePercent, User, Phone, Activity, StickyNote, 
     Eye, Maximize2, Tag, Calendar, Mail, Save, AlertTriangle, 
-    CheckCircle2, BedDouble, ScrollText, Edit // ✨ אייקון עריכה
+    CheckCircle2, BedDouble, ScrollText, Edit, Users, Baby
 } from 'lucide-react';
 import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
 
@@ -113,28 +113,40 @@ export default function OrderPage() {
     enabled: !!selectedHotel,
   });
 
-  // אפקט לחיפוש אוטומטי של כפילויות
+  // ✨ אפקט לחיפוש אוטומטי של כפילויות (עם השהייה של 3 שניות)
   useEffect(() => {
       const checkDuplicate = async () => {
-          const query = orderDetails.customerPhone || orderDetails.customerName;
+          // מנקים רווחים ומקפים מהטלפון כדי לדייק בבדיקה
+          const phone = orderDetails.customerPhone;
+          const name = orderDetails.customerName;
+          
+          const query = phone || name;
+
+          // מתחילים לחפש רק אם יש לפחות 3 תווים
           if (!query || query.length < 3) return;
 
           try {
               const results = await searchExistingOrder(query);
-              // מחפשים הזמנה פעילה ('בהמתנה' וכו')
+              
+              // מסננים: מחפשים רק הזמנות פעילות ('בהמתנה', 'בטיפול')
+              // ומחפשים גם של אחרים (כדי לאפשר חטיפה)
               const activeDuplicate = results.find(o => 
                   ['בהמתנה', 'בטיפול', 'in_progress', 'sent'].includes(o.status)
               );
 
               if (activeDuplicate) {
+                  // אם מצאנו, מציגים את הדיאלוג
                   setDuplicateOrder(activeDuplicate);
               }
           } catch (err) {
-              console.error(err);
+              console.error("Search failed", err);
           }
       };
 
-      const timer = setTimeout(checkDuplicate, 800);
+      // ✨ ההשהייה שביקשת: 3000ms (3 שניות)
+      const timer = setTimeout(checkDuplicate, 3000);
+      
+      // אם המשתמש מקליד שוב לפני שעברו 3 שניות, הטיימר מתאפס
       return () => clearTimeout(timer);
   }, [orderDetails.customerName, orderDetails.customerPhone]);
 
@@ -571,8 +583,8 @@ export default function OrderPage() {
                         </div>
                     </div>
 
-                    {/* פירוט חדרים */}
-                    {duplicateOrder.rooms?.length > 0 && (
+                    {/* ✨✨ פירוט חדרים חכם - מוגן מפני קריסה ✨✨ */}
+                    {duplicateOrder.rooms && duplicateOrder.rooms.length > 0 ? (
                         <div className="mb-4">
                             <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BedDouble size={16}/> הרכב חדרים:</h4>
                             <div className="space-y-2">
@@ -583,23 +595,28 @@ export default function OrderPage() {
                                             <span>{room.price?.toLocaleString()} ₪</span>
                                         </div>
                                         <div className="text-xs text-gray-500 flex flex-wrap gap-2">
-                                            {room.adults > 0 && <span className="bg-slate-100 px-1 rounded">מבוגרים: {room.adults}</span>}
-                                            {room.children > 0 && <span className="bg-slate-100 px-1 rounded">ילדים: {room.children}</span>}
-                                            {room.babies > 0 && <span className="bg-slate-100 px-1 rounded">תינוקות: {room.babies}</span>}
+                                            {/* שימוש באייקונים וטקסט ברור להרכב */}
+                                            {room.adults > 0 && <span className="bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1"><Users size={10}/> {room.adults} מבוגרים</span>}
+                                            {room.children > 0 && <span className="bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1"><Users size={10}/> {room.children} ילדים</span>}
+                                            {room.babies > 0 && <span className="bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1"><Baby size={10}/> {room.babies} תינוקות</span>}
                                         </div>
                                         {room.price_list_names?.length > 0 && (
-                                            <div className="text-xs text-blue-600 mt-1">
+                                            <div className="text-xs text-blue-600 mt-1 font-medium">
                                                 מחירונים: {room.price_list_names.join(', ')}
                                             </div>
                                         )}
                                         {room.notes && (
-                                            <div className="text-xs text-amber-700 mt-1 bg-amber-50 p-1 rounded">
-                                                הערה: {room.notes}
+                                            <div className="text-xs text-amber-700 mt-1 bg-amber-50 p-2 rounded border border-amber-100">
+                                                הערה לחדר: {room.notes}
                                             </div>
                                         )}
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    ) : (
+                        <div className="mb-4 text-center py-4 bg-gray-50 rounded text-gray-400 text-xs">
+                            (אין פירוט חדרים או שהשרת לא החזיר אותם)
                         </div>
                     )}
 
@@ -623,6 +640,7 @@ export default function OrderPage() {
                         <div className="mb-2">
                             <h4 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><ScrollText size={16}/> הערות להזמנה:</h4>
                             <div className="bg-yellow-50 p-3 rounded border border-yellow-200 text-sm text-slate-700 max-h-24 overflow-y-auto">
+                                {/* ניקוי תגיות HTML לתצוגה מהירה */}
                                 {duplicateOrder.notes.replace(/<[^>]+>/g, ' ')}
                             </div>
                         </div>
