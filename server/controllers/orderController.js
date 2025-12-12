@@ -1,5 +1,3 @@
-// server/controllers/orderController.js
-
 import Order from '../models/Order.js';
 import PriceList from '../models/PriceList.js';
 import RoomType from '../models/RoomType.js';
@@ -7,7 +5,7 @@ import { calculateRoomTotalPrice } from '../lib/priceCalculator.js';
 import { getNextSequenceValue } from '../models/Counter.js';
 import nodemailer from 'nodemailer';
 import { logAction } from '../utils/auditLogger.js';
-// ייבואים שהיו בקובץ המקורי שלך
+// ייבואים שהיו בקובץ המקורי שלך (הנחה שמגיעים מנתיבים אלו)
 import { catchAsync } from '../middlewares/errorHandler.js';
 import AppError from '../utils/AppError.js';
 
@@ -95,7 +93,7 @@ export const createOrder = async (req, res) => {
             hotel,
             user: req.user.id,
             salespersonName: req.user.name,
-
+            
             // ✨ תוספת חדשה: שמירת היוצר לחישוב עמלות
             createdBy: req.user.id,
             createdByName: req.user.name,
@@ -133,7 +131,7 @@ export const updateOrder = async (req, res) => {
         const order = await Order.findById(req.params.id);
 
         if (!order) return res.status(404).json({ message: 'ההזמנה לא נמצאה' });
-
+        
         // בדיקת הרשאה: בעלים, אדמין, או אם מנסים לשנות ל'בוצע' (סגירה ע"י אחר)
         if (order.user.toString() !== req.user.id && req.user.role !== 'admin' && status !== 'בוצע') {
             return res.status(403).json({ message: 'אין הרשאה לערוך הזמנה זו' });
@@ -219,7 +217,7 @@ export const updateOrder = async (req, res) => {
         order.extras = currentExtras;
         order.discountPercent = currentDiscount;
         order.total_price = finalPrice;
-
+        
         // עדכון אופציונלי של המספר גם ללא שינוי סטטוס
         if (optimaNumber) order.optimaNumber = optimaNumber;
 
@@ -256,7 +254,7 @@ export const getAllOrders = async (req, res) => {
     }
 };
 
-// ✨ פונקציה חדשה: חיפוש גלובלי (הגרסה המתוקנת עם rooms, extras וכו')
+// ✨ פונקציה חדשה: חיפוש גלובלי (עבור המסך החצי גלוי)
 export const searchAllOrders = async (req, res) => {
     try {
         const { query } = req.query;
@@ -275,11 +273,10 @@ export const searchAllOrders = async (req, res) => {
                 }
             ]
         })
-        // ✨ התיקון כאן: הוספנו את rooms, extras, notes, discountPercent לרשימת השדות
-        .select('orderNumber customerName customerPhone status hotel total_price createdByName createdAt optimaNumber user rooms extras notes discountPercent')
+        .select('orderNumber customerName customerPhone status hotel total_price createdByName createdAt optimaNumber user') 
         .populate('hotel', 'name')
         .sort({ createdAt: -1 })
-        .limit(10); 
+        .limit(10); // מגבלת תוצאות
 
         res.json(orders);
     } catch (error) {
