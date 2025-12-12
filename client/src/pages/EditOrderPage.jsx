@@ -1,3 +1,4 @@
+// client/src/pages/EditOrderPage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,7 +7,7 @@ import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { useAuthStore } from '@/stores/authStore.js'; // ✨ ייבוא ה-store
+import { useAuthStore } from '@/stores/authStore.js'; 
 
 // Components
 import { AddRoomForm } from '@/components/orders/AddRoomForm';
@@ -22,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 // Icons
 import {
     ArrowRight, User, Phone, Activity, BadgePercent, Save,
-    FileDown, Hotel, Eye, StickyNote, FilePlus2, Tag, Mail, Calendar, Maximize2
+    FileDown, Hotel, Eye, StickyNote, FilePlus2, Tag, Mail, Calendar, Maximize2, AlertTriangle
 } from 'lucide-react';
 
 import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
@@ -65,7 +66,7 @@ export default function EditOrderPage() {
     const { orderId } = useParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const { user } = useAuthStore(); // ✨ שליפת המשתמש
+    const { user } = useAuthStore(); 
 
     const [rooms, setRooms] = useState([]);
     const [extras, setExtras] = useState([]);
@@ -78,7 +79,8 @@ export default function EditOrderPage() {
         customerEmail: '',
         eventDate: '',
         status: 'בהמתנה',
-        notes: ''
+        notes: '',
+        optimaNumber: '' // ✨ שדה חדש בסטייט
     });
 
     const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
@@ -129,6 +131,7 @@ export default function EditOrderPage() {
                 eventDate: order.eventDate ? format(new Date(order.eventDate), 'yyyy-MM-dd') : '',
                 status: order.status || 'בהמתנה',
                 notes: order.notes || '',
+                optimaNumber: order.optimaNumber || '' // ✨ טעינת המספר הקיים אם יש
             });
         }
     }, [order]);
@@ -209,6 +212,11 @@ export default function EditOrderPage() {
 
     const handleFinishEditing = () => {
         if (!orderDetails.customerName) return toast.error('חובה להזין שם לקוח.');
+
+        // ✨ וולידציה: אם סוגרים הזמנה, חובה מספר אופטימה
+        if (orderDetails.status === 'בוצע' && !orderDetails.optimaNumber) {
+            return toast.error('לסגירת הזמנה (בוצע) חובה להזין מספר הזמנה מאופטימה.');
+        }
 
         const dataToSave = {
           ...order,
@@ -300,13 +308,30 @@ export default function EditOrderPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="בהמתנה">בהמתנה</SelectItem>
-                                    <SelectItem value="בוצע">בוצע</SelectItem>
+                                    <SelectItem value="בוצע">בוצע (סגירה)</SelectItem>
                                     <SelectItem value="לא רלוונטי">לא רלוונטי</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        <div className="lg:col-span-3">
+                        {/* ✨✨ שדה דינמי: מופיע רק כשבוחרים "בוצע" ✨✨ */}
+                        {orderDetails.status === 'בוצע' && (
+                             <div className="animate-in fade-in zoom-in-95 duration-300">
+                                <Label htmlFor="optimaNumber" className="mb-1 text-green-700 font-bold flex items-center gap-1">
+                                    <CheckCircle2 size={14}/> מספר הזמנה מאופטימה (חובה)
+                                </Label>
+                                <Input 
+                                    id="optimaNumber" 
+                                    name="optimaNumber" 
+                                    value={orderDetails.optimaNumber} 
+                                    onChange={handleDetailsChange} 
+                                    placeholder="הזן מספר הזמנה..."
+                                    className="border-green-300 focus:border-green-500 bg-green-50"
+                                />
+                            </div>
+                        )}
+
+                        <div className={`lg:col-span-3 ${orderDetails.status === 'בוצע' ? 'lg:col-span-2' : ''}`}>
                             <Label htmlFor="notes" className="mb-1 block">הערות להזמנה</Label>
                             <div
                                 className="relative min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background cursor-pointer hover:bg-slate-50 transition-colors flex items-center"
@@ -431,7 +456,8 @@ export default function EditOrderPage() {
 
                         <div className="flex justify-start gap-4 w-full mt-4">
                             <Button variant="outline" onClick={handleExportToExcel}><FileDown className="ml-2" /> שמור לאקסל</Button>
-                            <Button onClick={handleFinishEditing} disabled={isSaving}><Save className="ml-2" />{isSaving ? 'שומר שינויים...' : 'שמור שינויים'}</Button>
+                            <Button onClick={handleFinishEditing} disabled={isSaving}><Save className="ml-2" />{isSaving 
+? 'שומר שינויים...' : 'שמור שינויים'}</Button>
                         </div>
                     </CardFooter>
                 </Card>
