@@ -10,11 +10,11 @@ MAX_DEPTH = 7
 ALLOWED_ROOT_DIRS = {"client", "server"}
 
 # תיקיות שיש לדלג עליהן בתוך client/server
-SKIP_DIRS = {"node_modules", ".git", "__pycache__", "package-lock.json", ".venv"}
+SKIP_DIRS = {"node_modules", ".git", "__pycache__", "package-lock.json", ".venv",".wwebjs_cache",".wwebjs_auth"}
 
 # קבצים שיש לדלג עליהם
 SKIP_FILES = {
-    "index-DEKCV7q4.js",
+    "index-DEKCV7q4.js","תיעוד"
 }
 
 # סיומות שמותר להציג
