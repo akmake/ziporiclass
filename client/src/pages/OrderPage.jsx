@@ -3,9 +3,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/utils/api.js';
+import { Link } from 'react-router-dom'; // ✨ הוספתי
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { useAuthStore } from '@/stores/authStore.js'; // ✨ ייבוא ה-store
+import { useAuthStore } from '@/stores/authStore.js';
 
 import { AddRoomForm } from '@/components/orders/AddRoomForm';
 import { OrderSummaryTable } from '@/components/orders/OrderSummaryTable';
@@ -16,7 +17,11 @@ import { Input } from '@/components/ui/Input.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Label } from '@/components/ui/Label.jsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
-import { Hotel, FilePlus2, BadgePercent, User, Phone, Activity, StickyNote, Eye, Maximize2, Tag, Calendar, Mail, Save } from 'lucide-react';
+import { 
+    Hotel, FilePlus2, BadgePercent, User, Phone, Activity, StickyNote, 
+    Eye, Maximize2, Tag, Calendar, Mail, Save, AlertTriangle, 
+    CheckCircle2, BedDouble, ScrollText, Edit // ✨ אייקון עריכה
+} from 'lucide-react';
 import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
 
 const fetchHotels = async () => (await api.get('/admin/hotels')).data;
@@ -36,6 +41,16 @@ const fetchRoomTypes = async (hotelId) => {
 
 const createOrder = (orderData) => {
   return api.post('/orders', orderData);
+};
+
+// פונקציה לעדכון סטטוס (בשביל חטיפת ההזמנה)
+const updateExistingOrder = (payload) => api.put(`/orders/${payload.orderId}`, payload);
+
+// פונקציית חיפוש
+const searchExistingOrder = async (query) => {
+    if (!query || query.length < 3) return [];
+    const { data } = await api.get(`/orders/search?query=${query}`);
+    return data;
 };
 
 const modules = {
@@ -73,8 +88,13 @@ export default function OrderPage() {
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [tempNotes, setTempNotes] = useState('');
   const [nextAction, setNextAction] = useState('reset');
+  
+  // State לדיאלוג הכפילות
+  const [duplicateOrder, setDuplicateOrder] = useState(null);
+  const [optimaNumberForClosure, setOptimaNumberForClosure] = useState('');
+
   const queryClient = useQueryClient();
-  const { user } = useAuthStore(); // ✨ שליפת המשתמש
+  const { user } = useAuthStore();
 
   const { data: hotels = [], isLoading: isLoadingHotels } = useQuery({
       queryKey: ['hotels'],
@@ -92,6 +112,55 @@ export default function OrderPage() {
     queryFn: () => fetchRoomTypes(selectedHotel),
     enabled: !!selectedHotel,
   });
+
+  // אפקט לחיפוש אוטומטי של כפילויות
+  useEffect(() => {
+      const checkDuplicate = async () => {
+          const query = orderDetails.customerPhone || orderDetails.customerName;
+          if (!query || query.length < 3) return;
+
+          try {
+              const results = await searchExistingOrder(query);
+              // מחפשים הזמנה פעילה ('בהמתנה' וכו')
+              const activeDuplicate = results.find(o => 
+                  ['בהמתנה', 'בטיפול', 'in_progress', 'sent'].includes(o.status)
+              );
+
+              if (activeDuplicate) {
+                  setDuplicateOrder(activeDuplicate);
+              }
+          } catch (err) {
+              console.error(err);
+          }
+      };
+
+      const timer = setTimeout(checkDuplicate, 800);
+      return () => clearTimeout(timer);
+  }, [orderDetails.customerName, orderDetails.customerPhone]);
+
+
+  // מוטציה לסגירת ההזמנה הכפולה
+  const closeDuplicateMutation = useMutation({
+      mutationFn: updateExistingOrder,
+      onSuccess: () => {
+          toast.success("ההזמנה הקיימת נסגרה על שמך בהצלחה!");
+          setDuplicateOrder(null);
+          setOptimaNumberForClosure('');
+          // איפוס הטופס הנוכחי כי העסקה נסגרה על ההזמנה הישנה
+          setOrderDetails({ ...orderDetails, customerName: '', customerPhone: '' });
+      },
+      onError: (err) => toast.error(err.response?.data?.message || "שגיאה בסגירת ההזמנה")
+  });
+
+  const handleCloseDuplicate = () => {
+      if (!optimaNumberForClosure) return toast.error("חובה להזין מספר הזמנה מאופטימה");
+      
+      closeDuplicateMutation.mutate({
+          orderId: duplicateOrder._id,
+          status: 'בוצע',
+          optimaNumber: optimaNumberForClosure
+      });
+  };
 
   const { mutate: saveOrder, isPending: isSaving } = useMutation({
     mutationFn: createOrder,
@@ -150,7 +219,6 @@ export default function OrderPage() {
         });
         setRooms(updatedRooms);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numberOfNights]);
 
   const addRoom = (newRoom) => setRooms(prev => [...prev, newRoom]);
@@ -221,7 +289,7 @@ export default function OrderPage() {
 
       <Card className="shadow-lg">
           <CardHeader>
-              <CardTitle className="flex items-center gap-2">פרטי הפנייה</CardTitle>
+               <CardTitle className="flex items-center gap-2">פרטי הפנייה</CardTitle>
           </CardHeader>
           <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
@@ -346,7 +414,7 @@ export default function OrderPage() {
                     <CardTitle>סיכום הזמנה</CardTitle>
                     <CardDescription>
                         {rooms.length > 0 || extras.length > 0
-                            ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.`
+                          ? `סה"כ ${rooms.length} חדרים ו-${extras.length} תוספות.`
                             : 'הטבלה תתעדכן לאחר הוספת פריטים.'}
                     </CardDescription>
                 </div>
@@ -461,6 +529,138 @@ export default function OrderPage() {
                 <Button variant="outline" onClick={() => setIsNotesDialogOpen(false)}>ביטול</Button>
                 <Button onClick={handleSaveNotesFromDialog}>שמור הערות</Button>
             </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ✨ דיאלוג מניעת כפילויות חכם ומורחב ✨ */}
+      <Dialog open={!!duplicateOrder} onOpenChange={(o) => !o && setDuplicateOrder(null)}>
+        <DialogContent className="border-t-4 border-t-amber-500 max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-amber-700 text-xl">
+                    <AlertTriangle className="h-6 w-6"/> נמצאה הזמנה פתוחה ללקוח זה!
+                </DialogTitle>
+                <DialogDescription>
+                    פרטי ההזמנה המלאים להעתקה לתוכנה החיצונית (אופטימה). בסיום, הזן את המספר לסגירה.
+                </DialogDescription>
+            </DialogHeader>
+
+            {duplicateOrder && (
+                <div className="flex-1 overflow-y-auto p-2" dir="rtl">
+                    
+                    {/* פרטים כלליים */}
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm grid grid-cols-2 gap-y-2 gap-x-4 mb-4">
+                        <div>
+                             <span className="block text-xs text-gray-500">שם לקוח:</span>
+                             <span className="font-bold">{duplicateOrder.customerName}</span>
+                        </div>
+                        <div>
+                             <span className="block text-xs text-gray-500">נוצרה ע"י:</span>
+                             <span className="font-medium text-purple-700">{duplicateOrder.createdByName || 'לא ידוע'}</span>
+                        </div>
+                         <div>
+                             <span className="block text-xs text-gray-500">טלפון:</span>
+                             <span className="font-mono">{duplicateOrder.customerPhone}</span>
+                        </div>
+                         <div>
+                             <span className="block text-xs text-gray-500">מלון:</span>
+                             <span className="font-medium">{duplicateOrder.hotel?.name || '-'}</span>
+                        </div>
+                        <div className="col-span-2 border-t mt-2 pt-2 flex justify-between items-center">
+                            <span>סכום לתשלום:</span>
+                            <span className="font-bold text-lg text-slate-800">{duplicateOrder.total_price?.toLocaleString()} ₪</span>
+                        </div>
+                    </div>
+
+                    {/* פירוט חדרים */}
+                    {duplicateOrder.rooms?.length > 0 && (
+                        <div className="mb-4">
+                            <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BedDouble size={16}/> הרכב חדרים:</h4>
+                            <div className="space-y-2">
+                                {duplicateOrder.rooms.map((room, idx) => (
+                                    <div key={idx} className="bg-white p-3 rounded-lg border shadow-sm text-sm">
+                                        <div className="flex justify-between font-bold text-slate-700 mb-1">
+                                            <span>{room.roomType || 'חדר רגיל'}</span>
+                                            <span>{room.price?.toLocaleString()} ₪</span>
+                                        </div>
+                                        <div className="text-xs text-gray-500 flex flex-wrap gap-2">
+                                            {room.adults > 0 && <span className="bg-slate-100 px-1 rounded">מבוגרים: {room.adults}</span>}
+                                            {room.children > 0 && <span className="bg-slate-100 px-1 rounded">ילדים: {room.children}</span>}
+                                            {room.babies > 0 && <span className="bg-slate-100 px-1 rounded">תינוקות: {room.babies}</span>}
+                                        </div>
+                                        {room.price_list_names?.length > 0 && (
+                                            <div className="text-xs text-blue-600 mt-1">
+                                                מחירונים: {room.price_list_names.join(', ')}
+                                            </div>
+                                        )}
+                                        {room.notes && (
+                                            <div className="text-xs text-amber-700 mt-1 bg-amber-50 p-1 rounded">
+                                                הערה: {room.notes}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* פירוט תוספות */}
+                    {duplicateOrder.extras?.length > 0 && (
+                        <div className="mb-4">
+                            <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><Tag size={16}/> תוספות:</h4>
+                            <div className="bg-white rounded-lg border shadow-sm divide-y">
+                                {duplicateOrder.extras.map((ex, idx) => (
+                                    <div key={idx} className="p-2 text-sm flex justify-between items-center">
+                                        <span>{ex.extraType} <span className="text-gray-400 text-xs">(x{ex.quantity})</span></span>
+                                        <span className="font-medium">{(ex.price * ex.quantity).toLocaleString()} ₪</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* הערות כלליות */}
+                    {duplicateOrder.notes && (
+                        <div className="mb-2">
+                            <h4 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><ScrollText size={16}/> הערות להזמנה:</h4>
+                            <div className="bg-yellow-50 p-3 rounded border border-yellow-200 text-sm text-slate-700 max-h-24 overflow-y-auto">
+                                {duplicateOrder.notes.replace(/<[^>]+>/g, ' ')}
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            )}
+
+            {/* איזור הסגירה + כפתור עריכה */}
+            <div className="pt-4 mt-2 border-t bg-slate-50 -mx-6 -mb-6 p-6 shadow-inner z-10">
+                <Label className="mb-2 block font-bold text-green-700 text-base">סגירת עסקה (קבלת עמלה):</Label>
+                <div className="flex gap-2">
+                    <Input 
+                        placeholder="הזן מספר הזמנה מאופטימה..." 
+                        value={optimaNumberForClosure}
+                        onChange={e => setOptimaNumberForClosure(e.target.value)}
+                        className="bg-white border-green-300 focus:ring-green-500 font-mono"
+                    />
+                    <Button 
+                        onClick={handleCloseDuplicate}
+                        className="bg-green-600 hover:bg-green-700 gap-2 shrink-0 min-w-[120px]"
+                        disabled={!optimaNumberForClosure}
+                    >
+                        <CheckCircle2 size={16}/> סגור עסקה
+                    </Button>
+                </div>
+                
+                {/* ✨ כפתור המעבר לעריכה מלאה ✨ */}
+                <div className="mt-4 flex justify-between items-center">
+                     <Button variant="outline" asChild className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                        <Link to={`/edit-order/${duplicateOrder?._id}`}>
+                            <Edit className="ml-2 h-4 w-4"/> מעבר לעריכה מלאה (ושינוי פרטים)
+                        </Link>
+                    </Button>
+
+                     <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600 h-8" onClick={() => setDuplicateOrder(null)}>התעלם והמשך ביצירה</Button>
+                </div>
+            </div>
         </DialogContent>
       </Dialog>
 
