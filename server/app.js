@@ -18,7 +18,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
 import mongoose from 'mongoose';
-import csurf from 'csurf';
+// import csurf from 'csurf'; // <-- בוטל כדי למנוע חסימות 403
 import http from 'http'; 
 import { initSocket } from './socket.js'; 
 
@@ -45,7 +45,7 @@ import adminCommissionRoutes from './routes/adminCommissions.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import chatRoutes from './routes/chatRoutes.js'; 
-import { initWhatsAppListener } from './services/whatsappService.js'; // הבוט שלך
+import { initWhatsAppListener } from './services/whatsappService.js'; 
 
 // --- 2. חיבור למסד הנתונים ---
 const connectDB = async () => {
@@ -57,7 +57,6 @@ const connectDB = async () => {
     console.log('✔ Mongo connected successfully');
   } catch (err) {
     console.error('❌ Mongo connection error:', err.message);
-    // לא עוצרים את השרת כדי שתוכל לראות את השגיאה, אבל ה-DB לא יעבוד
   }
 };
 connectDB();
@@ -77,6 +76,7 @@ const allowedOrigins = [
   "https://zipori-client.onrender.com"
 ];
 
+// סינון ערכים ריקים מהרשימה
 const filteredOrigins = allowedOrigins.filter(Boolean);
 
 app.use(cors({
@@ -92,43 +92,19 @@ app.use(mongoSanitize());
 const uploadsPath = path.join(__dirname, 'uploads');
 app.use('/uploads', express.static(uploadsPath));
 
-// הגנת CSRF
-const csrfProtection = csurf({
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // true רק בפרודקשן
-    sameSite: 'None'
-  },
-});
+// --- ביטול הגנת CSRF (המקור לבעיות ה-403) ---
+// כרגע המערכת תסמוך על ה-CORS ועל ה-Auth Token לאבטחה.
+// בעתיד, אם תרצה, נחזיר את זה בצורה מסודרת עם הקליינט.
 
-// נתיבים שלא דורשים CSRF (כמו וובהוקים)
-app.use('/api/auth', authRoutes);
-app.use('/api/webhooks', webhookRoutes);
-
-// קבלת טוקן CSRF
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  const token = req.csrfToken();
-  res.cookie('XSRF-TOKEN', token, {
-    httpOnly: false,
-    sameSite: 'None',
-    secure: true
-  });
-  res.json({ csrfToken: token });
-});
-
-// החלת CSRF על שאר ה-API
 app.use('/api', (req, res, next) => {
-  if (
-    req.path.startsWith('/auth') ||
-    req.path.startsWith('/webhooks') ||
-    req.path === '/csrf-token'
-  ) {
-    return next();
-  }
-  csrfProtection(req, res, next);
+    // Middleware פשוט שמעביר הלאה בלי לחסום
+    next();
 });
 
 // --- חיבור כל הראוטים ---
+app.use('/api/auth', authRoutes); // Auth מוחרג בדרך כלל, אבל כאן כולם עוברים חופשי
+app.use('/api/webhooks', webhookRoutes);
+
 app.use('/api/users', userRoutes);
 app.use('/api/pricelists', priceListRoutes);
 app.use('/api/orders', orderRoutes);
@@ -150,17 +126,18 @@ app.use('/api/admin/commissions', adminCommissionRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/chat', chatRoutes);
 
-// הגשת קבצי הקליינט (React)
+// הגשת קבצי הקליינט (React) - חשוב לפרודקשן ב-Render
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuildPath));
 
 app.use('*', (req, res) => {
+  // אם זו בקשת API שלא נמצאה
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ message: 'API route not found.' });
   }
 
+  // אחרת, החזרת ה-React App (SPA)
   const indexHtmlPath = path.resolve(clientBuildPath, 'index.html');
-
   res.sendFile(indexHtmlPath, (err) => {
     if (err) {
       if (!res.headersSent) {

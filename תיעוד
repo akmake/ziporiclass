@@ -1,0 +1,1680 @@
+Microsoft Windows [Version 10.0.26200.6584]
+(c) Microsoft Corporation. כל הזכויות שמורות.
+
+C:\Users\yosef dahan>ssh-keygen -t ed25519 -C "hetzner-server"
+Generating public/private ed25519 key pair.
+Enter file in which to save the key (C:\Users\yosef dahan/.ssh/id_ed25519):
+Created directory 'C:\\Users\\yosef dahan/.ssh'.
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in C:\Users\yosef dahan/.ssh/id_ed25519
+Your public key has been saved in C:\Users\yosef dahan/.ssh/id_ed25519.pub
+The key fingerprint is:
+SHA256:3DSfOOZq+W/kEMAwhTowsRVd70XM3Q6sK/P5sCqEizo hetzner-server
+The key's randomart image is:
++--[ED25519 256]--+
+|  ..ooo*o  o.o . |
+|  oo  o.o. .o + .|
+|  .o .   .+ .. o |
+|    o  . +.=..  .|
+|     . .S *.o.   |
+|      . .o+.o    |
+|     . o ..B..   |
+|  E . . +.  =o   |
+|  .o   ..oo+o..  |
++----[SHA256]-----+
+
+C:\Users\yosef dahan>type "C:\Users\yosef dahan\.ssh\id_ed25519.pub"
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJaT4QzT2+oyoci+ErifoaKdRzzqpcQl99P9AJIC9gP6 hetzner-server
+
+C:\Users\yosef dahan>ssh root@46.224.63.165
+The authenticity of host '46.224.63.165 (46.224.63.165)' can't be established.
+ED25519 key fingerprint is SHA256:/9J+jJm3w5d4TIO9dFfDJ95kLGc9+Bg0snnAjqeCxDU.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '46.224.63.165' (ED25519) to the list of known hosts.
+Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0-87-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Dec 11 09:53:42 PM UTC 2025
+
+  System load:  0.1               Processes:             128
+  Usage of /:   1.5% of 74.79GB   Users logged in:       0
+  Memory usage: 4%                IPv4 address for eth0: 46.224.63.165
+  Swap usage:   0%                IPv6 address for eth0: 2a01:4f8:1c1a:6c5d::1
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+The list of available updates is more than a week old.
+To check for new updates run: sudo apt update
+
+root@yosef-node-1:~# apt update && apt upgrade -y
+Get:1 https://mirror.hetzner.com/ubuntu/packages noble InRelease [256 kB]
+Get:2 https://mirror.hetzner.com/ubuntu/packages noble-updates InRelease [126 kB]
+Get:3 https://mirror.hetzner.com/ubuntu/packages noble-backports InRelease [126 kB]
+Get:4 https://mirror.hetzner.com/ubuntu/security noble-security InRelease [126 kB]
+Get:5 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 Packages [1,401 kB]
+Get:6 https://mirror.hetzner.com/ubuntu/packages noble/main Translation-en [513 kB]
+Get:7 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 c-n-f Metadata [30.5 kB]
+Get:8 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 Packages [15.0 MB]
+Get:9 https://mirror.hetzner.com/ubuntu/packages noble/universe Translation-en [5,982 kB]
+Get:10 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 c-n-f Metadata [301 kB]
+Get:11 https://mirror.hetzner.com/ubuntu/packages noble/restricted amd64 Packages [93.9 kB]
+Get:12 https://mirror.hetzner.com/ubuntu/packages noble/restricted Translation-en [18.7 kB]
+Get:13 https://mirror.hetzner.com/ubuntu/packages noble/restricted amd64 c-n-f Metadata [416 B]
+Get:14 https://mirror.hetzner.com/ubuntu/packages noble/multiverse amd64 Packages [269 kB]
+Get:15 https://mirror.hetzner.com/ubuntu/packages noble/multiverse Translation-en [118 kB]
+Get:16 https://mirror.hetzner.com/ubuntu/packages noble/multiverse amd64 c-n-f Metadata [8,328 B]
+Get:17 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 Packages [1,646 kB]
+Get:18 https://mirror.hetzner.com/ubuntu/packages noble-updates/main Translation-en [307 kB]
+Get:19 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 c-n-f Metadata [15.8 kB]
+Get:20 https://mirror.hetzner.com/ubuntu/packages noble-updates/universe amd64 Packages [1,501 kB]
+Get:21 https://mirror.hetzner.com/ubuntu/packages noble-updates/universe Translation-en [304 kB]
+Get:22 https://mirror.hetzner.com/ubuntu/packages noble-updates/universe amd64 c-n-f Metadata [31.3 kB]
+Get:23 https://mirror.hetzner.com/ubuntu/packages noble-updates/restricted amd64 Packages [2,350 kB]
+Get:24 https://mirror.hetzner.com/ubuntu/packages noble-updates/restricted Translation-en [535 kB]
+Get:25 https://mirror.hetzner.com/ubuntu/packages noble-updates/restricted amd64 c-n-f Metadata [516 B]
+Get:26 https://mirror.hetzner.com/ubuntu/packages noble-updates/multiverse amd64 Packages [30.3 kB]
+Get:27 https://mirror.hetzner.com/ubuntu/packages noble-updates/multiverse Translation-en [5,808 B]
+Get:28 https://mirror.hetzner.com/ubuntu/packages noble-updates/multiverse amd64 c-n-f Metadata [484 B]
+Get:29 https://mirror.hetzner.com/ubuntu/packages noble-backports/main amd64 Packages [40.4 kB]
+Get:30 https://mirror.hetzner.com/ubuntu/packages noble-backports/main Translation-en [9,208 B]
+Get:31 https://mirror.hetzner.com/ubuntu/packages noble-backports/main amd64 c-n-f Metadata [368 B]
+Get:32 https://mirror.hetzner.com/ubuntu/packages noble-backports/universe amd64 Packages [29.2 kB]
+Get:33 https://mirror.hetzner.com/ubuntu/packages noble-backports/universe Translation-en [17.6 kB]
+Get:34 https://mirror.hetzner.com/ubuntu/packages noble-backports/universe amd64 c-n-f Metadata [1,444 B]
+Get:35 https://mirror.hetzner.com/ubuntu/packages noble-backports/restricted amd64 c-n-f Metadata [116 B]
+Get:36 https://mirror.hetzner.com/ubuntu/packages noble-backports/multiverse amd64 c-n-f Metadata [116 B]
+Get:37 https://mirror.hetzner.com/ubuntu/security noble-security/main amd64 Packages [1,357 kB]
+Get:38 https://mirror.hetzner.com/ubuntu/security noble-security/main Translation-en [222 kB]
+Get:39 https://mirror.hetzner.com/ubuntu/security noble-security/main amd64 c-n-f Metadata [9,448 B]
+Get:40 https://mirror.hetzner.com/ubuntu/security noble-security/universe amd64 Packages [915 kB]
+Get:41 https://mirror.hetzner.com/ubuntu/security noble-security/universe Translation-en [206 kB]
+Get:42 https://mirror.hetzner.com/ubuntu/security noble-security/universe amd64 c-n-f Metadata [19.4 kB]
+Get:43 https://mirror.hetzner.com/ubuntu/security noble-security/restricted amd64 Packages [2,216 kB]
+Get:44 https://mirror.hetzner.com/ubuntu/security noble-security/restricted Translation-en [507 kB]
+Get:45 https://mirror.hetzner.com/ubuntu/security noble-security/restricted amd64 c-n-f Metadata [500 B]
+Get:46 https://mirror.hetzner.com/ubuntu/security noble-security/multiverse amd64 Packages [27.4 kB]
+Get:47 https://mirror.hetzner.com/ubuntu/security noble-security/multiverse Translation-en [5,956 B]
+Get:48 https://mirror.hetzner.com/ubuntu/security noble-security/multiverse amd64 c-n-f Metadata [384 B]
+Fetched 36.7 MB in 3s (11.8 MB/s)
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+28 packages can be upgraded. Run 'apt list --upgradable' to see them.
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+Calculating upgrade... Done
+The following NEW packages will be installed:
+  linux-image-6.8.0-88-generic linux-modules-6.8.0-88-generic
+The following packages will be upgraded:
+  apparmor gir1.2-glib-2.0 gir1.2-packagekitglib-1.0 landscape-common libapparmor1 libdrm-common libdrm2
+  libglib2.0-0t64 libglib2.0-bin libglib2.0-data libnetplan1 libpackagekit-glib2-18 libpython3.12-minimal
+  libpython3.12-stdlib libpython3.12t64 linux-image-virtual linux-tools-common netplan-generator netplan.io packagekit
+  python-apt-common python3-apt python3-netplan python3.12 python3.12-minimal ubuntu-drivers-common ubuntu-pro-client
+  ubuntu-pro-client-l10n
+28 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.
+9 standard LTS security updates
+Need to get 67.3 MB of archives.
+After this operation, 54.3 MB of additional disk space will be used.
+Get:1 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libpython3.12t64 amd64 3.12.3-1ubuntu0.9 [2,342 kB]
+Get:2 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 python3.12 amd64 3.12.3-1ubuntu0.9 [651 kB]
+Get:3 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libpython3.12-stdlib amd64 3.12.3-1ubuntu0.9 [2,068 kB]
+Get:4 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 python3.12-minimal amd64 3.12.3-1ubuntu0.9 [2,332 kB]
+Get:5 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libpython3.12-minimal amd64 3.12.3-1ubuntu0.9 [836 kB]
+Get:6 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libdrm-common all 2.4.122-1~ubuntu0.24.04.2 [8,464 B]
+Get:7 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libdrm2 amd64 2.4.122-1~ubuntu0.24.04.2 [40.6 kB]
+Get:8 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 python-apt-common all 2.7.7ubuntu5.1 [20.8 kB]
+Get:9 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 python3-apt amd64 2.7.7ubuntu5.1 [169 kB]
+Get:10 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 ubuntu-drivers-common amd64 1:0.9.7.6ubuntu3.5 [65.9 kB]
+Get:11 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libglib2.0-data all 2.80.0-6ubuntu3.5 [48.8 kB]
+Get:12 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libglib2.0-bin amd64 2.80.0-6ubuntu3.5 [97.9 kB]
+Get:13 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 gir1.2-glib-2.0 amd64 2.80.0-6ubuntu3.5 [183 kB]
+Get:14 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libglib2.0-0t64 amd64 2.80.0-6ubuntu3.5 [1,544 kB]
+Get:15 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libapparmor1 amd64 4.0.1really4.0.1-0ubuntu0.24.04.5 [50.5 kB]
+Get:16 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 netplan-generator amd64 1.1.2-8ubuntu1~24.04.1 [61.2 kB]
+Get:17 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 python3-netplan amd64 1.1.2-8ubuntu1~24.04.1 [24.3 kB]
+Get:18 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 netplan.io amd64 1.1.2-8ubuntu1~24.04.1 [69.7 kB]
+Get:19 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libnetplan1 amd64 1.1.2-8ubuntu1~24.04.1 [133 kB]
+Get:20 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 ubuntu-pro-client-l10n amd64 37.1ubuntu0~24.04 [19.8 kB]
+Get:21 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 ubuntu-pro-client amd64 37.1ubuntu0~24.04 [259 kB]
+Get:22 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 apparmor amd64 4.0.1really4.0.1-0ubuntu0.24.04.5 [638 kB]
+Get:23 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libpackagekit-glib2-18 amd64 1.2.8-2ubuntu1.4 [120 kB]
+Get:24 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 gir1.2-packagekitglib-1.0 amd64 1.2.8-2ubuntu1.4 [25.6 kB]
+Get:25 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 landscape-common amd64 24.02-0ubuntu5.7 [93.8 kB]
+Get:26 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 linux-modules-6.8.0-88-generic amd64 6.8.0-88.89 [39.4 MB]
+Get:27 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 linux-image-6.8.0-88-generic amd64 6.8.0-88.89 [14.8 MB]
+Get:28 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 linux-image-virtual amd64 6.8.0-88.89 [10.9 kB]
+Get:29 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 linux-tools-common all 6.8.0-88.89 [773 kB]
+Get:30 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 packagekit amd64 1.2.8-2ubuntu1.4 [434 kB]
+Fetched 67.3 MB in 1s (111 MB/s)
+Preconfiguring packages ...
+(Reading database ... 38547 files and directories currently installed.)
+Preparing to unpack .../00-libpython3.12t64_3.12.3-1ubuntu0.9_amd64.deb ...
+Unpacking libpython3.12t64:amd64 (3.12.3-1ubuntu0.9) over (3.12.3-1ubuntu0.8) ...
+Preparing to unpack .../01-python3.12_3.12.3-1ubuntu0.9_amd64.deb ...
+Unpacking python3.12 (3.12.3-1ubuntu0.9) over (3.12.3-1ubuntu0.8) ...
+Preparing to unpack .../02-libpython3.12-stdlib_3.12.3-1ubuntu0.9_amd64.deb ...
+Unpacking libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.9) over (3.12.3-1ubuntu0.8) ...
+Preparing to unpack .../03-python3.12-minimal_3.12.3-1ubuntu0.9_amd64.deb ...
+Unpacking python3.12-minimal (3.12.3-1ubuntu0.9) over (3.12.3-1ubuntu0.8) ...
+Preparing to unpack .../04-libpython3.12-minimal_3.12.3-1ubuntu0.9_amd64.deb ...
+Unpacking libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.9) over (3.12.3-1ubuntu0.8) ...
+Preparing to unpack .../05-libdrm-common_2.4.122-1~ubuntu0.24.04.2_all.deb ...
+Unpacking libdrm-common (2.4.122-1~ubuntu0.24.04.2) over (2.4.122-1~ubuntu0.24.04.1) ...
+Preparing to unpack .../06-libdrm2_2.4.122-1~ubuntu0.24.04.2_amd64.deb ...
+Unpacking libdrm2:amd64 (2.4.122-1~ubuntu0.24.04.2) over (2.4.122-1~ubuntu0.24.04.1) ...
+Preparing to unpack .../07-python-apt-common_2.7.7ubuntu5.1_all.deb ...
+Unpacking python-apt-common (2.7.7ubuntu5.1) over (2.7.7ubuntu5) ...
+Preparing to unpack .../08-python3-apt_2.7.7ubuntu5.1_amd64.deb ...
+Unpacking python3-apt (2.7.7ubuntu5.1) over (2.7.7ubuntu5) ...
+Preparing to unpack .../09-ubuntu-drivers-common_1%3a0.9.7.6ubuntu3.5_amd64.deb ...
+Unpacking ubuntu-drivers-common (1:0.9.7.6ubuntu3.5) over (1:0.9.7.6ubuntu3.4) ...
+Preparing to unpack .../10-libglib2.0-data_2.80.0-6ubuntu3.5_all.deb ...
+Unpacking libglib2.0-data (2.80.0-6ubuntu3.5) over (2.80.0-6ubuntu3.4) ...
+Preparing to unpack .../11-libglib2.0-bin_2.80.0-6ubuntu3.5_amd64.deb ...
+Unpacking libglib2.0-bin (2.80.0-6ubuntu3.5) over (2.80.0-6ubuntu3.4) ...
+Preparing to unpack .../12-gir1.2-glib-2.0_2.80.0-6ubuntu3.5_amd64.deb ...
+Unpacking gir1.2-glib-2.0:amd64 (2.80.0-6ubuntu3.5) over (2.80.0-6ubuntu3.4) ...
+Preparing to unpack .../13-libglib2.0-0t64_2.80.0-6ubuntu3.5_amd64.deb ...
+Unpacking libglib2.0-0t64:amd64 (2.80.0-6ubuntu3.5) over (2.80.0-6ubuntu3.4) ...
+Preparing to unpack .../14-libapparmor1_4.0.1really4.0.1-0ubuntu0.24.04.5_amd64.deb ...
+Unpacking libapparmor1:amd64 (4.0.1really4.0.1-0ubuntu0.24.04.5) over (4.0.1really4.0.1-0ubuntu0.24.04.4) ...
+Preparing to unpack .../15-netplan-generator_1.1.2-8ubuntu1~24.04.1_amd64.deb ...
+Adding 'diversion of /lib/systemd/system-generators/netplan to /lib/systemd/system-generators/netplan.usr-is-merged by netplan-generator'
+Unpacking netplan-generator (1.1.2-8ubuntu1~24.04.1) over (1.1.2-2~ubuntu24.04.2) ...
+Preparing to unpack .../16-python3-netplan_1.1.2-8ubuntu1~24.04.1_amd64.deb ...
+Unpacking python3-netplan (1.1.2-8ubuntu1~24.04.1) over (1.1.2-2~ubuntu24.04.2) ...
+Preparing to unpack .../17-netplan.io_1.1.2-8ubuntu1~24.04.1_amd64.deb ...
+Unpacking netplan.io (1.1.2-8ubuntu1~24.04.1) over (1.1.2-2~ubuntu24.04.2) ...
+Preparing to unpack .../18-libnetplan1_1.1.2-8ubuntu1~24.04.1_amd64.deb ...
+Unpacking libnetplan1:amd64 (1.1.2-8ubuntu1~24.04.1) over (1.1.2-2~ubuntu24.04.2) ...
+Preparing to unpack .../19-ubuntu-pro-client-l10n_37.1ubuntu0~24.04_amd64.deb ...
+Unpacking ubuntu-pro-client-l10n (37.1ubuntu0~24.04) over (36ubuntu0~24.04) ...
+Preparing to unpack .../20-ubuntu-pro-client_37.1ubuntu0~24.04_amd64.deb ...
+Unpacking ubuntu-pro-client (37.1ubuntu0~24.04) over (36ubuntu0~24.04) ...
+Preparing to unpack .../21-apparmor_4.0.1really4.0.1-0ubuntu0.24.04.5_amd64.deb ...
+Unpacking apparmor (4.0.1really4.0.1-0ubuntu0.24.04.5) over (4.0.1really4.0.1-0ubuntu0.24.04.4) ...
+Preparing to unpack .../22-libpackagekit-glib2-18_1.2.8-2ubuntu1.4_amd64.deb ...
+Unpacking libpackagekit-glib2-18:amd64 (1.2.8-2ubuntu1.4) over (1.2.8-2ubuntu1.2) ...
+Preparing to unpack .../23-gir1.2-packagekitglib-1.0_1.2.8-2ubuntu1.4_amd64.deb ...
+Unpacking gir1.2-packagekitglib-1.0 (1.2.8-2ubuntu1.4) over (1.2.8-2ubuntu1.2) ...
+Preparing to unpack .../24-landscape-common_24.02-0ubuntu5.7_amd64.deb ...
+Unpacking landscape-common (24.02-0ubuntu5.7) over (24.02-0ubuntu5.6) ...
+Selecting previously unselected package linux-modules-6.8.0-88-generic.
+Preparing to unpack .../25-linux-modules-6.8.0-88-generic_6.8.0-88.89_amd64.deb ...
+Unpacking linux-modules-6.8.0-88-generic (6.8.0-88.89) ...
+Selecting previously unselected package linux-image-6.8.0-88-generic.
+Preparing to unpack .../26-linux-image-6.8.0-88-generic_6.8.0-88.89_amd64.deb ...
+Unpacking linux-image-6.8.0-88-generic (6.8.0-88.89) ...
+Preparing to unpack .../27-linux-image-virtual_6.8.0-88.89_amd64.deb ...
+Unpacking linux-image-virtual (6.8.0-88.89) over (6.8.0-87.88) ...
+Preparing to unpack .../28-linux-tools-common_6.8.0-88.89_all.deb ...
+Unpacking linux-tools-common (6.8.0-88.89) over (6.8.0-87.88) ...
+Preparing to unpack .../29-packagekit_1.2.8-2ubuntu1.4_amd64.deb ...
+Unpacking packagekit (1.2.8-2ubuntu1.4) over (1.2.8-2ubuntu1.2) ...
+Setting up libapparmor1:amd64 (4.0.1really4.0.1-0ubuntu0.24.04.5) ...
+Setting up libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.9) ...
+Setting up apparmor (4.0.1really4.0.1-0ubuntu0.24.04.5) ...
+Installing new version of config file /etc/apparmor.d/abstractions/dri-enumerate ...
+Installing new version of config file /etc/apparmor.d/abstractions/mesa ...
+Installing new version of config file /etc/apparmor.d/abstractions/opencl-intel ...
+Installing new version of config file /etc/apparmor.d/abstractions/opencl-nvidia ...
+Installing new version of config file /etc/apparmor.d/abstractions/opencl-pocl ...
+Installing new version of config file /etc/apparmor.d/abstractions/video ...
+Installing new version of config file /etc/apparmor.d/abstractions/vulkan ...
+Installing new version of config file /etc/apparmor.d/nvidia_modprobe ...
+Installing new version of config file /etc/apparmor.d/tunables/global ...
+/var/lib/dpkg/info/apparmor.postinst: 148: [: Illegal number: yes
+Reloading AppArmor profiles
+Setting up libglib2.0-0t64:amd64 (2.80.0-6ubuntu3.5) ...
+No schema files found: doing nothing.
+Setting up libglib2.0-data (2.80.0-6ubuntu3.5) ...
+Setting up gir1.2-glib-2.0:amd64 (2.80.0-6ubuntu3.5) ...
+Setting up linux-modules-6.8.0-88-generic (6.8.0-88.89) ...
+Setting up python-apt-common (2.7.7ubuntu5.1) ...
+Setting up libdrm-common (2.4.122-1~ubuntu0.24.04.2) ...
+Setting up linux-tools-common (6.8.0-88.89) ...
+Setting up python3.12-minimal (3.12.3-1ubuntu0.9) ...
+Setting up linux-image-6.8.0-88-generic (6.8.0-88.89) ...
+I: /boot/vmlinuz is now a symlink to vmlinuz-6.8.0-88-generic
+I: /boot/initrd.img is now a symlink to initrd.img-6.8.0-88-generic
+Setting up libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.9) ...
+Setting up python3-apt (2.7.7ubuntu5.1) ...
+Setting up python3.12 (3.12.3-1ubuntu0.9) ...
+Setting up libglib2.0-bin (2.80.0-6ubuntu3.5) ...
+Setting up libpackagekit-glib2-18:amd64 (1.2.8-2ubuntu1.4) ...
+Setting up libnetplan1:amd64 (1.1.2-8ubuntu1~24.04.1) ...
+Setting up landscape-common (24.02-0ubuntu5.7) ...
+Setting up libpython3.12t64:amd64 (3.12.3-1ubuntu0.9) ...
+Setting up gir1.2-packagekitglib-1.0 (1.2.8-2ubuntu1.4) ...
+Setting up libdrm2:amd64 (2.4.122-1~ubuntu0.24.04.2) ...
+Setting up python3-netplan (1.1.2-8ubuntu1~24.04.1) ...
+Setting up packagekit (1.2.8-2ubuntu1.4) ...
+Setting up linux-image-virtual (6.8.0-88.89) ...
+Setting up netplan-generator (1.1.2-8ubuntu1~24.04.1) ...
+Removing 'diversion of /lib/systemd/system-generators/netplan to /lib/systemd/system-generators/netplan.usr-is-merged by netplan-generator'
+Setting up ubuntu-pro-client (37.1ubuntu0~24.04) ...
+Installing new version of config file /etc/apparmor.d/ubuntu_pro_apt_news ...
+Installing new version of config file /etc/apparmor.d/ubuntu_pro_esm_cache ...
+Setting up ubuntu-pro-client-l10n (37.1ubuntu0~24.04) ...
+Setting up ubuntu-drivers-common (1:0.9.7.6ubuntu3.5) ...
+Setting up netplan.io (1.1.2-8ubuntu1~24.04.1) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.6) ...
+Processing triggers for systemd (255.4-1ubuntu8.11) ...
+Processing triggers for man-db (2.12.0-4build2) ...
+Processing triggers for dbus (1.14.10-4ubuntu4.1) ...
+Processing triggers for linux-image-6.8.0-88-generic (6.8.0-88.89) ...
+/etc/kernel/postinst.d/initramfs-tools:
+update-initramfs: Generating /boot/initrd.img-6.8.0-88-generic
+/etc/kernel/postinst.d/zz-update-grub:
+Sourcing file `/etc/default/grub'
+Generating grub configuration file ...
+Found linux image: /boot/vmlinuz-6.8.0-88-generic
+Found initrd image: /boot/initrd.img-6.8.0-88-generic
+Found linux image: /boot/vmlinuz-6.8.0-87-generic
+Found initrd image: /boot/initrd.img-6.8.0-87-generic
+Adding boot menu entry for UEFI Firmware Settings ...
+done
+Scanning processes...
+Scanning candidates...
+Scanning linux images...
+
+Pending kernel upgrade!
+Running kernel version:
+  6.8.0-87-generic
+Diagnostics:
+  The currently running kernel version is not the expected kernel version 6.8.0-88-generic.
+
+Restarting the system to load the new kernel will not be handled automatically, so you should consider rebooting.
+
+Restarting services...
+ /etc/needrestart/restart.d/systemd-manager
+ systemctl restart polkit.service qemu-guest-agent.service
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart unattended-upgrades.service
+
+No containers need to be restarted.
+
+User sessions running outdated binaries:
+ root @ user manager service: systemd[1063]
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+root@yosef-node-1:~# apt install -y curl git build-essential
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+curl is already the newest version (8.5.0-2ubuntu10.6).
+git is already the newest version (1:2.43.0-1ubuntu7.3).
+The following additional packages will be installed:
+  binutils binutils-common binutils-x86-64-linux-gnu bzip2 cpp cpp-13 cpp-13-x86-64-linux-gnu cpp-x86-64-linux-gnu
+  dpkg-dev fakeroot fontconfig-config fonts-dejavu-core fonts-dejavu-mono g++ g++-13 g++-13-x86-64-linux-gnu
+  g++-x86-64-linux-gnu gcc gcc-13 gcc-13-base gcc-13-x86-64-linux-gnu gcc-x86-64-linux-gnu libalgorithm-diff-perl
+  libalgorithm-diff-xs-perl libalgorithm-merge-perl libaom3 libasan8 libatomic1 libbinutils libc-dev-bin libc-devtools
+  libc6-dev libcc1-0 libcrypt-dev libctf-nobfd0 libctf0 libde265-0 libdeflate0 libdpkg-perl libfakeroot
+  libfile-fcntllock-perl libfontconfig1 libgcc-13-dev libgd3 libgomp1 libgprofng0 libheif-plugin-aomdec
+  libheif-plugin-aomenc libheif-plugin-libde265 libheif1 libhwasan0 libisl23 libitm1 libjbig0 libjpeg-turbo8 libjpeg8
+  liblerc4 liblsan0 libmpc3 libquadmath0 libsframe1 libsharpyuv0 libstdc++-13-dev libtiff6 libtsan2 libubsan1 libwebp7
+  libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxpm4 linux-libc-dev lto-disabled-list make manpages-dev
+  rpcsvc-proto
+Suggested packages:
+  binutils-doc gprofng-gui bzip2-doc cpp-doc gcc-13-locales cpp-13-doc debian-keyring g++-multilib g++-13-multilib
+  gcc-13-doc gcc-multilib autoconf automake libtool flex bison gdb gcc-doc gcc-13-multilib gdb-x86-64-linux-gnu
+  glibc-doc bzr libgd-tools libheif-plugin-x265 libheif-plugin-ffmpegdec libheif-plugin-jpegdec libheif-plugin-jpegenc
+  libheif-plugin-j2kdec libheif-plugin-j2kenc libheif-plugin-rav1e libheif-plugin-svtenc libstdc++-13-doc make-doc
+The following NEW packages will be installed:
+  binutils binutils-common binutils-x86-64-linux-gnu build-essential bzip2 cpp cpp-13 cpp-13-x86-64-linux-gnu
+  cpp-x86-64-linux-gnu dpkg-dev fakeroot fontconfig-config fonts-dejavu-core fonts-dejavu-mono g++ g++-13
+  g++-13-x86-64-linux-gnu g++-x86-64-linux-gnu gcc gcc-13 gcc-13-base gcc-13-x86-64-linux-gnu gcc-x86-64-linux-gnu
+  libalgorithm-diff-perl libalgorithm-diff-xs-perl libalgorithm-merge-perl libaom3 libasan8 libatomic1 libbinutils
+  libc-dev-bin libc-devtools libc6-dev libcc1-0 libcrypt-dev libctf-nobfd0 libctf0 libde265-0 libdeflate0 libdpkg-perl
+  libfakeroot libfile-fcntllock-perl libfontconfig1 libgcc-13-dev libgd3 libgomp1 libgprofng0 libheif-plugin-aomdec
+  libheif-plugin-aomenc libheif-plugin-libde265 libheif1 libhwasan0 libisl23 libitm1 libjbig0 libjpeg-turbo8 libjpeg8
+  liblerc4 liblsan0 libmpc3 libquadmath0 libsframe1 libsharpyuv0 libstdc++-13-dev libtiff6 libtsan2 libubsan1 libwebp7
+  libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxpm4 linux-libc-dev lto-disabled-list make manpages-dev
+  rpcsvc-proto
+0 upgraded, 79 newly installed, 0 to remove and 0 not upgraded.
+Need to get 78.9 MB of archives.
+After this operation, 271 MB of additional disk space will be used.
+Get:1 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libxau6 amd64 1:1.0.9-1build6 [7,160 B]
+Get:2 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libxdmcp6 amd64 1:1.1.3-0ubuntu6 [10.3 kB]
+Get:3 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libxcb1 amd64 1.15-1ubuntu2 [47.7 kB]
+Get:4 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libx11-data all 2:1.8.7-1build1 [115 kB]
+Get:5 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libx11-6 amd64 2:1.8.7-1build1 [650 kB]
+Get:6 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 binutils-common amd64 2.42-4ubuntu2.7 [240 kB]
+Get:7 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libsframe1 amd64 2.42-4ubuntu2.7 [15.9 kB]
+Get:8 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libbinutils amd64 2.42-4ubuntu2.7 [577 kB]
+Get:9 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libctf-nobfd0 amd64 2.42-4ubuntu2.7 [98.1 kB]
+Get:10 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libctf0 amd64 2.42-4ubuntu2.7 [94.5 kB]
+Get:11 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libgprofng0 amd64 2.42-4ubuntu2.7 [849 kB]
+Get:12 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 binutils-x86-64-linux-gnu amd64 2.42-4ubuntu2.7 [2,463 kB]
+Get:13 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 binutils amd64 2.42-4ubuntu2.7 [18.2 kB]
+Get:14 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libc-dev-bin amd64 2.39-0ubuntu8.6 [20.4 kB]
+Get:15 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 linux-libc-dev amd64 6.8.0-88.89 [1,932 kB]
+Get:16 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libcrypt-dev amd64 1:4.4.36-4build1 [112 kB]
+Get:17 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 rpcsvc-proto amd64 1.4.2-0ubuntu7 [67.4 kB]
+Get:18 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libc6-dev amd64 2.39-0ubuntu8.6 [2,125 kB]
+Get:19 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 gcc-13-base amd64 13.3.0-6ubuntu2~24.04 [51.5 kB]
+Get:20 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libisl23 amd64 0.26-3build1.1 [680 kB]
+Get:21 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libmpc3 amd64 1.3.1-1build1.1 [54.6 kB]
+Get:22 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 cpp-13-x86-64-linux-gnu amd64 13.3.0-6ubuntu2~24.04 [10.7 MB]
+Get:23 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 cpp-13 amd64 13.3.0-6ubuntu2~24.04 [1,038 B]
+Get:24 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 cpp-x86-64-linux-gnu amd64 4:13.2.0-7ubuntu1 [5,326 B]
+Get:25 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 cpp amd64 4:13.2.0-7ubuntu1 [22.4 kB]
+Get:26 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libcc1-0 amd64 14.2.0-4ubuntu2~24.04 [48.0 kB]
+Get:27 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libgomp1 amd64 14.2.0-4ubuntu2~24.04 [148 kB]
+Get:28 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libitm1 amd64 14.2.0-4ubuntu2~24.04 [29.7 kB]
+Get:29 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libatomic1 amd64 14.2.0-4ubuntu2~24.04 [10.5 kB]
+Get:30 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libasan8 amd64 14.2.0-4ubuntu2~24.04 [3,031 kB]
+Get:31 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 liblsan0 amd64 14.2.0-4ubuntu2~24.04 [1,322 kB]
+Get:32 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libtsan2 amd64 14.2.0-4ubuntu2~24.04 [2,772 kB]
+Get:33 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libubsan1 amd64 14.2.0-4ubuntu2~24.04 [1,184 kB]
+Get:34 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libhwasan0 amd64 14.2.0-4ubuntu2~24.04 [1,641 kB]
+Get:35 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libquadmath0 amd64 14.2.0-4ubuntu2~24.04 [153 kB]
+Get:36 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libgcc-13-dev amd64 13.3.0-6ubuntu2~24.04 [2,681 kB]
+Get:37 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 gcc-13-x86-64-linux-gnu amd64 13.3.0-6ubuntu2~24.04 [21.1 MB]
+Get:38 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 gcc-13 amd64 13.3.0-6ubuntu2~24.04 [494 kB]
+Get:39 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 gcc-x86-64-linux-gnu amd64 4:13.2.0-7ubuntu1 [1,212 B]
+Get:40 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 gcc amd64 4:13.2.0-7ubuntu1 [5,018 B]
+Get:41 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libstdc++-13-dev amd64 13.3.0-6ubuntu2~24.04 [2,420 kB]
+Get:42 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 g++-13-x86-64-linux-gnu amd64 13.3.0-6ubuntu2~24.04 [12.2 MB]
+Get:43 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 g++-13 amd64 13.3.0-6ubuntu2~24.04 [16.1 kB]
+Get:44 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 g++-x86-64-linux-gnu amd64 4:13.2.0-7ubuntu1 [964 B]
+Get:45 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 g++ amd64 4:13.2.0-7ubuntu1 [1,100 B]
+Get:46 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 make amd64 4.3-4.1build2 [180 kB]
+Get:47 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libdpkg-perl all 1.22.6ubuntu6.5 [269 kB]
+Get:48 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 bzip2 amd64 1.0.8-5.1build0.1 [34.5 kB]
+Get:49 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 lto-disabled-list all 47 [12.4 kB]
+Get:50 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 dpkg-dev all 1.22.6ubuntu6.5 [1,074 kB]
+Get:51 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 build-essential amd64 12.10ubuntu1 [4,928 B]
+Get:52 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libfakeroot amd64 1.33-1 [32.4 kB]
+Get:53 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 fakeroot amd64 1.33-1 [67.2 kB]
+Get:54 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 fonts-dejavu-mono all 2.37-8 [502 kB]
+Get:55 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 fonts-dejavu-core all 2.37-8 [835 kB]
+Get:56 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 fontconfig-config amd64 2.15.0-1.1ubuntu2 [37.3 kB]
+Get:57 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libalgorithm-diff-perl all 1.201-1 [41.8 kB]
+Get:58 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libalgorithm-diff-xs-perl amd64 0.04-8build3 [11.2 kB]
+Get:59 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libalgorithm-merge-perl all 0.08-5 [11.4 kB]
+Get:60 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libaom3 amd64 3.8.2-2ubuntu0.1 [1,941 kB]
+Get:61 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libfontconfig1 amd64 2.15.0-1.1ubuntu2 [139 kB]
+Get:62 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libsharpyuv0 amd64 1.3.2-0.4build3 [15.8 kB]
+Get:63 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libheif-plugin-aomdec amd64 1.17.6-1ubuntu4.1 [10.4 kB]
+Get:64 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libde265-0 amd64 1.0.15-1build3 [166 kB]
+Get:65 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libheif-plugin-libde265 amd64 1.17.6-1ubuntu4.1 [8,176 B]
+Get:66 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libheif1 amd64 1.17.6-1ubuntu4.1 [275 kB]
+Get:67 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libjpeg-turbo8 amd64 2.1.5-2ubuntu2 [150 kB]
+Get:68 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libjpeg8 amd64 8c-2ubuntu11 [2,148 B]
+Get:69 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libdeflate0 amd64 1.19-1build1.1 [43.9 kB]
+Get:70 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libjbig0 amd64 2.1-6.1ubuntu2 [29.7 kB]
+Get:71 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 liblerc4 amd64 4.0.0+ds-4ubuntu2 [179 kB]
+Get:72 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libwebp7 amd64 1.3.2-0.4build3 [230 kB]
+Get:73 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libtiff6 amd64 4.5.1+git230720-4ubuntu2.4 [199 kB]
+Get:74 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libxpm4 amd64 1:3.5.17-1build2 [36.5 kB]
+Get:75 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libgd3 amd64 2.3.3-9ubuntu5 [128 kB]
+Get:76 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libc-devtools amd64 2.39-0ubuntu8.6 [29.3 kB]
+Get:77 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 libfile-fcntllock-perl amd64 0.22-4ubuntu5 [30.7 kB]
+Get:78 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 libheif-plugin-aomenc amd64 1.17.6-1ubuntu4.1 [14.7 kB]
+Get:79 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 manpages-dev all 6.7-2 [2,013 kB]
+Fetched 78.9 MB in 1s (114 MB/s)
+Extracting templates from packages: 100%
+Selecting previously unselected package libxau6:amd64.
+(Reading database ... 39860 files and directories currently installed.)
+Preparing to unpack .../00-libxau6_1%3a1.0.9-1build6_amd64.deb ...
+Unpacking libxau6:amd64 (1:1.0.9-1build6) ...
+Selecting previously unselected package libxdmcp6:amd64.
+Preparing to unpack .../01-libxdmcp6_1%3a1.1.3-0ubuntu6_amd64.deb ...
+Unpacking libxdmcp6:amd64 (1:1.1.3-0ubuntu6) ...
+Selecting previously unselected package libxcb1:amd64.
+Preparing to unpack .../02-libxcb1_1.15-1ubuntu2_amd64.deb ...
+Unpacking libxcb1:amd64 (1.15-1ubuntu2) ...
+Selecting previously unselected package libx11-data.
+Preparing to unpack .../03-libx11-data_2%3a1.8.7-1build1_all.deb ...
+Unpacking libx11-data (2:1.8.7-1build1) ...
+Selecting previously unselected package libx11-6:amd64.
+Preparing to unpack .../04-libx11-6_2%3a1.8.7-1build1_amd64.deb ...
+Unpacking libx11-6:amd64 (2:1.8.7-1build1) ...
+Selecting previously unselected package binutils-common:amd64.
+Preparing to unpack .../05-binutils-common_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking binutils-common:amd64 (2.42-4ubuntu2.7) ...
+Selecting previously unselected package libsframe1:amd64.
+Preparing to unpack .../06-libsframe1_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking libsframe1:amd64 (2.42-4ubuntu2.7) ...
+Selecting previously unselected package libbinutils:amd64.
+Preparing to unpack .../07-libbinutils_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking libbinutils:amd64 (2.42-4ubuntu2.7) ...
+Selecting previously unselected package libctf-nobfd0:amd64.
+Preparing to unpack .../08-libctf-nobfd0_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking libctf-nobfd0:amd64 (2.42-4ubuntu2.7) ...
+Selecting previously unselected package libctf0:amd64.
+Preparing to unpack .../09-libctf0_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking libctf0:amd64 (2.42-4ubuntu2.7) ...
+Selecting previously unselected package libgprofng0:amd64.
+Preparing to unpack .../10-libgprofng0_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking libgprofng0:amd64 (2.42-4ubuntu2.7) ...
+Selecting previously unselected package binutils-x86-64-linux-gnu.
+Preparing to unpack .../11-binutils-x86-64-linux-gnu_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking binutils-x86-64-linux-gnu (2.42-4ubuntu2.7) ...
+Selecting previously unselected package binutils.
+Preparing to unpack .../12-binutils_2.42-4ubuntu2.7_amd64.deb ...
+Unpacking binutils (2.42-4ubuntu2.7) ...
+Selecting previously unselected package libc-dev-bin.
+Preparing to unpack .../13-libc-dev-bin_2.39-0ubuntu8.6_amd64.deb ...
+Unpacking libc-dev-bin (2.39-0ubuntu8.6) ...
+Selecting previously unselected package linux-libc-dev:amd64.
+Preparing to unpack .../14-linux-libc-dev_6.8.0-88.89_amd64.deb ...
+Unpacking linux-libc-dev:amd64 (6.8.0-88.89) ...
+Selecting previously unselected package libcrypt-dev:amd64.
+Preparing to unpack .../15-libcrypt-dev_1%3a4.4.36-4build1_amd64.deb ...
+Unpacking libcrypt-dev:amd64 (1:4.4.36-4build1) ...
+Selecting previously unselected package rpcsvc-proto.
+Preparing to unpack .../16-rpcsvc-proto_1.4.2-0ubuntu7_amd64.deb ...
+Unpacking rpcsvc-proto (1.4.2-0ubuntu7) ...
+Selecting previously unselected package libc6-dev:amd64.
+Preparing to unpack .../17-libc6-dev_2.39-0ubuntu8.6_amd64.deb ...
+Unpacking libc6-dev:amd64 (2.39-0ubuntu8.6) ...
+Selecting previously unselected package gcc-13-base:amd64.
+Preparing to unpack .../18-gcc-13-base_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking gcc-13-base:amd64 (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package libisl23:amd64.
+Preparing to unpack .../19-libisl23_0.26-3build1.1_amd64.deb ...
+Unpacking libisl23:amd64 (0.26-3build1.1) ...
+Selecting previously unselected package libmpc3:amd64.
+Preparing to unpack .../20-libmpc3_1.3.1-1build1.1_amd64.deb ...
+Unpacking libmpc3:amd64 (1.3.1-1build1.1) ...
+Selecting previously unselected package cpp-13-x86-64-linux-gnu.
+Preparing to unpack .../21-cpp-13-x86-64-linux-gnu_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking cpp-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package cpp-13.
+Preparing to unpack .../22-cpp-13_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking cpp-13 (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package cpp-x86-64-linux-gnu.
+Preparing to unpack .../23-cpp-x86-64-linux-gnu_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking cpp-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package cpp.
+Preparing to unpack .../24-cpp_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking cpp (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package libcc1-0:amd64.
+Preparing to unpack .../25-libcc1-0_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libcc1-0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libgomp1:amd64.
+Preparing to unpack .../26-libgomp1_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libgomp1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libitm1:amd64.
+Preparing to unpack .../27-libitm1_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libitm1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libatomic1:amd64.
+Preparing to unpack .../28-libatomic1_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libatomic1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libasan8:amd64.
+Preparing to unpack .../29-libasan8_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libasan8:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package liblsan0:amd64.
+Preparing to unpack .../30-liblsan0_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking liblsan0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libtsan2:amd64.
+Preparing to unpack .../31-libtsan2_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libtsan2:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libubsan1:amd64.
+Preparing to unpack .../32-libubsan1_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libubsan1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libhwasan0:amd64.
+Preparing to unpack .../33-libhwasan0_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libhwasan0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libquadmath0:amd64.
+Preparing to unpack .../34-libquadmath0_14.2.0-4ubuntu2~24.04_amd64.deb ...
+Unpacking libquadmath0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Selecting previously unselected package libgcc-13-dev:amd64.
+Preparing to unpack .../35-libgcc-13-dev_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking libgcc-13-dev:amd64 (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package gcc-13-x86-64-linux-gnu.
+Preparing to unpack .../36-gcc-13-x86-64-linux-gnu_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking gcc-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package gcc-13.
+Preparing to unpack .../37-gcc-13_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking gcc-13 (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package gcc-x86-64-linux-gnu.
+Preparing to unpack .../38-gcc-x86-64-linux-gnu_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking gcc-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package gcc.
+Preparing to unpack .../39-gcc_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking gcc (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package libstdc++-13-dev:amd64.
+Preparing to unpack .../40-libstdc++-13-dev_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking libstdc++-13-dev:amd64 (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package g++-13-x86-64-linux-gnu.
+Preparing to unpack .../41-g++-13-x86-64-linux-gnu_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package g++-13.
+Preparing to unpack .../42-g++-13_13.3.0-6ubuntu2~24.04_amd64.deb ...
+Unpacking g++-13 (13.3.0-6ubuntu2~24.04) ...
+Selecting previously unselected package g++-x86-64-linux-gnu.
+Preparing to unpack .../43-g++-x86-64-linux-gnu_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package g++.
+Preparing to unpack .../44-g++_4%3a13.2.0-7ubuntu1_amd64.deb ...
+Unpacking g++ (4:13.2.0-7ubuntu1) ...
+Selecting previously unselected package make.
+Preparing to unpack .../45-make_4.3-4.1build2_amd64.deb ...
+Unpacking make (4.3-4.1build2) ...
+Selecting previously unselected package libdpkg-perl.
+Preparing to unpack .../46-libdpkg-perl_1.22.6ubuntu6.5_all.deb ...
+Unpacking libdpkg-perl (1.22.6ubuntu6.5) ...
+Selecting previously unselected package bzip2.
+Preparing to unpack .../47-bzip2_1.0.8-5.1build0.1_amd64.deb ...
+Unpacking bzip2 (1.0.8-5.1build0.1) ...
+Selecting previously unselected package lto-disabled-list.
+Preparing to unpack .../48-lto-disabled-list_47_all.deb ...
+Unpacking lto-disabled-list (47) ...
+Selecting previously unselected package dpkg-dev.
+Preparing to unpack .../49-dpkg-dev_1.22.6ubuntu6.5_all.deb ...
+Unpacking dpkg-dev (1.22.6ubuntu6.5) ...
+Selecting previously unselected package build-essential.
+Preparing to unpack .../50-build-essential_12.10ubuntu1_amd64.deb ...
+Unpacking build-essential (12.10ubuntu1) ...
+Selecting previously unselected package libfakeroot:amd64.
+Preparing to unpack .../51-libfakeroot_1.33-1_amd64.deb ...
+Unpacking libfakeroot:amd64 (1.33-1) ...
+Selecting previously unselected package fakeroot.
+Preparing to unpack .../52-fakeroot_1.33-1_amd64.deb ...
+Unpacking fakeroot (1.33-1) ...
+Selecting previously unselected package fonts-dejavu-mono.
+Preparing to unpack .../53-fonts-dejavu-mono_2.37-8_all.deb ...
+Unpacking fonts-dejavu-mono (2.37-8) ...
+Selecting previously unselected package fonts-dejavu-core.
+Preparing to unpack .../54-fonts-dejavu-core_2.37-8_all.deb ...
+Unpacking fonts-dejavu-core (2.37-8) ...
+Selecting previously unselected package fontconfig-config.
+Preparing to unpack .../55-fontconfig-config_2.15.0-1.1ubuntu2_amd64.deb ...
+Unpacking fontconfig-config (2.15.0-1.1ubuntu2) ...
+Selecting previously unselected package libalgorithm-diff-perl.
+Preparing to unpack .../56-libalgorithm-diff-perl_1.201-1_all.deb ...
+Unpacking libalgorithm-diff-perl (1.201-1) ...
+Selecting previously unselected package libalgorithm-diff-xs-perl:amd64.
+Preparing to unpack .../57-libalgorithm-diff-xs-perl_0.04-8build3_amd64.deb ...
+Unpacking libalgorithm-diff-xs-perl:amd64 (0.04-8build3) ...
+Selecting previously unselected package libalgorithm-merge-perl.
+Preparing to unpack .../58-libalgorithm-merge-perl_0.08-5_all.deb ...
+Unpacking libalgorithm-merge-perl (0.08-5) ...
+Selecting previously unselected package libaom3:amd64.
+Preparing to unpack .../59-libaom3_3.8.2-2ubuntu0.1_amd64.deb ...
+Unpacking libaom3:amd64 (3.8.2-2ubuntu0.1) ...
+Selecting previously unselected package libfontconfig1:amd64.
+Preparing to unpack .../60-libfontconfig1_2.15.0-1.1ubuntu2_amd64.deb ...
+Unpacking libfontconfig1:amd64 (2.15.0-1.1ubuntu2) ...
+Selecting previously unselected package libsharpyuv0:amd64.
+Preparing to unpack .../61-libsharpyuv0_1.3.2-0.4build3_amd64.deb ...
+Unpacking libsharpyuv0:amd64 (1.3.2-0.4build3) ...
+Selecting previously unselected package libheif-plugin-aomdec:amd64.
+Preparing to unpack .../62-libheif-plugin-aomdec_1.17.6-1ubuntu4.1_amd64.deb ...
+Unpacking libheif-plugin-aomdec:amd64 (1.17.6-1ubuntu4.1) ...
+Selecting previously unselected package libde265-0:amd64.
+Preparing to unpack .../63-libde265-0_1.0.15-1build3_amd64.deb ...
+Unpacking libde265-0:amd64 (1.0.15-1build3) ...
+Selecting previously unselected package libheif-plugin-libde265:amd64.
+Preparing to unpack .../64-libheif-plugin-libde265_1.17.6-1ubuntu4.1_amd64.deb ...
+Unpacking libheif-plugin-libde265:amd64 (1.17.6-1ubuntu4.1) ...
+Selecting previously unselected package libheif1:amd64.
+Preparing to unpack .../65-libheif1_1.17.6-1ubuntu4.1_amd64.deb ...
+Unpacking libheif1:amd64 (1.17.6-1ubuntu4.1) ...
+Selecting previously unselected package libjpeg-turbo8:amd64.
+Preparing to unpack .../66-libjpeg-turbo8_2.1.5-2ubuntu2_amd64.deb ...
+Unpacking libjpeg-turbo8:amd64 (2.1.5-2ubuntu2) ...
+Selecting previously unselected package libjpeg8:amd64.
+Preparing to unpack .../67-libjpeg8_8c-2ubuntu11_amd64.deb ...
+Unpacking libjpeg8:amd64 (8c-2ubuntu11) ...
+Selecting previously unselected package libdeflate0:amd64.
+Preparing to unpack .../68-libdeflate0_1.19-1build1.1_amd64.deb ...
+Unpacking libdeflate0:amd64 (1.19-1build1.1) ...
+Selecting previously unselected package libjbig0:amd64.
+Preparing to unpack .../69-libjbig0_2.1-6.1ubuntu2_amd64.deb ...
+Unpacking libjbig0:amd64 (2.1-6.1ubuntu2) ...
+Selecting previously unselected package liblerc4:amd64.
+Preparing to unpack .../70-liblerc4_4.0.0+ds-4ubuntu2_amd64.deb ...
+Unpacking liblerc4:amd64 (4.0.0+ds-4ubuntu2) ...
+Selecting previously unselected package libwebp7:amd64.
+Preparing to unpack .../71-libwebp7_1.3.2-0.4build3_amd64.deb ...
+Unpacking libwebp7:amd64 (1.3.2-0.4build3) ...
+Selecting previously unselected package libtiff6:amd64.
+Preparing to unpack .../72-libtiff6_4.5.1+git230720-4ubuntu2.4_amd64.deb ...
+Unpacking libtiff6:amd64 (4.5.1+git230720-4ubuntu2.4) ...
+Selecting previously unselected package libxpm4:amd64.
+Preparing to unpack .../73-libxpm4_1%3a3.5.17-1build2_amd64.deb ...
+Unpacking libxpm4:amd64 (1:3.5.17-1build2) ...
+Selecting previously unselected package libgd3:amd64.
+Preparing to unpack .../74-libgd3_2.3.3-9ubuntu5_amd64.deb ...
+Unpacking libgd3:amd64 (2.3.3-9ubuntu5) ...
+Selecting previously unselected package libc-devtools.
+Preparing to unpack .../75-libc-devtools_2.39-0ubuntu8.6_amd64.deb ...
+Unpacking libc-devtools (2.39-0ubuntu8.6) ...
+Selecting previously unselected package libfile-fcntllock-perl.
+Preparing to unpack .../76-libfile-fcntllock-perl_0.22-4ubuntu5_amd64.deb ...
+Unpacking libfile-fcntllock-perl (0.22-4ubuntu5) ...
+Selecting previously unselected package libheif-plugin-aomenc:amd64.
+Preparing to unpack .../77-libheif-plugin-aomenc_1.17.6-1ubuntu4.1_amd64.deb ...
+Unpacking libheif-plugin-aomenc:amd64 (1.17.6-1ubuntu4.1) ...
+Selecting previously unselected package manpages-dev.
+Preparing to unpack .../78-manpages-dev_6.7-2_all.deb ...
+Unpacking manpages-dev (6.7-2) ...
+Setting up libsharpyuv0:amd64 (1.3.2-0.4build3) ...
+Setting up libaom3:amd64 (3.8.2-2ubuntu0.1) ...
+Setting up manpages-dev (6.7-2) ...
+Setting up libxau6:amd64 (1:1.0.9-1build6) ...
+Setting up libxdmcp6:amd64 (1:1.1.3-0ubuntu6) ...
+Setting up lto-disabled-list (47) ...
+Setting up libxcb1:amd64 (1.15-1ubuntu2) ...
+Setting up liblerc4:amd64 (4.0.0+ds-4ubuntu2) ...
+Setting up libfile-fcntllock-perl (0.22-4ubuntu5) ...
+Setting up libalgorithm-diff-perl (1.201-1) ...
+Setting up binutils-common:amd64 (2.42-4ubuntu2.7) ...
+Setting up libdeflate0:amd64 (1.19-1build1.1) ...
+Setting up linux-libc-dev:amd64 (6.8.0-88.89) ...
+Setting up libctf-nobfd0:amd64 (2.42-4ubuntu2.7) ...
+Setting up libgomp1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up bzip2 (1.0.8-5.1build0.1) ...
+Setting up libjbig0:amd64 (2.1-6.1ubuntu2) ...
+Setting up libsframe1:amd64 (2.42-4ubuntu2.7) ...
+Setting up libfakeroot:amd64 (1.33-1) ...
+Setting up fakeroot (1.33-1) ...
+update-alternatives: using /usr/bin/fakeroot-sysv to provide /usr/bin/fakeroot (fakeroot) in auto mode
+Setting up rpcsvc-proto (1.4.2-0ubuntu7) ...
+Setting up gcc-13-base:amd64 (13.3.0-6ubuntu2~24.04) ...
+Setting up libx11-data (2:1.8.7-1build1) ...
+Setting up make (4.3-4.1build2) ...
+Setting up libquadmath0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up fonts-dejavu-mono (2.37-8) ...
+Setting up libmpc3:amd64 (1.3.1-1build1.1) ...
+Setting up libatomic1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up fonts-dejavu-core (2.37-8) ...
+Setting up libjpeg-turbo8:amd64 (2.1.5-2ubuntu2) ...
+Setting up libdpkg-perl (1.22.6ubuntu6.5) ...
+Setting up libwebp7:amd64 (1.3.2-0.4build3) ...
+Setting up libubsan1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up libhwasan0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up libcrypt-dev:amd64 (1:4.4.36-4build1) ...
+Setting up libasan8:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up libx11-6:amd64 (2:1.8.7-1build1) ...
+Setting up libtsan2:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up libbinutils:amd64 (2.42-4ubuntu2.7) ...
+Setting up libisl23:amd64 (0.26-3build1.1) ...
+Setting up libde265-0:amd64 (1.0.15-1build3) ...
+Setting up libc-dev-bin (2.39-0ubuntu8.6) ...
+Setting up libalgorithm-diff-xs-perl:amd64 (0.04-8build3) ...
+Setting up libcc1-0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up liblsan0:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up libitm1:amd64 (14.2.0-4ubuntu2~24.04) ...
+Setting up libalgorithm-merge-perl (0.08-5) ...
+Setting up libctf0:amd64 (2.42-4ubuntu2.7) ...
+Setting up libjpeg8:amd64 (8c-2ubuntu11) ...
+Setting up libxpm4:amd64 (1:3.5.17-1build2) ...
+Setting up cpp-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04) ...
+Setting up fontconfig-config (2.15.0-1.1ubuntu2) ...
+Setting up libgprofng0:amd64 (2.42-4ubuntu2.7) ...
+Setting up libgcc-13-dev:amd64 (13.3.0-6ubuntu2~24.04) ...
+Setting up libtiff6:amd64 (4.5.1+git230720-4ubuntu2.4) ...
+Setting up libc6-dev:amd64 (2.39-0ubuntu8.6) ...
+Setting up libstdc++-13-dev:amd64 (13.3.0-6ubuntu2~24.04) ...
+Setting up binutils-x86-64-linux-gnu (2.42-4ubuntu2.7) ...
+Setting up cpp-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Setting up cpp-13 (13.3.0-6ubuntu2~24.04) ...
+Setting up gcc-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04) ...
+Setting up binutils (2.42-4ubuntu2.7) ...
+Setting up dpkg-dev (1.22.6ubuntu6.5) ...
+Setting up gcc-13 (13.3.0-6ubuntu2~24.04) ...
+Setting up cpp (4:13.2.0-7ubuntu1) ...
+Setting up g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04) ...
+Setting up gcc-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Setting up gcc (4:13.2.0-7ubuntu1) ...
+Setting up g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1) ...
+Setting up g++-13 (13.3.0-6ubuntu2~24.04) ...
+Setting up g++ (4:13.2.0-7ubuntu1) ...
+update-alternatives: using /usr/bin/g++ to provide /usr/bin/c++ (c++) in auto mode
+Setting up build-essential (12.10ubuntu1) ...
+Setting up libheif-plugin-aomdec:amd64 (1.17.6-1ubuntu4.1) ...
+Setting up libheif1:amd64 (1.17.6-1ubuntu4.1) ...
+Setting up libheif-plugin-libde265:amd64 (1.17.6-1ubuntu4.1) ...
+Setting up libheif-plugin-aomenc:amd64 (1.17.6-1ubuntu4.1) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.6) ...
+Processing triggers for man-db (2.12.0-4build2) ...
+Processing triggers for sgml-base (1.31) ...
+Setting up libfontconfig1:amd64 (2.15.0-1.1ubuntu2) ...
+Setting up libgd3:amd64 (2.3.3-9ubuntu5) ...
+Setting up libc-devtools (2.39-0ubuntu8.6) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.6) ...
+Scanning processes...
+Scanning candidates...
+Scanning linux images...
+
+Pending kernel upgrade!
+Running kernel version:
+  6.8.0-87-generic
+Diagnostics:
+  The currently running kernel version is not the expected kernel version 6.8.0-88-generic.
+
+Restarting the system to load the new kernel will not be handled automatically, so you should consider rebooting.
+
+Restarting services...
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart unattended-upgrades.service
+
+No containers need to be restarted.
+
+User sessions running outdated binaries:
+ root @ user manager service: systemd[1063]
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+root@yosef-node-1:~# curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+=> Downloading nvm from git to '/root/.nvm'
+=> Cloning into '/root/.nvm'...
+remote: Enumerating objects: 384, done.
+remote: Counting objects: 100% (384/384), done.
+remote: Compressing objects: 100% (328/328), done.
+remote: Total 384 (delta 42), reused 181 (delta 28), pack-reused 0 (from 0)
+Receiving objects: 100% (384/384), 392.50 KiB | 14.54 MiB/s, done.
+Resolving deltas: 100% (42/42), done.
+* (HEAD detached at FETCH_HEAD)
+  master
+=> Compressing and cleaning up git repository
+
+=> Appending nvm source string to /root/.bashrc
+=> Appending bash_completion source string to /root/.bashrc
+=> Close and reopen your terminal to start using nvm or run the following to use it now:
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+root@yosef-node-1:~# source ~/.bashrc
+root@yosef-node-1:~# nvm install --lts
+Installing latest LTS version.
+Downloading and installing node v24.12.0...
+Downloading https://nodejs.org/dist/v24.12.0/node-v24.12.0-linux-x64.tar.xz...
+################################################################################################################# 100.0%
+Computing checksum with sha256sum
+Checksums matched!
+Now using node v24.12.0 (npm v11.6.2)
+Creating default alias: default -> lts/* (-> v24.12.0)
+root@yosef-node-1:~# node -v
+v24.12.0
+root@yosef-node-1:~# npm -v
+11.6.2
+root@yosef-node-1:~# apt install -y chromium-browser
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following NEW packages will be installed:
+  chromium-browser
+0 upgraded, 1 newly installed, 0 to remove and 0 not upgraded.
+Need to get 50.0 kB of archives.
+After this operation, 105 kB of additional disk space will be used.
+Get:1 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 chromium-browser amd64 2:1snap1-0ubuntu2 [50.0 kB]
+Fetched 50.0 kB in 0s (768 kB/s)
+Preconfiguring packages ...
+Selecting previously unselected package chromium-browser.
+(Reading database ... 46467 files and directories currently installed.)
+Preparing to unpack .../chromium-browser_2%3a1snap1-0ubuntu2_amd64.deb ...
+=> Installing the chromium snap
+==> Checking connectivity with the snap store
+==> Installing the chromium snap
+2025-12-11T21:57:40Z INFO Waiting for automatic snapd restart...
+Warning: /snap/bin was not found in your $PATH. If you've not restarted your session since you
+         installed snapd, try doing that. Please see https://forum.snapcraft.io/t/9469 for more
+         details.
+
+chromium 143.0.7499.40 from Canonical✓ installed
+=> Snap installation complete
+Unpacking chromium-browser (2:1snap1-0ubuntu2) ...
+Setting up chromium-browser (2:1snap1-0ubuntu2) ...
+update-alternatives: using /usr/bin/chromium-browser to provide /usr/bin/x-www-browser (x-www-browser) in auto mode
+update-alternatives: using /usr/bin/chromium-browser to provide /usr/bin/gnome-www-browser (gnome-www-browser) in auto mode
+Scanning processes...
+Scanning candidates...
+Scanning linux images...
+
+Pending kernel upgrade!
+Running kernel version:
+  6.8.0-87-generic
+Diagnostics:
+  The currently running kernel version is not the expected kernel version 6.8.0-88-generic.
+
+Restarting the system to load the new kernel will not be handled automatically, so you should consider rebooting.
+
+Restarting services...
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart unattended-upgrades.service
+
+No containers need to be restarted.
+
+User sessions running outdated binaries:
+ root @ user manager service: systemd[1063]
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+root@yosef-node-1:~# reboot
+root@yosef-node-1:~# client_loop: send disconnect: Connection reset
+
+C:\Users\yosef dahan>ssh root@46.224.63.165
+Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0-88-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Dec 11 10:01:20 PM UTC 2025
+
+  System load:  0.87              Processes:             135
+  Usage of /:   4.8% of 74.79GB   Users logged in:       0
+  Memory usage: 7%                IPv4 address for eth0: 46.224.63.165
+  Swap usage:   0%                IPv6 address for eth0: 2a01:4f8:1c1a:6c5d::1
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+Last login: Thu Dec 11 21:53:43 2025 from 46.210.194.74
+root@yosef-node-1:~# uname -r
+6.8.0-88-generic
+root@yosef-node-1:~# adduser appuser
+info: Adding user `appuser' ...
+info: Selecting UID/GID from range 1000 to 59999 ...
+info: Adding new group `appuser' (1000) ...
+info: Adding new user `appuser' (1000) with group `appuser (1000)' ...
+info: Creating home directory `/home/appuser' ...
+info: Copying files from `/etc/skel' ...
+New password:
+Retype new password:
+Sorry, passwords do not match.
+passwd: Authentication token manipulation error
+passwd: password unchanged
+Try again? [y/N] y
+Try again? [y/N] y
+New password:
+Retype new password:
+passwd: password updated successfully
+Changing the user information for appuser
+Enter the new value, or press ENTER for the default
+        Full Name []: yosef dahan
+        Room Number []:
+        Work Phone []: +13477700657
+        Home Phone []:
+        Other []:
+Is the information correct? [Y/n]
+info: Adding new user `appuser' to supplemental / extra groups `users' ...
+info: Adding user `appuser' to group `users' ...
+root@yosef-node-1:~# usermod -aG sudo appuser
+root@yosef-node-1:~# mkdir -p /home/appuser/.ssh
+root@yosef-node-1:~# cp /root/.ssh/authorized_keys /home/appuser/.ssh/
+root@yosef-node-1:~# chown -R appuser:appuser /home/appuser/.ssh
+root@yosef-node-1:~# chmod 700 /home/appuser/.ssh
+root@yosef-node-1:~# chmod 600 /home/appuser/.ssh/authorized_keys
+root@yosef-node-1:~# ssh appuser@46.224.63.165
+The authenticity of host '46.224.63.165 (46.224.63.165)' can't be established.
+ED25519 key fingerprint is SHA256:/9J+jJm3w5d4TIO9dFfDJ95kLGc9+Bg0snnAjqeCxDU.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])?
+Host key verification failed.
+root@yosef-node-1:~# ^C
+root@yosef-node-1:~# ^C
+root@yosef-node-1:~# exit
+logout
+Connection to 46.224.63.165 closed.
+
+C:\Users\yosef dahan>ssh appuser@46.224.63.165
+Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0-88-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Dec 11 10:09:08 PM UTC 2025
+
+  System load:  0.0               Processes:             128
+  Usage of /:   4.8% of 74.79GB   Users logged in:       0
+  Memory usage: 6%                IPv4 address for eth0: 46.224.63.165
+  Swap usage:   0%                IPv6 address for eth0: 2a01:4f8:1c1a:6c5d::1
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+
+The programs included with the Ubuntu system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Ubuntu comes with ABSOLUTELY NO WARRANTY, to the extent permitted by
+applicable law.
+
+To run a command as administrator (user "root"), use "sudo <command>".
+See "man sudo_root" for details.
+
+appuser@yosef-node-1:~$ curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+=> Downloading nvm from git to '/home/appuser/.nvm'
+=> Cloning into '/home/appuser/.nvm'...
+remote: Enumerating objects: 384, done.
+remote: Counting objects: 100% (384/384), done.
+remote: Compressing objects: 100% (328/328), done.
+remote: Total 384 (delta 42), reused 181 (delta 28), pack-reused 0 (from 0)
+Receiving objects: 100% (384/384), 392.50 KiB | 15.70 MiB/s, done.
+Resolving deltas: 100% (42/42), done.
+* (HEAD detached at FETCH_HEAD)
+  master
+=> Compressing and cleaning up git repository
+
+=> Appending nvm source string to /home/appuser/.bashrc
+=> Appending bash_completion source string to /home/appuser/.bashrc
+=> Close and reopen your terminal to start using nvm or run the following to use it now:
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+appuser@yosef-node-1:~$ source ~/.bashrc
+appuser@yosef-node-1:~$ nvm install --lts
+Installing latest LTS version.
+Downloading and installing node v24.12.0...
+Downloading https://nodejs.org/dist/v24.12.0/node-v24.12.0-linux-x64.tar.xz...
+################################################################################################################# 100.0%
+Computing checksum with sha256sum
+Checksums matched!
+Now using node v24.12.0 (npm v11.6.2)
+Creating default alias: default -> lts/* (-> v24.12.0)
+appuser@yosef-node-1:~$ node -v
+v24.12.0
+appuser@yosef-node-1:~$ npm -v
+11.6.2
+appuser@yosef-node-1:~$ mkdir -p ~/apps
+appuser@yosef-node-1:~$ cd ~/apps
+appuser@yosef-node-1:~/apps$ ssh appuser@46.224.63.165
+The authenticity of host '46.224.63.165 (46.224.63.165)' can't be established.
+ED25519 key fingerprint is SHA256:/9J+jJm3w5d4TIO9dFfDJ95kLGc9+Bg0snnAjqeCxDU.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? exit
+Please type 'yes', 'no' or the fingerprint: no
+Host key verification failed.
+appuser@yosef-node-1:~/apps$ exit
+logout
+Connection to 46.224.63.165 closed.
+
+C:\Users\yosef dahan>ssh appuser@46.224.63.165
+Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0-88-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Dec 11 10:17:46 PM UTC 2025
+
+  System load:  0.02              Processes:             125
+  Usage of /:   5.1% of 74.79GB   Users logged in:       0
+  Memory usage: 7%                IPv4 address for eth0: 46.224.63.165
+  Swap usage:   0%                IPv6 address for eth0: 2a01:4f8:1c1a:6c5d::1
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+Last login: Thu Dec 11 22:09:09 2025 from 46.210.194.74
+To run a command as administrator (user "root"), use "sudo <command>".
+See "man sudo_root" for details.
+
+appuser@yosef-node-1:~$ mkdir -p ~/projects
+appuser@yosef-node-1:~$ cd ~/projects
+appuser@yosef-node-1:~/projects$ git clone https://github.com/akmake/ziporiclass.git
+Cloning into 'ziporiclass'...
+remote: Enumerating objects: 1888, done.
+remote: Total 1888 (delta 0), reused 0 (delta 0), pack-reused 1888 (from 1)
+Receiving objects: 100% (1888/1888), 35.86 MiB | 31.57 MiB/s, done.
+Resolving deltas: 100% (1137/1137), done.
+appuser@yosef-node-1:~/projects$ cd ziporiclass
+appuser@yosef-node-1:~/projects/ziporiclass$ ls
+client                   docker-compose.yml  package-lock.json  README.md    rubiks.html  start-all.bat
+directory_structure.txt  package.json        python             render.yaml  server
+appuser@yosef-node-1:~/projects/ziporiclass$ cd ~/projects/ziporiclass/server
+appuser@yosef-node-1:~/projects/ziporiclass/server$ npm install
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated rimraf@2.7.1: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated fstream@1.0.12: This package is no longer supported.
+npm warn deprecated puppeteer@18.2.1: < 24.15.0 is no longer supported
+npm warn deprecated fluent-ffmpeg@2.1.3: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm error code 1
+npm error path /home/appuser/projects/ziporiclass/node_modules/puppeteer
+npm error command failed
+npm error command sh -c node install.js
+npm error ERROR: Failed to set up Chromium r1045629! Set "PUPPETEER_SKIP_DOWNLOAD" env variable to skip download.
+npm error Error: Download failed: server returned code 403. URL: https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/1045629/chrome-linux.zip
+npm error     at /home/appuser/projects/ziporiclass/node_modules/puppeteer-core/lib/cjs/puppeteer/node/BrowserFetcher.js:450:27
+npm error     at ClientRequest.requestCallback (/home/appuser/projects/ziporiclass/node_modules/puppeteer-core/lib/cjs/puppeteer/node/BrowserFetcher.js:600:13)
+npm error     at Object.onceWrapper (node:events:623:26)
+npm error     at ClientRequest.emit (node:events:508:28)
+npm error     at HTTPParser.parserOnIncomingClient (node:_http_client:780:27)
+npm error     at HTTPParser.parserOnHeadersComplete (node:_http_common:123:17)
+npm error     at TLSSocket.socketOnData (node:_http_client:615:22)
+npm error     at TLSSocket.emit (node:events:508:28)
+npm error     at addChunk (node:internal/streams/readable:559:12)
+npm error     at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+npm notice
+npm notice New minor version of npm available! 11.6.2 -> 11.7.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.7.0
+npm notice To update run: npm install -g npm@11.7.0
+npm notice
+npm error A complete log of this run can be found in: /home/appuser/.npm/_logs/2025-12-11T22_20_00_659Z-debug-0.log
+appuser@yosef-node-1:~/projects/ziporiclass/server$ cd ~/projects/ziporiclass
+appuser@yosef-node-1:~/projects/ziporiclass$ PUPPETEER_SKIP_DOWNLOAD=true npm install
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated rimraf@2.7.1: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated fstream@1.0.12: This package is no longer supported.
+npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+npm warn deprecated puppeteer@18.2.1: < 24.15.0 is no longer supported
+npm warn deprecated fluent-ffmpeg@2.1.3: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 993 packages, and audited 996 packages in 13s
+
+140 packages are looking for funding
+  run `npm fund` for details
+
+17 vulnerabilities (5 low, 4 moderate, 8 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+appuser@yosef-node-1:~/projects/ziporiclass$ cd server
+appuser@yosef-node-1:~/projects/ziporiclass/server$ PUPPETEER_SKIP_DOWNLOAD=true npm install
+
+up to date, audited 996 packages in 2s
+
+140 packages are looking for funding
+  run `npm fund` for details
+
+12 vulnerabilities (5 low, 7 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+appuser@yosef-node-1:~/projects/ziporiclass/server$ cd ../client
+appuser@yosef-node-1:~/projects/ziporiclass/client$ npm install
+
+up to date, audited 996 packages in 2s
+
+140 packages are looking for funding
+  run `npm fund` for details
+
+6 vulnerabilities (4 moderate, 2 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+appuser@yosef-node-1:~/projects/ziporiclass/client$ cd ~/projects/ziporiclass/server
+appuser@yosef-node-1:~/projects/ziporiclass/server$ nano .env
+appuser@yosef-node-1:~/projects/ziporiclass/server$ nano .env
+appuser@yosef-node-1:~/projects/ziporiclass/server$ PUPPETEER_SKIP_DOWNLOAD=true npm install
+
+up to date, audited 996 packages in 2s
+
+140 packages are looking for funding
+  run `npm fund` for details
+
+12 vulnerabilities (5 low, 7 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+appuser@yosef-node-1:~/projects/ziporiclass/server$ npm run dev
+
+> server@1.0.0 dev
+> nodemon app.js
+
+[nodemon] 3.1.10
+[nodemon] to restart at any time, enter `rs`
+[nodemon] watching path(s): *.*
+[nodemon] watching extensions: js,mjs,cjs,json
+[nodemon] starting `node app.js`
+✅ VAPID Keys configured successfully.
+🔍 Mongo URI Status: ✅ Loaded
+🔄 מפעיל את שירות הוואטסאפ (עם שמירה ל-MongoDB)...
+⏳ ממתין לחיבור למונגו...
+✔ Server & Socket running on port 4000
+✔ Mongo connected successfully
+/home/appuser/projects/ziporiclass/node_modules/puppeteer-core/lib/cjs/puppeteer/node/ChromeLauncher.js:70
+                throw new Error(missingText);
+                      ^
+
+Error: Could not find expected browser (chrome) locally. Run `npm install` to download the correct Chromium revision (1045629).
+    at ChromeLauncher.launch (/home/appuser/projects/ziporiclass/node_modules/puppeteer-core/lib/cjs/puppeteer/node/ChromeLauncher.js:70:23)
+    at PuppeteerNode.launch (/home/appuser/projects/ziporiclass/node_modules/puppeteer-core/lib/cjs/puppeteer/node/PuppeteerNode.js:151:31)
+    at Client.initialize (/home/appuser/projects/ziporiclass/node_modules/whatsapp-web.js/src/Client.js:309:39)
+    at async initWhatsAppListener (file:///home/appuser/projects/ziporiclass/server/services/whatsappService.js:120:5)
+
+Node.js v24.12.0
+[nodemon] app crashed - waiting for file changes before starting...
+
+^C
+appuser@yosef-node-1:~/projects/ziporiclass/server$ which chromium-browser
+/usr/bin/chromium-browser
+appuser@yosef-node-1:~/projects/ziporiclass/server$ cd ~/projects/ziporiclass/server
+appuser@yosef-node-1:~/projects/ziporiclass/server$ PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser npm run dev
+
+> server@1.0.0 dev
+> nodemon app.js
+
+[nodemon] 3.1.10
+[nodemon] to restart at any time, enter `rs`
+[nodemon] watching path(s): *.*
+[nodemon] watching extensions: js,mjs,cjs,json
+[nodemon] starting `node app.js`
+✅ VAPID Keys configured successfully.
+🔍 Mongo URI Status: ✅ Loaded
+🔄 מפעיל את שירות הוואטסאפ (עם שמירה ל-MongoDB)...
+⏳ ממתין לחיבור למונגו...
+✔ Server & Socket running on port 4000
+✔ Mongo connected successfully
+QR RECEIVED. Scan this with your phone:
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▀▄ ▄█▀█▀▄█ █▄▀▄▄▄▀ ▄▄▄▀█ ▀▄▄▀██▄▄▄▀▀ ▄ ██ ▄▄▄▄▄ █
+█ █   █ █    ▀█▄█▄█▀██▄█   █ █▄ █▄   ▀█  █ ▀ █▀▄ ██ █   █ █
+█ █▄▄▄█ █▄█▀▄▄██▀▀█▄ ▀▄▄ █▀ ▄▄▄   ▄▀▀█▄   ▀▀▄█▄▀▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄▀▄█ █▄▀ ▀▄▀▄▀▄█ █▄█ ▀ ▀ █ ▀ █ ▀ █▄█ █ █▄▄▄▄▄▄▄█
+█    ▀█▄▀▄█▄▄▀██▄█ █ ▄  ▀ ▀ ▄▄   █ ▄▀▀ ▄  ▀▀█▀█▄ ▀ █▀ ▄ ▀▄█
+█▀█▀▀▄▀▄▀▀▄█▄▄ ▀   ██ ▄▄▄▄▄██▄▀ ▀▄█▄▄▀█▄█▄  ██▄██▄▀▄█▀ ▄  █
+██▀  ▀█▄█▄█ ▀▀▄ █▄█▄ ▀█▄▀█   ██▀▄▀▀█    █▀▄▄▄▀▀██▄▄ ▀█▀ ▀▄█
+██▄ ▄ ▄▄ ▀█▄▀▀█▄▀██▀ ▀▀ █ ▀▄▀▄█▀▄ ▀▀█ ███▀█   ██▀ █ ▀ ▀ ▀▀█
+█▀▀▀  █▄▀▄▀▄▀█  ▀ █▀▄▄▄█ ▄█▀▄▄▀▄  █▀██▀▄▀▀▄█▄ ▀▀▀▄▄▄ █ █▄ █
+█▀█  █▄▄██  ▄▀▀▀ ██▄▄▀ ▀   ▀▀ █▄ ▀█ █▀  ██ █▄█ ▀▀ █▀ █▄█▄██
+██ █▀█▀▄ ▀ █ █ ██  ███ ▄▀█▀▀▀▄▀▀▀▀██▄▀▄▄ ▄▀ ▀▀▀▄▄ ██ ▄█   █
+██  ▀ ▀▄██▀  ▄█▀▀▄ █ ▄▄   █▀ █▄ ▀█▀▄▄▄▄▀█ █ ▀ █ ██ █▄▀ ██ █
+█ ▄▀█▀▀▄ ▀█▄▄▀▀▄ ▄▄▄█  ▀▄███▄▀█▄▄▄▄█ ▄  ▀▀█▄ █ ▄█▄ ▀██ █ ▄█
+█▀▄ ▀ ▄▄▄ ▀█▀▄█   ▄▄▀▀█▄    ▄▄▄ ▀  ▀▀ ▄▀▀ █▀ ▄ ██ ▄▄▄ ▀▀▀██
+█▀█▄█ █▄█ ▄ ▀▄█  ▀█▄█▄▀▀▀██ █▄█    ▀█▀██▄█▀▄ ▄  █ █▄█ ▄ ▄▀█
+█  █▄▄▄▄ ▄█▄▄▀█▀█▀▄▀  █▀▀▄▀▄    ▄ ▀▀ ▀██▀█▄▄ █ ▄▄ ▄  ▄██▀██
+████▀▄▀▄█▀▄▀ █▀ ▄▄ ██▄▄   █▄██▀▀▀▀ ▄▄█ █▄▄▀▀▀█▄▄█▄▄█ █▄█ ▄█
+█▀▄▀█▄▄▄▀ ▀▀█▄ ▄█▀▄█▄█▄█ █ █ ▀ █▀█▀ ▀▀ ▀ █ ▄▄██▄ ▄  ██▀▄ ▄█
+██ █▄▀█▄ ▀▀▄▄▄  ██ ▄▀██▀ ▄▄████▄▄█▀▄█▄ ▀▄█▄▄▄█▀▄▀██▄ ▄▀██▄█
+███▀ ▄▀▄▄▀▀▀▄▀██ ▄▄▀  ▄▄▄▀█  ▄██ █▀█▄███ ▄▀▄█▀▀████▀▀▀▀▀█▄█
+█▄█ █▄ ▄▀ ▄█▀  ▀▄ █▀ █ ██▄▀ ▀ ▄▀█▄▄▀▀█ ▄ ▀▀▄▄ ▀ ▄ ▄  ▀ █▀▄█
+█████▄ ▄█ ▀▀ ▄▄▄█▀█▄ ▀█ █▄███▀█ █▀▄█ ▀█▄▀▄ ▀▀█▄▀ ▀▄▀▀  █ ▀█
+█▄██▄ ▀▄█  ▀▀  ███▀▀ █ █▄ ████ ▀████ █▀█ ▄ ▀ ▀█▄▀ ▀▀█▄  ▄ █
+█ ▀ ▀▀▄▄  █ █▀▄▄▄█▀█▀ █▄▄▀▀██ ██ ▄ ▄▄█▄▄█▀▄▄ █ █▀▀ ▄█▄ ▄▄ █
+███████▄█ █▄▀▀▀▄▀▄ ▄▀ █▀██  ▄▄▄ ▄▀▄█▄▄▀ ██▄▄ ████ ▄▄▄  ▄▀▄█
+█ ▄▄▄▄▄ ██▀█▀▄█ ▄▀████ ▀ ██ █▄█  ▀▄█▀▄▄▄█▀▄ ▀▀▄▀▄ █▄█ ▄▀▄██
+█ █   █ █▀█ ▄▀ █▀█▀▀ ▄▀█ ▀▄  ▄  ▀▄▀▀▄▀█▄█▀▀▄█▄ ▀█    ▄ ▄▀██
+█ █▄▄▄█ █ ▀▄▀▀█   █ ▄▀▄▄█▀▀ ▀▀█▀█  ▀▀▀▀██▀   █▄▄   ▀█▀▄██▀█
+█▄▄▄▄▄▄▄█▄▄█▄█▄▄▄▄▄█▄█▄▄▄███▄████▄██▄██▄▄▄▄█▄█▄▄▄▄▄▄█▄█▄███
+
+✅ WhatsApp Client is ready! (Connected to persistent session)
+💾 Session saved to MongoDB...
+🎯 זוהה ליד: Yosef Ytzhak Dahan, מפנה: בדוק ומנוסה
+🎯 זוהה ליד: Yosef Ytzhak Dahan, מפנה: בדוק ומנוסה
+🎯 זוהה ליד: Yosef Ytzhak Dahan, מפנה: בדוק ומנוסה
+🎯 זוהה ליד: Yosef Ytzhak Dahan, מפנה: בדוק ומנוסה
+🎯 זוהה ליד: Yosef Ytzhak Dahan, מפנה: בדוק ומנוסה
+🎯 זוהה ליד: Yosef Ytzhak Dahan, מפנה: בדוק ומנוסה
+^C
+appuser@yosef-node-1:~/projects/ziporiclass/server$ npm install -g pm2
+
+added 133 packages in 7s
+
+13 packages are looking for funding
+  run `npm fund` for details
+appuser@yosef-node-1:~/projects/ziporiclass/server$ cd ~/projects/ziporiclass/server
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser pm2 start app.js --name "zipori-server"
+
+                        -------------
+
+__/\\\\\\\\\\\\\____/\\\\____________/\\\\____/\\\\\\\\\_____
+ _\/\\\/////////\\\_\/\\\\\\________/\\\\\\__/\\\///////\\\___
+  _\/\\\_______\/\\\_\/\\\//\\\____/\\\//\\\_\///______\//\\\__
+   _\/\\\\\\\\\\\\\/__\/\\\\///\\\/\\\/_\/\\\___________/\\\/___
+    _\/\\\/////////____\/\\\__\///\\\/___\/\\\________/\\\//_____
+     _\/\\\_____________\/\\\____\///_____\/\\\_____/\\\//________
+      _\/\\\_____________\/\\\_____________\/\\\___/\\\/___________
+       _\/\\\_____________\/\\\_____________\/\\\__/\\\\\\\\\\\\\\\_
+        _\///______________\///______________\///__\///////////////__
+
+
+                          Runtime Edition
+
+        PM2 is a Production Process Manager for Node.js applications
+                     with a built-in Load Balancer.
+
+                Start and Daemonize any application:
+                $ pm2 start app.js
+
+                Load Balance 4 instances of api.js:
+                $ pm2 start api.js -i 4
+
+                Monitor in production:
+                $ pm2 monitor
+
+                Make pm2 auto-boot at server restart:
+                $ pm2 startup
+
+                To go further checkout:
+                http://pm2.io/
+
+
+                        -------------
+
+[PM2] Spawning PM2 daemon with pm2_home=/home/appuser/.pm2
+[PM2] PM2 Successfully daemonized
+[PM2] Starting /home/appuser/projects/ziporiclass/server/app.js in fork_mode (1 instance)
+[PM2] Done.
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ zipori-server      │ fork     │ 0    │ online    │ 0%       │ 47.5mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+appuser@yosef-node-1:~/projects/ziporiclass/server$ pm2 save
+[PM2] Saving current process list...
+[PM2] Successfully saved in /home/appuser/.pm2/dump.pm2
+appuser@yosef-node-1:~/projects/ziporiclass/server$ pm2 startup
+[PM2] Init System found: systemd
+[PM2] To setup the Startup Script, copy/paste the following command:
+sudo env PATH=$PATH:/home/appuser/.nvm/versions/node/v24.12.0/bin /home/appuser/.nvm/versions/node/v24.12.0/lib/node_modules/pm2/bin/pm2 startup systemd -u appuser --hp /home/appuser
+appuser@yosef-node-1:~/projects/ziporiclass/server$ cd ~/projects/ziporiclass/client
+appuser@yosef-node-1:~/projects/ziporiclass/client$ npm run build
+
+> client@1.0.0 build
+> vite build
+
+vite v7.2.2 building client environment for production...
+✓ 4164 modules transformed.
+dist/index.html                        1.07 kB │ gzip:   0.61 kB
+dist/assets/index-lQqnD6xw.css        92.15 kB │ gzip:  15.00 kB
+dist/assets/purify.es-C65SP4u9.js     22.38 kB │ gzip:   8.63 kB
+dist/assets/index.es-n2NyZFnY.js     158.55 kB │ gzip:  52.89 kB
+dist/assets/index-S0SqnUSu.js      2,439.35 kB │ gzip: 736.37 kB
+
+(!) Some chunks are larger than 2000 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 11.57s
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo apt install nginx -y
+[sudo] password for appuser:
+Sorry, try again.
+[sudo] password for appuser:
+Sorry, try again.
+[sudo] password for appuser:
+sudo: 3 incorrect password attempts
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+[sudo] password for appuser:
+Sorry, try again.
+[sudo] password for appuser:
+Sorry, try again.
+[sudo] password for appuser:
+sudo: 3 incorrect password attempts
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo apt install nginx -y
+[sudo] password for appuser:
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following additional packages will be installed:
+  nginx-common
+Suggested packages:
+  fcgiwrap nginx-doc ssl-cert
+The following NEW packages will be installed:
+  nginx nginx-common
+0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.
+Need to get 564 kB of archives.
+After this operation, 1,596 kB of additional disk space will be used.
+Get:1 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 nginx-common all 1.24.0-2ubuntu7.5 [43.4 kB]
+Get:2 https://mirror.hetzner.com/ubuntu/packages noble-updates/main amd64 nginx amd64 1.24.0-2ubuntu7.5 [520 kB]
+Fetched 564 kB in 0s (7,454 kB/s)
+Preconfiguring packages ...
+Selecting previously unselected package nginx-common.
+(Reading database ... 46489 files and directories currently installed.)
+Preparing to unpack .../nginx-common_1.24.0-2ubuntu7.5_all.deb ...
+Unpacking nginx-common (1.24.0-2ubuntu7.5) ...
+Selecting previously unselected package nginx.
+Preparing to unpack .../nginx_1.24.0-2ubuntu7.5_amd64.deb ...
+Unpacking nginx (1.24.0-2ubuntu7.5) ...
+Setting up nginx-common (1.24.0-2ubuntu7.5) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/nginx.service → /usr/lib/systemd/system/nginx.service.
+Setting up nginx (1.24.0-2ubuntu7.5) ...
+ * Upgrading binary nginx                                                       [ OK ]
+Processing triggers for man-db (2.12.0-4build2) ...
+Processing triggers for ufw (0.36.2-6) ...
+Scanning processes...
+Scanning linux images...
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo systemctl restart nginx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod 755 /home/appuser
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod 755 /home/appuser/projects
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod 755 /home/appuser/projects/ziporiclass
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod -R 755 /home/appuser/projects/ziporiclass/client
+appuser@yosef-node-1:~/projects/ziporiclass/client$ ls -l /home/appuser/projects/ziporiclass/client/dist
+total 60
+drwxr-xr-x 2 appuser appuser  4096 Dec 11 22:52 assets
+-rwxr-xr-x 1 appuser appuser  6932 Dec 11 22:52 favicon.svg
+-rwxr-xr-x 1 appuser appuser  1070 Dec 11 22:52 index.html
+-rwxr-xr-x 1 appuser appuser 40704 Dec 11 22:52 notification.mp3
+-rwxr-xr-x 1 appuser appuser  1315 Dec 11 22:52 sw.js
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo systemctl restart nginx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo tail -n 20 /var/log/nginx/error.log
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [crit] 4968#4968: *3 stat() "/home/appuser/projects/ziporiclass/client/dist/index.html" failed (13: Permission denied), client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+2025/12/11 22:58:44 [error] 4968#4968: *3 rewrite or internal redirection cycle while internally redirecting to "/index.html", client: 46.210.194.74, server: _, request: "GET /favicon.ico HTTP/1.1", host: "46.224.63.165", referrer: "http://46.224.63.165/"
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod o+x /home/appuser
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod o+x /home/appuser/projects
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod o+x /home/appuser/projects/ziporiclass
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod o+x /home/appuser/projects/ziporiclass/client
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod -R o+rx /home/appuser/projects/ziporiclass/client/dist
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo systemctl restart nginx
+
+
+appuser@yosef-node-1:~/projects/ziporiclass/client$ npm run build
+
+> client@1.0.0 build
+> vite build
+
+vite v7.2.2 building client environment for production...
+✓ 4164 modules transformed.
+dist/index.html                        1.07 kB │ gzip:   0.61 kB
+dist/assets/index-lQqnD6xw.css        92.15 kB │ gzip:  15.00 kB
+dist/assets/purify.es-C65SP4u9.js     22.38 kB │ gzip:   8.63 kB
+dist/assets/index.es-CBHskjTy.js     158.55 kB │ gzip:  52.89 kB
+dist/assets/index-CEDEWM9a.js      2,439.45 kB │ gzip: 736.43 kB
+
+(!) Some chunks are larger than 2000 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 11.79s
+appuser@yosef-node-1:~/projects/ziporiclass/client$ chmod -R o+rx dist
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+[sudo] password for appuser:
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+appuser@yosef-node-1:~/projects/ziporiclass/client$ [200~sudo nano /etc/nginx/sites-available/default~
+[200~sudo: command not found
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo systemctl reload nginx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo certbot --nginx -d ziporiteem.com -d www.ziporiteem.com
+sudo: certbot: command not found
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo certbot --nginx -d ziporiteem.com -d www.ziporiteem.com
+sudo: certbot: command not found
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo apt update
+Hit:1 https://mirror.hetzner.com/ubuntu/packages noble InRelease
+Hit:2 https://mirror.hetzner.com/ubuntu/packages noble-updates InRelease
+Hit:3 https://mirror.hetzner.com/ubuntu/packages noble-backports InRelease
+Hit:4 https://mirror.hetzner.com/ubuntu/security noble-security InRelease
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+All packages are up to date.
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo apt install certbot python3-certbot-nginx -y
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following additional packages will be installed:
+  python3-acme python3-certbot python3-configargparse python3-icu python3-josepy
+  python3-parsedatetime python3-rfc3339
+Suggested packages:
+  python-certbot-doc python3-certbot-apache python-acme-doc python-certbot-nginx-doc
+The following NEW packages will be installed:
+  certbot python3-acme python3-certbot python3-certbot-nginx python3-configargparse
+  python3-icu python3-josepy python3-parsedatetime python3-rfc3339
+0 upgraded, 9 newly installed, 0 to remove and 0 not upgraded.
+Need to get 1,097 kB of archives.
+After this operation, 5,699 kB of additional disk space will be used.
+Get:1 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 python3-josepy all 1.14.0-1 [22.1 kB]
+Get:2 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 python3-rfc3339 all 1.1-4 [6,744 B]
+Get:3 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 python3-acme all 2.9.0-1 [48.5 kB]
+Get:4 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 python3-configargparse all 1.7-1 [31.7 kB]
+Get:5 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 python3-parsedatetime all 2.6-3 [32.8 kB]
+Get:6 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 python3-certbot all 2.9.0-1 [267 kB]
+Get:7 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 certbot all 2.9.0-1 [89.2 kB]
+Get:8 https://mirror.hetzner.com/ubuntu/packages noble/universe amd64 python3-certbot-nginx all 2.9.0-1 [66.0 kB]
+Get:9 https://mirror.hetzner.com/ubuntu/packages noble/main amd64 python3-icu amd64 2.12-1build2 [534 kB]
+Fetched 1,097 kB in 0s (16.4 MB/s)
+Preconfiguring packages ...
+Selecting previously unselected package python3-josepy.
+(Reading database ... 46537 files and directories currently installed.)
+Preparing to unpack .../0-python3-josepy_1.14.0-1_all.deb ...
+Unpacking python3-josepy (1.14.0-1) ...
+Selecting previously unselected package python3-rfc3339.
+Preparing to unpack .../1-python3-rfc3339_1.1-4_all.deb ...
+Unpacking python3-rfc3339 (1.1-4) ...
+Selecting previously unselected package python3-acme.
+Preparing to unpack .../2-python3-acme_2.9.0-1_all.deb ...
+Unpacking python3-acme (2.9.0-1) ...
+Selecting previously unselected package python3-configargparse.
+Preparing to unpack .../3-python3-configargparse_1.7-1_all.deb ...
+Unpacking python3-configargparse (1.7-1) ...
+Selecting previously unselected package python3-parsedatetime.
+Preparing to unpack .../4-python3-parsedatetime_2.6-3_all.deb ...
+Unpacking python3-parsedatetime (2.6-3) ...
+Selecting previously unselected package python3-certbot.
+Preparing to unpack .../5-python3-certbot_2.9.0-1_all.deb ...
+Unpacking python3-certbot (2.9.0-1) ...
+Selecting previously unselected package certbot.
+Preparing to unpack .../6-certbot_2.9.0-1_all.deb ...
+Unpacking certbot (2.9.0-1) ...
+Selecting previously unselected package python3-certbot-nginx.
+Preparing to unpack .../7-python3-certbot-nginx_2.9.0-1_all.deb ...
+Unpacking python3-certbot-nginx (2.9.0-1) ...
+Selecting previously unselected package python3-icu.
+Preparing to unpack .../8-python3-icu_2.12-1build2_amd64.deb ...
+Unpacking python3-icu (2.12-1build2) ...
+Setting up python3-configargparse (1.7-1) ...
+Setting up python3-parsedatetime (2.6-3) ...
+Setting up python3-icu (2.12-1build2) ...
+Setting up python3-josepy (1.14.0-1) ...
+Setting up python3-rfc3339 (1.1-4) ...
+Setting up python3-acme (2.9.0-1) ...
+Setting up python3-certbot (2.9.0-1) ...
+Setting up certbot (2.9.0-1) ...
+Created symlink /etc/systemd/system/timers.target.wants/certbot.timer → /usr/lib/systemd/system/certbot.timer.
+Setting up python3-certbot-nginx (2.9.0-1) ...
+Processing triggers for man-db (2.12.0-4build2) ...
+Scanning processes...
+Scanning linux images...
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo certbot --nginx -d ziporiteem.com -d www.ziporiteem.com
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Enter email address (used for urgent renewal and security notices)
+ (Enter 'c' to cancel): yosefdaean@gmail.com
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Please read the Terms of Service at
+https://letsencrypt.org/documents/LE-SA-v1.6-August-18-2025.pdf. You must agree
+in order to register with the ACME server. Do you agree?
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+(Y)es/(N)o: y
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Would you be willing, once your first certificate is successfully issued, to
+share your email address with the Electronic Frontier Foundation, a founding
+partner of the Let's Encrypt project and the non-profit organization that
+develops Certbot? We'd like to send you email about our work encrypting the web,
+EFF news, campaigns, and ways to support digital freedom.
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+(Y)es/(N)o: n
+Account registered.
+Requesting a certificate for ziporiteem.com and www.ziporiteem.com
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/ziporiteem.com/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/ziporiteem.com/privkey.pem
+This certificate expires on 2026-03-11.
+These files will be updated when the certificate renews.
+Certbot has set up a scheduled task to automatically renew this certificate in the background.
+
+Deploying certificate
+Successfully deployed certificate for ziporiteem.com to /etc/nginx/sites-enabled/default
+Successfully deployed certificate for www.ziporiteem.com to /etc/nginx/sites-enabled/default
+Congratulations! You have successfully enabled HTTPS on https://ziporiteem.com and https://www.ziporiteem.com
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+ * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+ * Donating to EFF:                    https://eff.org/donate-le
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+appuser@yosef-node-1:~/projects/ziporiclass/client$ cd ~/projects/ziporiclass/client
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano .env
+appuser@yosef-node-1:~/projects/ziporiclass/client$ npm run build
+
+> client@1.0.0 build
+> vite build
+
+vite v7.2.2 building client environment for production...
+✓ 4164 modules transformed.
+dist/index.html                        1.07 kB │ gzip:   0.61 kB
+dist/assets/index-lQqnD6xw.css        92.15 kB │ gzip:  15.00 kB
+dist/assets/purify.es-C65SP4u9.js     22.38 kB │ gzip:   8.63 kB
+dist/assets/index.es-Df8plfmc.js     158.55 kB │ gzip:  52.89 kB
+dist/assets/index-BNYi0Qix.js      2,439.39 kB │ gzip: 736.38 kB
+
+(!) Some chunks are larger than 2000 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 11.73s
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo nano /etc/nginx/sites-available/default
+appuser@yosef-node-1:~/projects/ziporiclass/client$ sudo systemctl reload nginx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano .env
+appuser@yosef-node-1:~/projects/ziporiclass/client$ grep -r "localhost:4000" src/
+src/utils/socketService.js:  : 'http://localhost:4000';
+src/pages/HomePage.jsx:const SERVER_ROOT = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/api$/, '');
+src/pages/QuotePage.jsx:const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano src/utils/socketService.js
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano src/pages/HomePage.jsx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano src/pages/HomePage.jsx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano src/pages/HomePage.jsx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano src/pages/HomePage.jsx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano src/pages/HomePage.jsx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ nano src/pages/QuotePage.jsx
+appuser@yosef-node-1:~/projects/ziporiclass/client$ npm run build
+
+> client@1.0.0 build
+> vite build
+
+vite v7.2.2 building client environment for production...
+✓ 4164 modules transformed.
+dist/index.html                        1.07 kB │ gzip:   0.61 kB
+dist/assets/index-lQqnD6xw.css        92.15 kB │ gzip:  15.00 kB
+dist/assets/purify.es-C65SP4u9.js     22.38 kB │ gzip:   8.63 kB
+dist/assets/index.es-BGe-fJUG.js     158.55 kB │ gzip:  52.89 kB
+dist/assets/index-kXZ5Mkai.js      2,439.39 kB │ gzip: 736.38 kB
+
+(!) Some chunks are larger than 2000 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 11.25s
+appuser@yosef-node-1:~/projects/ziporiclass/client$ pm2 restart all
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [all](ids: [ 0 ])
+[PM2] [zipori-server](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ zipori-server      │ fork     │ 1    │ online    │ 0%       │ 18.3mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+appuser@yosef-node-1:~/projects/ziporiclass/client$
