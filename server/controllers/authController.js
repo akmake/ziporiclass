@@ -1,8 +1,54 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/userModel.js';
-import { createAndSendTokens } from '../utils/tokenHandler.js';
-import { logAction } from '../utils/auditLogger.js'; // ✨ ייבוא
+// import { createAndSendTokens } from '../utils/tokenHandler.js'; // ביטלנו את זה כדי לשלוט בקוקיז מכאן
+import { logAction } from '../utils/auditLogger.js';
+
+// --- פונקציות עזר ליצירת טוקנים (פנימי בתוך הקונטרולר לביטחון) ---
+
+const signToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '90d'
+  });
+};
+
+const signRefreshToken = (id, tokenVersion) => {
+  return jwt.sign({ id, v: tokenVersion }, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: '7d'
+  });
+};
+
+// הפונקציה שקובעת את הקוקיז עם ההגדרות הנכונות ל-Render
+const setAuthCookies = (res, user) => {
+  const token = signToken(user._id);
+  const refreshToken = signRefreshToken(user._id, user.tokenVersion);
+
+  // הגדרות קריטיות ל-Render ולכרום
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction || true, // חובה ב-Render
+    sameSite: isProduction ? 'none' : 'lax', // חובה לתקשורת בין דומיינים שונים
+    path: '/'
+  };
+
+  // קוקי של ה-Access Token
+  res.cookie('jwt', token, {
+    ...cookieOptions,
+    expires: new Date(Date.now() + (parseInt(process.env.JWT_COOKIE_EXPIRES_IN) || 90) * 24 * 60 * 60 * 1000)
+  });
+
+  // קוקי של ה-Refresh Token
+  res.cookie('refreshToken', refreshToken, {
+    ...cookieOptions,
+    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 ימים
+  });
+
+  return { token, refreshToken };
+};
+
+// --- הסוף של פונקציות העזר ---
 
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
@@ -14,6 +60,7 @@ export const registerUser = async (req, res) => {
   if (exists)
     return res.status(400).json({ message: 'משתמש עם אימייל זה כבר קיים' });
 
+  // בדיקת חוזק סיסמה
   const strong = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$/;
   if (!strong.test(password))
     return res.status(400).json({ message: 'הסיסמה חלשה מדי. נדרשים 8 תווים, אות גדולה, קטנה, מספר ותו מיוחד.' });
@@ -44,9 +91,10 @@ export const registerUser = async (req, res) => {
       canViewCommissions: user.canViewCommissions
   };
 
-  createAndSendTokens(user, res);
+  // שימוש בפונקציה הפנימית שלנו שמגדירה את הקוקיז נכון
+  setAuthCookies(res, user);
   
-  // ✨ תיעוד הרשמה (אופציונלי - נרשם כמשתמש המחובר, שזה המשתמש החדש עצמו כרגע)
+  // ✨ תיעוד הרשמה
   req.user = user;
   await logAction(req, 'CREATE', 'User', user._id, `משתמש חדש נרשם: ${user.name}`);
 
@@ -73,7 +121,6 @@ export const loginUser = async (req, res) => {
 
   await user.resetLoginAttempts();
 
-  // ✨ שליחת ההרשאות החדשות לקליינט
   const userPayload = {
       _id: user._id,
       name: user.name,
@@ -83,10 +130,10 @@ export const loginUser = async (req, res) => {
       canViewCommissions: user.canViewCommissions
   };
 
-  createAndSendTokens(user, res);
+  // הגדרת הקוקיז
+  setAuthCookies(res, user);
 
   // ✨ תיעוד התחברות
-  // מכניסים את המשתמש ל-req ידנית כי ה-middleware עוד לא רץ בנקודה זו
   req.user = user; 
   await logAction(req, 'LOGIN', 'System', null, 'התחברות למערכת');
 
@@ -94,15 +141,19 @@ export const loginUser = async (req, res) => {
 };
 
 export const logout = async (req, res) => {
-    // ✨ תיעוד יציאה (אם המשתמש היה מחובר)
-    // ה-middleware של requireAuth אמור לרוץ לפני ה-logout ב-routes בדרך כלל, 
-    // אבל גם אם לא, ננסה לתעד אם יש קוקי. כאן נניח שיש.
     if (req.user) {
         await logAction(req, 'LOGOUT', 'System', null, 'יציאה מהמערכת');
     }
 
-    res.clearCookie('jwt');
-    res.clearCookie('refreshToken');
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production' || true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/'
+    };
+
+    res.clearCookie('jwt', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
     return res.sendStatus(204);
 };
 
@@ -114,10 +165,14 @@ export const refresh = async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id);
+    
+    // בדיקת גרסת טוקן (חשוב לאבטחה - ניתוק מכל המכשירים)
     if (!user || user.tokenVersion !== decoded.v) {
       return res.status(403).json({ message: 'Forbidden. Please log in again.' });
     }
-    createAndSendTokens(user, res);
+    
+    // חידוש הקוקיז
+    setAuthCookies(res, user);
 
     const userPayload = {
         _id: user._id,
