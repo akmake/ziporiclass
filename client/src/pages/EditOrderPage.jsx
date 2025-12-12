@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 // Icons
 import {
     ArrowRight, User, Phone, Activity, BadgePercent, Save,
-    FileDown, Hotel, Eye, StickyNote, FilePlus2, Tag, Mail, Calendar, Maximize2, AlertTriangle
+    FileDown, Hotel, Eye, StickyNote, FilePlus2, Tag, Mail, Calendar, Maximize2, AlertTriangle,CheckCircle2,
 } from 'lucide-react';
 
 import { calculateRoomTotalPrice } from '@/lib/priceCalculator';
