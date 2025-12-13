@@ -158,8 +158,7 @@ export default function ManageTriggersPage() {
                     <h4 className="font-bold text-lg mb-2">איך המערכת מחליטה מתי לפתוח ליד?</h4>
                     <ul className="list-disc list-inside space-y-1 text-sm md:text-base leading-relaxed">
                         <li>
-                            <strong>לקוח חדש / רדום:</strong> אם המספר לא שלח הודעה ב-30 הימים האחרונים -> <span className="font-bold text-green-700">תמיד נפתח ליד</span> (גם אם כתב "היי").
-                        </li>
+                            <strong>לקוח חדש / רדום:</strong> אם המספר לא שלח הודעה ב-30 הימים האחרונים ← <span className="font-bold text-green-700">תמיד נפתח ליד</span> (גם אם כתב "היי").                        </li>
                         <li>
                             <strong>לקוח פעיל:</strong> אם הוא דיבר איתנו לאחרונה, נפתח ליד <span className="underline decoration-blue-500 decoration-2">רק אם</span> ההודעה מכילה את אחת המילים ברשימה למעלה.
                         </li>
