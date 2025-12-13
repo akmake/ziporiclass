@@ -16,6 +16,33 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
+// === פונקציה קריטית: חילוץ מספר אמיתי (מתמודד עם LID) ===
+async function getTruePhoneNumber(msg, client) {
+    // 1. קביעת ה-ID הגולמי (בקבוצה לוקחים את המחבר, בפרטי את השולח)
+    let rawId = msg.author || msg.from;
+
+    // 2. אם זה כבר בפורמט הישן והטוב (@c.us), פשוט חותכים
+    if (rawId.includes('@c.us')) {
+        return rawId.split('@')[0];
+    }
+
+    // 3. אם זה פורמט הפרטיות החדש (@lid), חייבים המרה
+    if (rawId.includes('@lid')) {
+        try {
+            // שימוש בפונקציה הישירה של הלקוח (יציב יותר מ-msg.getContact)
+            const contact = await client.getContactById(rawId);
+            if (contact && contact.number) {
+                return contact.number; // זה מחזיר את המספר האמיתי!
+            }
+        } catch (error) {
+            console.error('⚠️ נכשל במיפוי LID למספר:', rawId, error.message);
+        }
+    }
+
+    // 4. Fallback - מחזיר את החלק הראשון (עדיף מכלום, אבל ב-LID זה יהיה קוד)
+    return rawId.split('@')[0];
+}
+
 // === הגדרת הלקוח ===
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -24,7 +51,7 @@ const client = new Client({
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage', // חשוב לשרתים
+            '--disable-dev-shm-usage', 
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
@@ -53,21 +80,17 @@ export const initWhatsAppListener = () => {
                 return; 
             }
 
-            // === 🛑 התיקון הקריטי: חילוץ נתונים ישיר (ללא getContact) 🛑 ===
+            // === 🛑 התיקון: שימוש בפונקציית החילוץ החדשה 🛑 ===
+            const senderPhone = await getTruePhoneNumber(msg, client);
             
-            // חילוץ טלפון: חותכים את ה-@c.us מה-ID
-            // אם זו קבוצה, לוקחים את ה-author (השולח), אחרת את ה-from
-            let senderPhone = (msg.author || msg.from).split('@')[0];
-
-            // חילוץ שם: מנסים לקחת את ה-PushName (הכינוי בוואטסאפ)
-            // גישה לשדה _data הפנימי שמכיל מידע גולמי ללא המתנה (await)
+            // חילוץ שם (PushName) מהמידע הגולמי - הכי מהיר
             const rawData = msg._data || {};
-            const pushName = rawData.notifyName || null;
+            const pushName = rawData.notifyName || rawData.pushname || null;
             
-            // שם סופי: אם יש כינוי - לוקחים אותו, אם אין - משתמשים במספר
+            // אם אין שם, משתמשים במספר
             const senderRealName = pushName || senderPhone;
 
-            console.log(`🔎 זיהוי הודעה: שם: ${senderRealName} | טלפון: ${senderPhone}`);
+            console.log(`🔎 זוהה: שם: ${senderRealName} | טלפון: ${senderPhone}`);
             // ========================================================
 
             const bodyRaw = msg.body || '';
@@ -77,23 +100,21 @@ export const initWhatsAppListener = () => {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            // מחפשים לפי המספר האמיתי שחילצנו
+            // חיפוש לפי המספר שחילצנו
             const lastLead = await InboundEmail.findOne({ 
                 parsedPhone: senderPhone 
             }).sort({ receivedAt: -1 });
 
             const isNewConversation = !lastLead || new Date(lastLead.receivedAt) < thirtyDaysAgo;
 
-            // === בדיקה 2: האם יש מילת מפתח (טריגר)? ===
+            // === בדיקה 2: האם יש מילת מפתח? ===
             const activeTriggers = await LeadTrigger.find({ isActive: true }).lean();
             const matchedTrigger = activeTriggers.find(t => bodyLower.includes(t.text));
             
             // === החלטה: האם לפתוח ליד? ===
             if (isNewConversation || matchedTrigger) {
 
-                // 3. חילוץ שם המפנה (2 מילים אחרי הטריגר)
                 let finalReferrer = null;
-
                 if (matchedTrigger) {
                     const triggerIndex = bodyLower.indexOf(matchedTrigger.text);
                     const textAfterTrigger = bodyRaw.substring(triggerIndex + matchedTrigger.text.length).trim();
@@ -106,7 +127,7 @@ export const initWhatsAppListener = () => {
 
                 console.log(`🎯 ליד חדש נוצר! מאת: ${senderRealName}`);
 
-                // שמירה לדאטהבייס עם המספר והשם התקינים
+                // שמירה לדאטהבייס
                 await InboundEmail.create({
                     from: 'WhatsApp',
                     type: matchedTrigger ? `וואטסאפ (${matchedTrigger.text})` : 'וואטסאפ (שיחה חדשה)',
@@ -115,7 +136,7 @@ export const initWhatsAppListener = () => {
                     status: 'new',
                     
                     parsedName: senderRealName,
-                    parsedPhone: senderPhone, // ✨ המספר הנקי
+                    parsedPhone: senderPhone, // נשמר המספר המומר
                     parsedNote: bodyRaw,
                     referrer: finalReferrer, 
                     
@@ -123,7 +144,6 @@ export const initWhatsAppListener = () => {
                     handledBy: null
                 });
 
-                // שליחת התראה
                 sendPushToAll({
                     title: `ליד חדש: ${senderRealName}`,
                     body: matchedTrigger 
@@ -133,7 +153,7 @@ export const initWhatsAppListener = () => {
                 });
 
             } else {
-                console.log(`⏩ שיחה שוטפת: ${senderRealName} (בחלון ה-30 יום)`);
+                console.log(`⏩ שיחה שוטפת: ${senderRealName}`);
             }
 
         } catch (error) {
