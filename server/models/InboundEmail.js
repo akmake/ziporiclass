@@ -13,17 +13,9 @@ const inboundEmailSchema = new mongoose.Schema(
       default: 'new',
       index: true,
     },
-
     rejectionReason: { type: String, trim: true, default: null },
-
     parsedName: { type: String, trim: true },
     parsedPhone: { type: String, trim: true },
-
-    // ✅ חדש: מזהים של וואטסאפ כדי שאפשר יהיה לענות גם כשאין מספר טלפון (LID)
-    waChatId: { type: String, trim: true, index: true, default: null },   // למשל: 1979...@lid / 972...@c.us
-    waSenderId: { type: String, trim: true, index: true, default: null }, // author אם יש (קבוצות), אחרת from
-    waIsLid: { type: Boolean, default: false, index: true },
-
     parsedNote: { type: String, trim: true }, // המוכר רואה רק את זה
     conversationLink: { type: String, trim: true },
 
@@ -32,7 +24,7 @@ const inboundEmailSchema = new mongoose.Schema(
 
     hotel: { type: String, trim: true, default: null },
     handledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    internalNotes: { type: String, trim: true },
+    internalNotes: { type: String, trim: true }
   },
   { timestamps: true }
 );
