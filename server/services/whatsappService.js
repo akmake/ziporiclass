@@ -16,31 +16,49 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-// === פונקציה קריטית: חילוץ מספר אמיתי (מתמודד עם LID) ===
+// === פונקציה אגרסיבית לחילוץ מספר אמיתי (Anti-LID) ===
 async function getTruePhoneNumber(msg, client) {
-    // 1. קביעת ה-ID הגולמי (בקבוצה לוקחים את המחבר, בפרטי את השולח)
-    let rawId = msg.author || msg.from;
+    let candidate = null;
 
-    // 2. אם זה כבר בפורמט הישן והטוב (@c.us), פשוט חותכים
-    if (rawId.includes('@c.us')) {
-        return rawId.split('@')[0];
+    // נסיון 1: בדיקת ה-Author/From הרגיל
+    let rawFrom = msg.author || msg.from;
+    if (rawFrom.includes('@c.us')) {
+        return rawFrom.split('@')[0]; // זהו, יש לנו מספר
     }
 
-    // 3. אם זה פורמט הפרטיות החדש (@lid), חייבים המרה
-    if (rawId.includes('@lid')) {
-        try {
-            // שימוש בפונקציה הישירה של הלקוח (יציב יותר מ-msg.getContact)
-            const contact = await client.getContactById(rawId);
-            if (contact && contact.number) {
-                return contact.number; // זה מחזיר את המספר האמיתי!
+    // נסיון 2: חילוץ דרך אובייקט ה-Chat (הכי אמין ל-LID)
+    try {
+        const chat = await msg.getChat();
+        // ה-Chat ID לרוב מחזיק את המספר המקורי גם אם ההודעה הגיעה מ-LID
+        if (chat && chat.id && chat.id.user) {
+            candidate = chat.id.user;
+            // אם זה לא LID (לא מתחיל ב-1 וארוך), זה המספר
+            if (!candidate.includes('@lid') && candidate.length < 15) {
+                return candidate;
             }
-        } catch (error) {
-            console.error('⚠️ נכשל במיפוי LID למספר:', rawId, error.message);
+        }
+    } catch (e) {
+        console.log('Error fetching chat for number resolution');
+    }
+
+    // נסיון 3: המרה כפויה דרך Contact
+    try {
+        const contact = await msg.getContact();
+        if (contact && contact.number) {
+            return contact.number;
+        }
+    } catch (e) { }
+
+    // נסיון 4: בדיקה במידע הגולמי הנסתר (_data)
+    if (msg._data && msg._data.id && msg._data.id.remote) {
+        const remote = msg._data.id.remote;
+        if (remote.includes('@c.us')) {
+            return remote.split('@')[0];
         }
     }
 
-    // 4. Fallback - מחזיר את החלק הראשון (עדיף מכלום, אבל ב-LID זה יהיה קוד)
-    return rawId.split('@')[0];
+    // אם הכל נכשל, מחזירים את מה שיש (גם אם זה LID), אבל ברוב המקרים נסיון 2 יפתור את זה
+    return rawFrom.split('@')[0];
 }
 
 // === הגדרת הלקוח ===
@@ -51,7 +69,7 @@ const client = new Client({
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage', 
+            '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
@@ -80,38 +98,40 @@ export const initWhatsAppListener = () => {
                 return; 
             }
 
-            // === 🛑 התיקון: שימוש בפונקציית החילוץ החדשה 🛑 ===
+            // === חילוץ מספר באמצעות הפונקציה החדשה ===
             const senderPhone = await getTruePhoneNumber(msg, client);
             
-            // חילוץ שם (PushName) מהמידע הגולמי - הכי מהיר
+            // חילוץ שם
             const rawData = msg._data || {};
             const pushName = rawData.notifyName || rawData.pushname || null;
-            
-            // אם אין שם, משתמשים במספר
             const senderRealName = pushName || senderPhone;
 
-            console.log(`🔎 זוהה: שם: ${senderRealName} | טלפון: ${senderPhone}`);
+            console.log(`🔎 בדיקה סופית: שם: ${senderRealName} | טלפון: ${senderPhone}`);
+            
+            // אזהרה ויזואלית במידה ועדיין חוזר LID
+            if (senderPhone.length > 15 && senderPhone.startsWith('1')) {
+                console.warn('⚠️ אזהרה: המספר שחזר עדיין נראה כמו מזהה מוצפן. ייתכן והלקוח משתמש בהגדרות פרטיות מתקדמות.');
+            }
             // ========================================================
 
             const bodyRaw = msg.body || '';
             const bodyLower = bodyRaw.toLowerCase();
             
-            // === בדיקה 1: האם זה לקוח "חדש" (לא דיבר 30 יום)? ===
+            // === בדיקה 1: לקוח חדש? ===
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            // חיפוש לפי המספר שחילצנו
             const lastLead = await InboundEmail.findOne({ 
                 parsedPhone: senderPhone 
             }).sort({ receivedAt: -1 });
 
             const isNewConversation = !lastLead || new Date(lastLead.receivedAt) < thirtyDaysAgo;
 
-            // === בדיקה 2: האם יש מילת מפתח? ===
+            // === בדיקה 2: טריגר? ===
             const activeTriggers = await LeadTrigger.find({ isActive: true }).lean();
             const matchedTrigger = activeTriggers.find(t => bodyLower.includes(t.text));
             
-            // === החלטה: האם לפתוח ליד? ===
+            // === החלטה ===
             if (isNewConversation || matchedTrigger) {
 
                 let finalReferrer = null;
@@ -125,21 +145,18 @@ export const initWhatsAppListener = () => {
                     }
                 }
 
-                console.log(`🎯 ליד חדש נוצר! מאת: ${senderRealName}`);
+                console.log(`🎯 ליד חדש נפתח: ${senderRealName}`);
 
-                // שמירה לדאטהבייס
                 await InboundEmail.create({
                     from: 'WhatsApp',
                     type: matchedTrigger ? `וואטסאפ (${matchedTrigger.text})` : 'וואטסאפ (שיחה חדשה)',
                     body: bodyRaw,
                     receivedAt: new Date(),
                     status: 'new',
-                    
                     parsedName: senderRealName,
-                    parsedPhone: senderPhone, // נשמר המספר המומר
+                    parsedPhone: senderPhone,
                     parsedNote: bodyRaw,
                     referrer: finalReferrer, 
-                    
                     hotel: null,
                     handledBy: null
                 });
