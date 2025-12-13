@@ -37,6 +37,8 @@ import adminCommissionRoutes from './routes/adminCommissions.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import adminTriggerRoutes from './routes/adminTriggers.js';
+
 
 // --- חיבור למסד הנתונים ---
 try {
@@ -132,6 +134,7 @@ app.use('/api/admin/hotels', adminHotelRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 app.use('/api/admin/room-types', adminRoomTypeRoutes);
+app.use('/api/admin/triggers', adminTriggerRoutes); // ✨ הוסף את השורה הזו
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin/extras', adminExtraTypesRoutes);
