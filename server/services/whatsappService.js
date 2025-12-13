@@ -45,20 +45,27 @@ export const initWhatsAppListener = () => {
                 return; 
             }
 
-            // === ✨ התיקון הסופי לזיהוי מספר טלפון ✨ ===
-            // במקום להסתמך על המחרוזת msg.from שיכולה להיות מזהה מכשיר (LID)
-            // אנחנו שולפים את אובייקט ה"איש קשר" המלא.
-            const contact = await msg.getContact();
+            // === 🛑 התיקון: חילוץ נתונים ישיר (ללא getContact) 🛑 ===
             
-            // contact.number תמיד יכיל את מספר הטלפון האמיתי (למשל 972501234567)
-            const senderPhone = contact.number; 
+            // חילוץ טלפון: חותכים את ה-@c.us מה-ID
+            // אם זו קבוצה, לוקחים את ה-author (השולח), אחרת את ה-from
+            let senderPhone = (msg.author || msg.from).split('@')[0];
+
+            // חילוץ שם: מנסים לקחת את ה-PushName (הכינוי בוואטסאפ)
+            // אנחנו ניגשים לשדה _data שהוא שדה פנימי שמכיל את המידע הגולמי
+            const rawData = msg._data || {};
+            const pushName = rawData.notifyName || null;
             
-            // ניקח גם את השם האמיתי מהאובייקט הזה על הדרך
-            const senderRealName = contact.name || contact.pushname || senderPhone;
-            // ===============================================
+            // שם סופי: אם יש כינוי - מעולה, אם אין - משתמשים במספר הטלפון כשם
+            const senderRealName = pushName || senderPhone;
+
+            console.log(`🔎 זיהוי הודעה: שם: ${senderRealName} | טלפון: ${senderPhone}`);
+            // ========================================================
 
             const bodyRaw = msg.body || '';
             const bodyLower = bodyRaw.toLowerCase();
+            
+            // === מכאן הלוגיקה שלך ממשיכה כרגיל ===
             
             // === בדיקה 1: האם זה לקוח "חדש" (לא דיבר 30 יום)? ===
             const thirtyDaysAgo = new Date();
@@ -77,9 +84,8 @@ export const initWhatsAppListener = () => {
             // === החלטה: האם לפתוח ליד? ===
             if (isNewConversation || matchedTrigger) {
 
-                // 3. חילוץ שם המפנה (2 מילים אחרי הטריגר)
+                // 3. חילוץ שם המפנה
                 let finalReferrer = null;
-
                 if (matchedTrigger) {
                     const triggerIndex = bodyLower.indexOf(matchedTrigger.text);
                     const textAfterTrigger = bodyRaw.substring(triggerIndex + matchedTrigger.text.length).trim();
@@ -90,9 +96,7 @@ export const initWhatsAppListener = () => {
                     }
                 }
 
-                console.log(`🎯 ליד חדש נוצר!`);
-                console.log(`📞 טלפון שזוהה: ${senderPhone}`); // וודא בלוג שזה המספר הנכון
-                console.log(`👤 שם: ${senderRealName}`);
+                console.log(`🎯 ליד חדש נוצר! מאת: ${senderRealName}`);
 
                 // שמירה לדאטהבייס
                 await InboundEmail.create({
@@ -103,7 +107,7 @@ export const initWhatsAppListener = () => {
                     status: 'new',
                     
                     parsedName: senderRealName,
-                    parsedPhone: senderPhone, // ✨ המספר האמיתי
+                    parsedPhone: senderPhone,
                     parsedNote: bodyRaw,
                     referrer: finalReferrer, 
                     
@@ -121,7 +125,7 @@ export const initWhatsAppListener = () => {
                 });
 
             } else {
-                console.log(`⏩ הודעה שוטפת מ-${senderRealName} (${senderPhone}) - בתוך חלון ה-30 יום.`);
+                console.log(`⏩ שיחה קיימת: ${senderRealName}`);
             }
 
         } catch (error) {
