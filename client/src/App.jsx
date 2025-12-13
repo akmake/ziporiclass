@@ -46,6 +46,7 @@ import AuditLogsPage from "@/pages/admin/AuditLogsPage.jsx";
 import CommissionsPage from "@/pages/admin/CommissionsPage.jsx";
 import BookingManagementPage from "@/pages/admin/BookingManagementPage.jsx";
 import RoomAssignmentPage from './pages/admin/RoomAssignmentPage';
+import ManageTriggersPage from "@/pages/admin/ManageTriggersPage.jsx";
 
 import PushNotificationManager from "@/components/PushNotificationManager.jsx";
 import AutoLogout from "@/components/AutoLogout.jsx";
@@ -121,6 +122,7 @@ export default function App() {
             <Route path="commissions" element={<CommissionsPage />} />
             <Route path="announcements" element={<ManageAnnouncementsPage />} />
             <Route path="audit-logs" element={<AuditLogsPage />} />
+            <Route path="triggers" element={<ManageTriggersPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

@@ -11,9 +11,13 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card.jsx';
 import {
   Shield, ListOrdered, Users, Hotel, Mail, FileText, Tag,
-  Megaphone, Network, TrendingUp, CheckCircle
+  Megaphone, Network, TrendingUp, CheckCircle,
 } from 'lucide-react';
 import LogoUploader from '@/components/admin/LogoUploader.jsx';
+import { MessageSquarePlus } from 'lucide-react';
+
+
+
 
 const fetchDashboardStats = async () => (await api.get('/admin/dashboard/stats')).data;
 // צבע הזהב המותגי
@@ -82,7 +86,7 @@ export default function AdminDashboardPage() {
     // ניהול הזמנות ולידים
     { to: '/admin/orders', title: 'ניהול הזמנות', description: 'צפייה ועדכון כל ההזמנות.', icon: Shield },
     { to: '/leads', title: 'ניהול לידים', description: 'טיפול בפניות ושינוי סטטוסים.', icon: Mail },
-
+    { to: '/admin/triggers', title: 'מילות מפתח ללידים', description: 'הגדרת ביטויים שפותחים ליד אוטומטית בוואטסאפ.', icon: MessageSquarePlus},
     // הגדרות מערכת
     { to: '/manage-pricelists', title: 'מחירונים', description: 'ניהול מחירונים.', icon: ListOrdered },
     { to: '/admin/users', title: 'משתמשים', description: 'ניהול משתמשים.', icon: Users },
