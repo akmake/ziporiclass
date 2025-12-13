@@ -42,32 +42,46 @@ export const initWhatsAppListener = () => {
             const chat = await msg.getChat();
 
             // ============================================================
-            // 🛑 חילוץ וניקוי נתונים 🛑
+            // 🛑 חלק 1: חילוץ שם וטלפון (הגרסה שעבדה!) 🛑
             // ============================================================
 
-            // 1. שם: לוקחים מהכינוי שהמשתמש בחר
             const senderName = msg._data.notifyName || msg.pushname || "Unknown";
-
-            // 2. טלפון גולמי: לוקחים את מה שמופיע בכותרת הצ'אט (המספר עם ה-+, סוגריים וכו')
+            
             let rawPhone = chat.name; 
-
-            // גיבוי: אם אין שם צ'אט, לוקחים את ה-ID
+            // גיבוי למקרה שאין שם צ'אט
             if (!rawPhone) {
                  rawPhone = msg.from.replace('@c.us', '');
             }
 
-            // 3. 🛑 הניקוי (החלק החדש): מוחקים כל מה שהוא לא ספרה! 🛑
-            // הופך את "+1 (347) 770-0657" ל- "13477700657"
-            // אם rawPhone הוא null/undefined, נחזיר מחרוזת ריקה כדי לא לקרוס
+            // ניקוי המספר מכל מה שאינו ספרה
             const finalPhone = rawPhone ? rawPhone.replace(/\D/g, '') : '';
 
             // ============================================================
+            // 🛑 חלק 2: התיקון לטקסט הנעלם 🛑
+            // ============================================================
 
-            console.log(`📩 הודעה מ: ${senderName} | מקור: ${rawPhone} | נשמר כ: ${finalPhone}`);
+            // אנחנו מנסים לשלוף את הטקסט מ-3 מקומות שונים ליתר ביטחון
+            let bodyRaw = msg.body;
 
-            const bodyRaw = msg.body || '';
+            // בדיקת גיבוי: אם ה-body ריק, נסה לשלוף מהמידע הפנימי (_data)
+            if (!bodyRaw && msg._data && msg._data.body) {
+                bodyRaw = msg._data.body;
+            }
+
+            // בדיקת גיבוי 2: אם זה עדיין ריק, אולי זה קפשן של תמונה/מדיה?
+            if (!bodyRaw && msg.hasMedia && msg.caption) {
+                bodyRaw = msg.caption;
+            }
+            
+            // וידוא סופי שלא יהיה null
+            if (!bodyRaw) bodyRaw = '';
+
+            // לוג מיוחד כדי שנראה בעיניים מה מגיע
+            console.log(`🔍 דיבאג הודעה >> שם: ${senderName} | טקסט שנקלט: "${bodyRaw}"`);
+            
+            // ============================================================
+
             const bodyLower = bodyRaw.toLowerCase();
-
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -92,17 +106,17 @@ export const initWhatsAppListener = () => {
                     }
                 }
 
-                console.log(`✅ שומר ליד חדש...`);
+                console.log(`✅ שומר ליד חדש עם תוכן: ${bodyRaw}`);
 
                 await InboundEmail.create({
                     from: 'WhatsApp',
                     type: matchedTrigger ? `וואטסאפ (${matchedTrigger.text})` : 'וואטסאפ (שיחה חדשה)',
-                    body: bodyRaw,
+                    body: bodyRaw, // זה התוכן שאמור להופיע עכשיו
                     receivedAt: new Date(),
                     status: 'new',
                     
                     parsedName: senderName,
-                    parsedPhone: finalPhone, // עכשיו זה נקי ומוכן לוואטסאפ
+                    parsedPhone: finalPhone,
                     
                     parsedNote: bodyRaw,
                     referrer: finalReferrer,
@@ -112,7 +126,7 @@ export const initWhatsAppListener = () => {
 
                 sendPushToAll({
                     title: `ליד חדש: ${senderName}`,
-                    body: matchedTrigger ? `זוהה: "${matchedTrigger.text}"` : 'לקוח התחיל שיחה חדשה',
+                    body: matchedTrigger ? `זוהה: "${matchedTrigger.text}"` : (bodyRaw || 'הודעה חדשה'),
                     url: '/leads'
                 });
             } else {
