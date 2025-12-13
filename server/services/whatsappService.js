@@ -42,26 +42,28 @@ export const initWhatsAppListener = () => {
             const chat = await msg.getChat();
 
             // ============================================================
-            // 🛑 התיקון לפי ההוראה שלך 🛑
+            // 🛑 חילוץ וניקוי נתונים 🛑
             // ============================================================
 
-            // 1. השם - חוזר להיות השם הרגיל שהמשתמש בחר (כמו שהיה בהתחלה)
+            // 1. שם: לוקחים מהכינוי שהמשתמש בחר
             const senderName = msg._data.notifyName || msg.pushname || "Unknown";
 
-            // 2. הטלפון - אנחנו לוקחים את chat.name!
-            // זה המשתנה שקודם הציג לך את המספר היפה (+1 347...) בתוך שדה השם.
-            // עכשיו אנחנו מעבירים אותו לשדה הטלפון.
-            // (אנחנו מנקים ממנו רק רווחים מיותרים אם יש, אבל משאירים אותו כמו שהוא)
-            let finalPhone = chat.name; 
+            // 2. טלפון גולמי: לוקחים את מה שמופיע בכותרת הצ'אט (המספר עם ה-+, סוגריים וכו')
+            let rawPhone = chat.name; 
 
-            // גיבוי למקרה חירום שמגיע בלי שם צ'אט
-            if (!finalPhone) {
-                 finalPhone = msg.from.replace('@c.us', '');
+            // גיבוי: אם אין שם צ'אט, לוקחים את ה-ID
+            if (!rawPhone) {
+                 rawPhone = msg.from.replace('@c.us', '');
             }
+
+            // 3. 🛑 הניקוי (החלק החדש): מוחקים כל מה שהוא לא ספרה! 🛑
+            // הופך את "+1 (347) 770-0657" ל- "13477700657"
+            // אם rawPhone הוא null/undefined, נחזיר מחרוזת ריקה כדי לא לקרוס
+            const finalPhone = rawPhone ? rawPhone.replace(/\D/g, '') : '';
 
             // ============================================================
 
-            console.log(`📩 הודעה חדשה מ: ${senderName} (טלפון: ${finalPhone})`);
+            console.log(`📩 הודעה מ: ${senderName} | מקור: ${rawPhone} | נשמר כ: ${finalPhone}`);
 
             const bodyRaw = msg.body || '';
             const bodyLower = bodyRaw.toLowerCase();
@@ -69,12 +71,7 @@ export const initWhatsAppListener = () => {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            // כדי לחפש בדאטה בייס, אנחנו ננקה את המספר מסימנים בשביל החיפוש בלבד
-            // אבל נשמור את המספר היפה שיצרנו למעלה
-            const searchPhone = finalPhone.replace(/\D/g, ''); 
-
             const lastLead = await InboundEmail.findOne({
-                // כאן נחפש לפי המספר שנוצר, או שנחפש לפי phone שכולל את המספר הזה
                 parsedPhone: finalPhone 
             }).sort({ receivedAt: -1 });
 
@@ -104,8 +101,8 @@ export const initWhatsAppListener = () => {
                     receivedAt: new Date(),
                     status: 'new',
                     
-                    parsedName: senderName, // השם של המשתמש
-                    parsedPhone: finalPhone, // המספר היפה (chat.name)
+                    parsedName: senderName,
+                    parsedPhone: finalPhone, // עכשיו זה נקי ומוכן לוואטסאפ
                     
                     parsedNote: bodyRaw,
                     referrer: finalReferrer,
