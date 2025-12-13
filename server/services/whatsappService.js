@@ -42,50 +42,39 @@ export const initWhatsAppListener = () => {
             const chat = await msg.getChat();
 
             // ============================================================
-            // 🛑 התיקון הקריטי: החלפה בין מקורות השם והטלפון 🛑
+            // 🛑 התיקון לפי ההוראה שלך 🛑
             // ============================================================
 
-            // 1. שם השולח: לוקחים אך ורק מהכינוי שהמשתמש בחר (notifyName/pushname)
-            // כדי שלא ייכנס לכאן מספר טלפון בטעות.
-            let senderName = msg._data.notifyName || msg.pushname;
+            // 1. השם - חוזר להיות השם הרגיל שהמשתמש בחר (כמו שהיה בהתחלה)
+            const senderName = msg._data.notifyName || msg.pushname || "Unknown";
 
-            // 2. חילוץ הטלפון:
-            // ברירת המחדל היא ה-ID (שלפעמים יוצא מוזר כמו 1979...)
-            let finalPhone = chat.id.user; 
-            
-            // המשתנה chat.name החזיק את המספר היפה (+1 347...) בתמונה ששלחת.
-            // אנחנו בודקים: אם chat.name נראה כמו מספר טלפון (מכיל ספרות, פלוס, סוגריים)
-            // אנחנו לוקחים אותו, מנקים ממנו את הסימנים, ושמים אותו ב-finalPhone!
-            const chatTitle = chat.name || '';
-            
-            // הבדיקה: האם זה מכיל רק תווים של מספרי טלפון?
-            if (/^[\d\+\-\(\)\s]+$/.test(chatTitle)) {
-                // כן, זה מספר טלפון בפורמט יפה. בוא נהפוך אותו למספר נקי לדאטה-בייס.
-                // הפעולה replace(/\D/g, '') משאירה רק ספרות.
-                finalPhone = chatTitle.replace(/\D/g, ''); 
-                console.log(`📞 תוקן מספר טלפון מתוך שם הצ'אט: ${chatTitle} -> ${finalPhone}`);
-                
-                // אם אין לנו שם שולח (כי המשתמש לא הגדיר), נשתמש במספר היפה כשם זמני
-                if (!senderName) senderName = chatTitle;
-            } else {
-                // אם chat.name הוא לא מספר (למשל "משה כהן"), סימן שזה איש קשר שמור.
-                // אז נשתמש בזה כשם אם חסר לנו שם.
-                if (!senderName && chatTitle) senderName = chatTitle;
+            // 2. הטלפון - אנחנו לוקחים את chat.name!
+            // זה המשתנה שקודם הציג לך את המספר היפה (+1 347...) בתוך שדה השם.
+            // עכשיו אנחנו מעבירים אותו לשדה הטלפון.
+            // (אנחנו מנקים ממנו רק רווחים מיותרים אם יש, אבל משאירים אותו כמו שהוא)
+            let finalPhone = chat.name; 
+
+            // גיבוי למקרה חירום שמגיע בלי שם צ'אט
+            if (!finalPhone) {
+                 finalPhone = msg.from.replace('@c.us', '');
             }
 
             // ============================================================
 
-            console.log(`📩 הודעה חדשה מ: ${senderName} (טלפון סופי: ${finalPhone})`);
+            console.log(`📩 הודעה חדשה מ: ${senderName} (טלפון: ${finalPhone})`);
 
-            // --- המשך הלוגיקה כרגיל ---
             const bodyRaw = msg.body || '';
             const bodyLower = bodyRaw.toLowerCase();
 
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            // חיפוש לפי המספר הסופי והמתוקן
+            // כדי לחפש בדאטה בייס, אנחנו ננקה את המספר מסימנים בשביל החיפוש בלבד
+            // אבל נשמור את המספר היפה שיצרנו למעלה
+            const searchPhone = finalPhone.replace(/\D/g, ''); 
+
             const lastLead = await InboundEmail.findOne({
+                // כאן נחפש לפי המספר שנוצר, או שנחפש לפי phone שכולל את המספר הזה
                 parsedPhone: finalPhone 
             }).sort({ receivedAt: -1 });
 
@@ -115,8 +104,8 @@ export const initWhatsAppListener = () => {
                     receivedAt: new Date(),
                     status: 'new',
                     
-                    parsedName: senderName, // השם האמיתי
-                    parsedPhone: finalPhone, // המספר הנכון (חולץ מ-chat.name)
+                    parsedName: senderName, // השם של המשתמש
+                    parsedPhone: finalPhone, // המספר היפה (chat.name)
                     
                     parsedNote: bodyRaw,
                     referrer: finalReferrer,
