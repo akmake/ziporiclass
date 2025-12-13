@@ -40,28 +40,30 @@ export const initWhatsAppListener = () => {
             if (msg.isStatus || msg.from === 'status@broadcast') return;
 
             // ============================================================
-            // 🛑 התיקון הקריטי: חילוץ מספר מצ'אט במקום משולח 🛑
+            // 🛑 חילוץ מספר הטלפון (הלוגיקה שעבדה מצוין) 🛑
             // ============================================================
             
             // 1. שליפת אובייקט ה"שיחה" (Chat)
             const chat = await msg.getChat();
             
-            // 2. ברירת מחדל: המספר הוא מה שהגיע בהודעה (למקרה של כישלון)
+            // 2. ברירת מחדל
             let finalPhone = msg.from.replace('@c.us', '').replace('@lid', '');
 
-            // 3. אם זו שיחה פרטית (לא קבוצה), ה-ID של הצ'אט הוא בדרך כלל המספר האמיתי!
+            // 3. בשיחה פרטית - לוקחים את ה-ID האמיתי של היוזר (המספר הנקי)
             if (!chat.isGroup) {
-                // chat.id.user מחזיק את המספר הנקי (למשל 97250...) גם אם השולח הוא LID
                 finalPhone = chat.id.user; 
                 console.log(`✅ חולץ מספר אמיתי מהצ'אט: ${finalPhone}`);
             }
 
             // ============================================================
+            // 🛑 התיקון לשם איש הקשר 🛑
+            // ============================================================
 
-            // שם השולח - ננסה לקחת מתוך ה-pushname או נשתמש במספר
-            const senderName = chat.name || msg._data.notifyName || msg.pushname || finalPhone;
+            // כאן שינינו את הסדר: קודם כל notifyName (השם שהמשתמש בחר), ורק בסוף chat.name
+            // זה ימנע מצב שבו המספר מופיע כשם
+            const senderName = msg._data.notifyName || msg.pushname || chat.name || finalPhone;
 
-            console.log(`📩 הודעה חדשה מ: ${senderName} (${finalPhone})`);
+            console.log(`📩 הודעה חדשה מ: ${senderName} (טלפון: ${finalPhone})`);
 
             // --- המשך הלוגיקה שלך כרגיל ---
             const bodyRaw = msg.body || '';
@@ -70,7 +72,7 @@ export const initWhatsAppListener = () => {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            // בדיקה לפי המספר שחילצנו מהצ'אט
+            // בדיקה לפי המספר שחילצנו מהצ'אט (המתוקן)
             const lastLead = await InboundEmail.findOne({
                 parsedPhone: finalPhone 
             }).sort({ receivedAt: -1 });
@@ -101,8 +103,8 @@ export const initWhatsAppListener = () => {
                     receivedAt: new Date(),
                     status: 'new',
                     
-                    parsedName: senderName,
-                    parsedPhone: finalPhone, // המספר הנכון ללחיצה
+                    parsedName: senderName, // עכשיו יכיל את השם האמיתי (למשל "משה כהן")
+                    parsedPhone: finalPhone, // וזה יכיל את המספר שחילצנו בהצלחה
                     
                     parsedNote: bodyRaw,
                     referrer: finalReferrer,
@@ -128,7 +130,6 @@ export const initWhatsAppListener = () => {
 };
 
 export const sendWhatsAppMessage = async ({ chatId, text }) => {
-    // וידוא פורמט תקין לשליחה (כאן אנחנו שולחים, אז משתמשים ב-c.us רגיל)
     if (!chatId.includes('@c.us') && !chatId.includes('@g.us') && !chatId.includes('@lid')) {
         chatId = `${chatId}@c.us`;
     }
