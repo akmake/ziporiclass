@@ -1,122 +1,148 @@
 import pkg from 'whatsapp-web.js';
-const { Client, RemoteAuth } = pkg;
-import { MongoStore } from 'wwebjs-mongo';
-import mongoose from 'mongoose';
+const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
-import InboundEmail from '../models/InboundEmail.js';     
-import ReferrerAlias from '../models/ReferrerAlias.js';   
-import { sendPushToAll } from '../utils/pushHandler.js';  
+import InboundEmail from '../models/InboundEmail.js';
+import ReferrerAlias from '../models/ReferrerAlias.js';
+import LeadTrigger from '../models/LeadTrigger.js';
+import { sendPushToAll } from '../utils/pushHandler.js';
 
-// פונקציית עזר לזיהוי שם מפנה
+// === פונקציות עזר ===
+
 async function getOfficialReferrerName(rawName) {
     if (!rawName) return null;
-    const cleanName = rawName.trim().replace(/[.,;!?-]$/, ''); 
+    const cleanName = rawName.trim().replace(/[.,;!?-]$/, '');
     const aliasEntry = await ReferrerAlias.findOne({ alias: cleanName });
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-let client;
+// === הפתרון הסופי: שאילתה לשרת (Server Lookup) ===
+async function resolvePhoneNumber(msg, client) {
+    const rawId = msg.author || msg.from;
 
-export const initWhatsAppListener = async () => {
-    // מונע הפעלה כפולה אם הפונקציה נקראת פעמיים בטעות
-    if (client) return;
-
-    console.log('🔄 מפעיל את שירות הוואטסאפ (RemoteAuth + ClientID)...');
-
-    // 1. שלב קריטי: מוודאים שמונגו מחובר לפני שמנסים לשמור בו את הסשן
-    if (mongoose.connection.readyState !== 1) {
-        console.log('⏳ ממתין לחיבור למונגו...');
-        await new Promise(resolve => mongoose.connection.once('open', resolve));
-        console.log('✔ מונגו מחובר, ממשיך בטעינת הוואטסאפ...');
+    // 1. אם זה כבר מספר תקין, מחזירים אותו
+    if (rawId.includes('@c.us')) {
+        return rawId.split('@')[0];
     }
 
-    // 2. הגדרת החנות במונגו - זה מה ששומר את הנתונים ב-DB במקום בקובץ
-    const store = new MongoStore({ mongoose: mongoose });
-
-    // 3. יצירת הלקוח עם מזהה קבוע
-    client = new Client({
-        authStrategy: new RemoteAuth({
-            store: store,
-            clientId: 'zipori-production-session', // <--- התיקון: שם קבוע שיישמר ב-DB ולא ישתנה בריסטרט
-            backupSyncIntervalMs: 60000 // גיבוי הסשן למונגו כל דקה
-        }),
-        puppeteer: {
-            headless: true,
-            args: [
-                '--no-sandbox', 
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // מונע קריסות זכרון בסביבת דוקר/רנדר
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu'
-            ],
-            timeout: 0
+    // 2. אם זה LID או כל דבר אחר - שולחים שאילתה לשרת
+    try {
+        // הפקודה הזו מכריחה את השרת להחזיר את המזהה האמיתי (c.us)
+        // היא עובדת גם אם המספר לא באנשי הקשר שלך
+        const resolved = await client.getNumberId(rawId);
+        
+        if (resolved && resolved._serialized) {
+            return resolved.user; // .user תמיד מכיל את המספר הנקי (למשל 97250...)
         }
-    });
+    } catch (error) {
+        console.error('SERVER LOOKUP FAILED:', error);
+    }
 
-    // --- אירועים ---
+    // Fallback: במקרה קיצון שהשרת לא הגיב, מנסים לחלץ מהצ'אט
+    try {
+        const chat = await msg.getChat();
+        if (chat.isGroup === false) {
+             // בשיחה פרטית, ה-ID של הצ'אט הוא המספר
+             return chat.id.user;
+        }
+    } catch (e) {}
+
+    // אם הגענו לפה, יש כשל מערכתי בספרייה מול וואטסאפ
+    return rawId.split('@')[0];
+}
+
+// === הגדרת הלקוח ===
+const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        headless: true,
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+        ]
+    }
+});
+
+// === הפונקציה הראשית ===
+export const initWhatsAppListener = () => {
+    console.log('🔄 מפעיל את שירות הוואטסאפ...');
 
     client.on('qr', (qr) => {
-        console.log('QR RECEIVED. Scan this with your phone:');
+        console.log('QR RECEIVED:', qr);
         qrcode.generate(qr, { small: true });
     });
 
     client.on('ready', () => {
-        console.log('✅ WhatsApp Client is ready! (Connected via MongoDB)');
-    });
-
-    client.on('remote_session_saved', () => {
-        console.log('💾 Session saved to MongoDB...');
+        console.log('✅ WhatsApp Client is ready!');
     });
 
     client.on('message', async (msg) => {
         try {
-            const body = msg.body || '';
+            if (msg.isStatus || msg.from === 'status@broadcast') return;
 
-            // בדיקה אם ההודעה רלוונטית
-            if (!body.includes('שלום הגעתי דרך')) {
-                return; 
-            }
+            // שימוש בפונקציה שפונה לשרת
+            const senderPhone = await resolvePhoneNumber(msg, client);
+            
+            // חילוץ שם (מהמידע הגולמי שמגיע עם ההודעה)
+            const rawData = msg._data || {};
+            const senderRealName = rawData.notifyName || rawData.pushname || senderPhone;
 
-            const regex = /שלום הגעתי דרך\s+(.+)/i;
-            const match = body.match(regex);
+            console.log(`🎯 זיהוי סופי ומוחלט: ${senderRealName} (${senderPhone})`);
 
-            if (match && match[1]) {
-                const senderPhone = msg.from.replace('@c.us', '');
-                
-                // ניסיון לחלץ שם פרטי (עם הגנה מקריסה)
-                let senderRealName = senderPhone;
-                if (msg._data && msg._data.notifyName) {
-                    senderRealName = msg._data.notifyName;
+            // === מכאן הלוגיקה שלך רגילה ===
+            const bodyRaw = msg.body || '';
+            const bodyLower = bodyRaw.toLowerCase();
+            
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const lastLead = await InboundEmail.findOne({ 
+                parsedPhone: senderPhone 
+            }).sort({ receivedAt: -1 });
+
+            const isNewConversation = !lastLead || new Date(lastLead.receivedAt) < thirtyDaysAgo;
+
+            const activeTriggers = await LeadTrigger.find({ isActive: true }).lean();
+            const matchedTrigger = activeTriggers.find(t => bodyLower.includes(t.text));
+            
+            if (isNewConversation || matchedTrigger) {
+                let finalReferrer = null;
+                if (matchedTrigger) {
+                    const triggerIndex = bodyLower.indexOf(matchedTrigger.text);
+                    const textAfterTrigger = bodyRaw.substring(triggerIndex + matchedTrigger.text.length).trim();
+                    if (textAfterTrigger) {
+                        let rawReferrerName = textAfterTrigger.split(/\s+/).slice(0, 2).join(' ');
+                        finalReferrer = await getOfficialReferrerName(rawReferrerName);
+                    }
                 }
 
-                let rawName = match[1].trim().split(/\n/)[0];
-                const finalReferrer = await getOfficialReferrerName(rawName);
+                console.log(`✅ שומר ליד חדש לדאטהבייס...`);
 
-                console.log(`🎯 זוהה ליד: ${senderRealName}, מפנה: ${finalReferrer}`);
-
-                // יצירת הליד ב-DB
                 await InboundEmail.create({
                     from: 'WhatsApp',
-                    type: 'הודעת וואטסאפ',
-                    body: body,
+                    type: matchedTrigger ? `וואטסאפ (${matchedTrigger.text})` : 'וואטסאפ (שיחה חדשה)',
+                    body: bodyRaw,
                     receivedAt: new Date(),
                     status: 'new',
                     parsedName: senderRealName,
                     parsedPhone: senderPhone,
-                    parsedNote: body,
+                    parsedNote: bodyRaw,
                     referrer: finalReferrer, 
                     hotel: null,
                     handledBy: null
                 });
 
-                // שליחת התראה
                 sendPushToAll({
                     title: `ליד חדש: ${senderRealName}`,
-                    body: `הגיע דרך: ${finalReferrer}`,
+                    body: matchedTrigger ? `זוהה: "${matchedTrigger.text}"` : 'לקוח התחיל שיחה חדשה',
                     url: '/leads'
                 });
+            } else {
+                console.log(`⏩ שיחה קיימת, מדלג.`);
             }
 
         } catch (error) {
@@ -124,6 +150,5 @@ export const initWhatsAppListener = async () => {
         }
     });
 
-    // הפעלה
-    await client.initialize();
+    client.initialize();
 };
