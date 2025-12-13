@@ -38,6 +38,7 @@ import bookingRoutes from './routes/bookingRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import adminTriggerRoutes from './routes/adminTriggers.js';
+import whatsappRoutes from './routes/whatsappRoutes.js';
 
 
 // --- חיבור למסד הנתונים ---
@@ -145,6 +146,7 @@ app.use('/api/admin/audit', adminAuditRoutes);
 app.use('/api/admin/commissions', adminCommissionRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // --- הגשת קבצי הקליינט (React) ---
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
