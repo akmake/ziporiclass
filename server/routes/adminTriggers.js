@@ -1,11 +1,6 @@
-// server/routes/adminTriggers.js
 import express from 'express';
 import { requireAuth, requireAdmin } from '../middlewares/authMiddleware.js';
-import { 
-    getTriggers, 
-    addTrigger, 
-    deleteTrigger 
-} from '../controllers/admin/triggerController.js';
+import { getTriggers, addTrigger, deleteTrigger } from '../controllers/admin/triggerController.js';
 
 const router = express.Router();
 

@@ -1,4 +1,3 @@
-// server/models/LeadTrigger.js
 import mongoose from 'mongoose';
 
 const leadTriggerSchema = new mongoose.Schema({
@@ -7,7 +6,7 @@ const leadTriggerSchema = new mongoose.Schema({
     required: true,
     unique: true,
     trim: true,
-    lowercase: true // נשמור באותיות קטנות להשוואה קלה
+    lowercase: true // שומר באותיות קטנות להשוואה קלה
   },
   isActive: {
     type: Boolean,
@@ -18,5 +17,6 @@ const leadTriggerSchema = new mongoose.Schema({
     ref: 'User'
   }
 }, { timestamps: true });
+
 
 export default mongoose.model('LeadTrigger', leadTriggerSchema);

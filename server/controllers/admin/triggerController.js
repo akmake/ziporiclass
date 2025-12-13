@@ -1,4 +1,3 @@
-// server/controllers/admin/triggerController.js
 import LeadTrigger from '../../models/LeadTrigger.js';
 import { catchAsync } from '../../middlewares/errorHandler.js';
 
@@ -9,8 +8,11 @@ export const getTriggers = catchAsync(async (req, res) => {
 
 export const addTrigger = catchAsync(async (req, res) => {
   const { text } = req.body;
+  if (!text) return res.status(400).json({ message: 'חסר טקסט' });
+
+  // בדיקת כפילות
   const exists = await LeadTrigger.findOne({ text: text.toLowerCase().trim() });
-  if (exists) return res.status(400).json({ message: 'הביטוי כבר קיים' });
+  if (exists) return res.status(400).json({ message: 'הביטוי כבר קיים במערכת' });
 
   const trigger = await LeadTrigger.create({
     text: text.toLowerCase().trim(),
