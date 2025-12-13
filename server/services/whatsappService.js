@@ -1,5 +1,3 @@
-// server/services/whatsappService.js
-
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
@@ -17,24 +15,14 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-// === הגדרת הלקוח ===
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu'
-        ]
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--disable-gpu']
     }
 });
 
-// === הפונקציה הראשית ===
 export const initWhatsAppListener = () => {
     console.log('🔄 מפעיל את שירות הוואטסאפ...');
 
@@ -49,50 +37,42 @@ export const initWhatsAppListener = () => {
 
     client.on('message', async (msg) => {
         try {
-            // סינון הודעות סטטוס ומערכת
             if (msg.isStatus || msg.from === 'status@broadcast') return;
 
-            // === 🛠️ תיקון ה-LID (2025 Fix) 🛠️ ===
-            let senderPhone = null;
+            // ============================================================
+            // 🛑 התיקון הקריטי: חילוץ מספר מצ'אט במקום משולח 🛑
+            // ============================================================
+            
+            // 1. שליפת אובייקט ה"שיחה" (Chat)
+            const chat = await msg.getChat();
+            
+            // 2. ברירת מחדל: המספר הוא מה שהגיע בהודעה (למקרה של כישלון)
+            let finalPhone = msg.from.replace('@c.us', '').replace('@lid', '');
 
-            if (msg.from.includes('@lid')) {
-                try {
-                    // המרה של ה-LID למספר אמיתי דרך אובייקט איש הקשר
-                    const contact = await client.getContactById(msg.from);
-                    
-                    if (contact && contact.number) {
-                        senderPhone = contact.number; // המספר האמיתי (למשל 97250...)
-                        console.log(`✅ LID Resolved: ${msg.from} -> ${senderPhone}`);
-                    } else {
-                        // במקרה נדיר שהמרה נכשלת, ניקח את החלק הראשון (עדיף מכלום)
-                        senderPhone = msg.from.split('@')[0];
-                        console.warn(`⚠️ Could not resolve LID completely: ${msg.from}`);
-                    }
-                } catch (err) {
-                    console.error('Error resolving LID:', err.message);
-                    senderPhone = msg.from.split('@')[0]; // Fallback
-                }
-            } else {
-                // הודעה רגילה (c.us) - פשוט מנקים את הסיומת
-                senderPhone = msg.from.replace('@c.us', '');
+            // 3. אם זו שיחה פרטית (לא קבוצה), ה-ID של הצ'אט הוא בדרך כלל המספר האמיתי!
+            if (!chat.isGroup) {
+                // chat.id.user מחזיק את המספר הנקי (למשל 97250...) גם אם השולח הוא LID
+                finalPhone = chat.id.user; 
+                console.log(`✅ חולץ מספר אמיתי מהצ'אט: ${finalPhone}`);
             }
-            // ==========================================
 
-            // זיהוי שם השולח (Pushname או שם שמור)
-            const senderName = msg._data.notifyName || msg.pushname || senderPhone;
+            // ============================================================
 
-            console.log(`📩 הודעה חדשה מ: ${senderName} (${senderPhone})`);
+            // שם השולח - ננסה לקחת מתוך ה-pushname או נשתמש במספר
+            const senderName = chat.name || msg._data.notifyName || msg.pushname || finalPhone;
 
-            // מכאן הלוגיקה שלך ממשיכה כרגיל...
+            console.log(`📩 הודעה חדשה מ: ${senderName} (${finalPhone})`);
+
+            // --- המשך הלוגיקה שלך כרגיל ---
             const bodyRaw = msg.body || '';
             const bodyLower = bodyRaw.toLowerCase();
 
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            // בדיקת ליד קיים לפי המספר *המתוקן*
+            // בדיקה לפי המספר שחילצנו מהצ'אט
             const lastLead = await InboundEmail.findOne({
-                parsedPhone: senderPhone 
+                parsedPhone: finalPhone 
             }).sort({ receivedAt: -1 });
 
             const isNewConversation = !lastLead || new Date(lastLead.receivedAt) < thirtyDaysAgo;
@@ -112,7 +92,7 @@ export const initWhatsAppListener = () => {
                     }
                 }
 
-                console.log(`✅ שומר ליד חדש לדאטהבייס...`);
+                console.log(`✅ שומר ליד חדש...`);
 
                 await InboundEmail.create({
                     from: 'WhatsApp',
@@ -121,9 +101,8 @@ export const initWhatsAppListener = () => {
                     receivedAt: new Date(),
                     status: 'new',
                     
-                    // נתונים מתוקנים:
                     parsedName: senderName,
-                    parsedPhone: senderPhone, // עכשיו זה המספר האמיתי!
+                    parsedPhone: finalPhone, // המספר הנכון ללחיצה
                     
                     parsedNote: bodyRaw,
                     referrer: finalReferrer,
@@ -148,7 +127,6 @@ export const initWhatsAppListener = () => {
     client.initialize();
 };
 
-// פונקציות עזר לייצוא
 export const sendWhatsAppMessage = async ({ chatId, text }) => {
     // וידוא פורמט תקין לשליחה (כאן אנחנו שולחים, אז משתמשים ב-c.us רגיל)
     if (!chatId.includes('@c.us') && !chatId.includes('@g.us') && !chatId.includes('@lid')) {
