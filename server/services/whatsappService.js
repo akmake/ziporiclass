@@ -1,3 +1,5 @@
+// server/services/whatsappService.js
+
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
@@ -15,48 +17,13 @@ async function getOfficialReferrerName(rawName) {
     return aliasEntry ? aliasEntry.officialName : cleanName;
 }
 
-// === הפתרון הסופי: שאילתה לשרת (Server Lookup) ===
-async function resolvePhoneNumber(msg, client) {
-    const rawId = msg.author || msg.from;
-
-    // 1. אם זה כבר מספר תקין, מחזירים אותו
-    if (rawId.includes('@c.us')) {
-        return rawId.split('@')[0];
-    }
-
-    // 2. אם זה LID או כל דבר אחר - שולחים שאילתה לשרת
-    try {
-        // הפקודה הזו מכריחה את השרת להחזיר את המזהה האמיתי (c.us)
-        // היא עובדת גם אם המספר לא באנשי הקשר שלך
-        const resolved = await client.getNumberId(rawId);
-        
-        if (resolved && resolved._serialized) {
-            return resolved.user; // .user תמיד מכיל את המספר הנקי (למשל 97250...)
-        }
-    } catch (error) {
-        console.error('SERVER LOOKUP FAILED:', error);
-    }
-
-    // Fallback: במקרה קיצון שהשרת לא הגיב, מנסים לחלץ מהצ'אט
-    try {
-        const chat = await msg.getChat();
-        if (chat.isGroup === false) {
-             // בשיחה פרטית, ה-ID של הצ'אט הוא המספר
-             return chat.id.user;
-        }
-    } catch (e) {}
-
-    // אם הגענו לפה, יש כשל מערכתי בספרייה מול וואטסאפ
-    return rawId.split('@')[0];
-}
-
 // === הגדרת הלקוח ===
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
         args: [
-            '--no-sandbox', 
+            '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
@@ -82,25 +49,49 @@ export const initWhatsAppListener = () => {
 
     client.on('message', async (msg) => {
         try {
+            // סינון הודעות סטטוס ומערכת
             if (msg.isStatus || msg.from === 'status@broadcast') return;
 
-            // שימוש בפונקציה שפונה לשרת
-            const senderPhone = await resolvePhoneNumber(msg, client);
-            
-            // חילוץ שם (מהמידע הגולמי שמגיע עם ההודעה)
-            const rawData = msg._data || {};
-            const senderRealName = rawData.notifyName || rawData.pushname || senderPhone;
+            // === 🛠️ תיקון ה-LID (2025 Fix) 🛠️ ===
+            let senderPhone = null;
 
-            console.log(`🎯 זיהוי סופי ומוחלט: ${senderRealName} (${senderPhone})`);
+            if (msg.from.includes('@lid')) {
+                try {
+                    // המרה של ה-LID למספר אמיתי דרך אובייקט איש הקשר
+                    const contact = await client.getContactById(msg.from);
+                    
+                    if (contact && contact.number) {
+                        senderPhone = contact.number; // המספר האמיתי (למשל 97250...)
+                        console.log(`✅ LID Resolved: ${msg.from} -> ${senderPhone}`);
+                    } else {
+                        // במקרה נדיר שהמרה נכשלת, ניקח את החלק הראשון (עדיף מכלום)
+                        senderPhone = msg.from.split('@')[0];
+                        console.warn(`⚠️ Could not resolve LID completely: ${msg.from}`);
+                    }
+                } catch (err) {
+                    console.error('Error resolving LID:', err.message);
+                    senderPhone = msg.from.split('@')[0]; // Fallback
+                }
+            } else {
+                // הודעה רגילה (c.us) - פשוט מנקים את הסיומת
+                senderPhone = msg.from.replace('@c.us', '');
+            }
+            // ==========================================
 
-            // === מכאן הלוגיקה שלך רגילה ===
+            // זיהוי שם השולח (Pushname או שם שמור)
+            const senderName = msg._data.notifyName || msg.pushname || senderPhone;
+
+            console.log(`📩 הודעה חדשה מ: ${senderName} (${senderPhone})`);
+
+            // מכאן הלוגיקה שלך ממשיכה כרגיל...
             const bodyRaw = msg.body || '';
             const bodyLower = bodyRaw.toLowerCase();
-            
+
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            const lastLead = await InboundEmail.findOne({ 
+            // בדיקת ליד קיים לפי המספר *המתוקן*
+            const lastLead = await InboundEmail.findOne({
                 parsedPhone: senderPhone 
             }).sort({ receivedAt: -1 });
 
@@ -108,9 +99,10 @@ export const initWhatsAppListener = () => {
 
             const activeTriggers = await LeadTrigger.find({ isActive: true }).lean();
             const matchedTrigger = activeTriggers.find(t => bodyLower.includes(t.text));
-            
+
             if (isNewConversation || matchedTrigger) {
                 let finalReferrer = null;
+                
                 if (matchedTrigger) {
                     const triggerIndex = bodyLower.indexOf(matchedTrigger.text);
                     const textAfterTrigger = bodyRaw.substring(triggerIndex + matchedTrigger.text.length).trim();
@@ -128,16 +120,19 @@ export const initWhatsAppListener = () => {
                     body: bodyRaw,
                     receivedAt: new Date(),
                     status: 'new',
-                    parsedName: senderRealName,
-                    parsedPhone: senderPhone,
+                    
+                    // נתונים מתוקנים:
+                    parsedName: senderName,
+                    parsedPhone: senderPhone, // עכשיו זה המספר האמיתי!
+                    
                     parsedNote: bodyRaw,
-                    referrer: finalReferrer, 
+                    referrer: finalReferrer,
                     hotel: null,
                     handledBy: null
                 });
 
                 sendPushToAll({
-                    title: `ליד חדש: ${senderRealName}`,
+                    title: `ליד חדש: ${senderName}`,
                     body: matchedTrigger ? `זוהה: "${matchedTrigger.text}"` : 'לקוח התחיל שיחה חדשה',
                     url: '/leads'
                 });
@@ -151,4 +146,21 @@ export const initWhatsAppListener = () => {
     });
 
     client.initialize();
+};
+
+// פונקציות עזר לייצוא
+export const sendWhatsAppMessage = async ({ chatId, text }) => {
+    // וידוא פורמט תקין לשליחה (כאן אנחנו שולחים, אז משתמשים ב-c.us רגיל)
+    if (!chatId.includes('@c.us') && !chatId.includes('@g.us') && !chatId.includes('@lid')) {
+        chatId = `${chatId}@c.us`;
+    }
+    await client.sendMessage(chatId, text);
+};
+
+export const getWhatsAppStatus = () => {
+    return {
+        isConnected: client?.info !== undefined,
+        pushName: client?.info?.pushname,
+        wid: client?.info?.wid
+    };
 };
