@@ -48,9 +48,8 @@ try {
 }
 
 const app = express();
-// יצירת שרת HTTP שעוטף את Express (חשוב ל-Socket.io)
+app.set('trust proxy', 1);
 const httpServer = http.createServer(app);
-// הפעלת Socket.io
 initSocket(httpServer);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -63,7 +62,8 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
   'https://localhost:5173',
-  "https://zipori-client.onrender.com"
+  "https://zipori-client.onrender.com",
+  'https://www.ziporiteem.com', // ✅ גם עם www ליתר ביטחון
 ];
 
 const filteredOrigins = allowedOrigins.filter(Boolean);

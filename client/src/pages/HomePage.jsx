@@ -23,7 +23,7 @@ const THEME = {
     BLACK: '#0f172a', 
 };
 
-const SERVER_ROOT = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/api$/, '');
+const SERVER_ROOT = (import.meta.env.VITE_API_BASE_URL || 'https://ziporiteem.com').replace(/\/api$/, '');
 const LOGO_URL = `${SERVER_ROOT}/uploads/company-logo.png?t=${Date.now()}`;
 
 // --- שליפת נתונים ---

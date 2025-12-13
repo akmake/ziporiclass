@@ -2,7 +2,7 @@ import io from 'socket.io-client';
 
 const SERVER_URL = import.meta.env.VITE_API_BASE_URL
   ? import.meta.env.VITE_API_BASE_URL.replace('/api', '')
-  : 'http://localhost:4000';
+  : 'https://ziporiteem.com';
 
 class SocketService {
   socket = null;

@@ -16,7 +16,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import toast from 'react-hot-toast';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://ziporiteem.com';
 const SERVER_ROOT = API_BASE.replace(/\/api$/, '');
 const LOGO_URL = `${SERVER_ROOT}/uploads/company-logo.png?t=${Date.now()}`;
 
