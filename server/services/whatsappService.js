@@ -37,49 +37,69 @@ export const initWhatsAppListener = () => {
 
     client.on('message', async (msg) => {
         try {
-            if (msg.isStatus || msg.from === 'status@broadcast') return;
+            // ============================================================
+            // 🛑 חלק חדש: מנגנון סינון הודעות זבל (Anti-Duplicate) 🛑
+            // ============================================================
+            
+            // 1. רשימת סוגים טכניים שאנחנו לא רוצים לשמור
+            const ignoredTypes = ['e2e_notification', 'cipher', 'call_log', 'protocol', 'gp2'];
+            
+            if (msg.isStatus || msg.from === 'status@broadcast') return; // סטטוסים
+            if (ignoredTypes.includes(msg.type)) {
+                // console.log(`🗑️ הודעה טכנית סוננה מסוג: ${msg.type}`);
+                return;
+            }
+
+            // 2. אם ההודעה ריקה לגמרי (אין טקסט ואין מדיה) - דלג
+            // זה מעיף את ה"Unknown" הריקים שראית
+            if (!msg.body && !msg.hasMedia && !msg._data.body) {
+                // console.log(`🗑️ הודעה ריקה סוננה`);
+                return;
+            }
+
+            // ============================================================
+            // 🛑 חלק 1: חילוץ שם וטלפון (הגרסה שעבדה) 🛑
+            // ============================================================
 
             const chat = await msg.getChat();
-
-            // ============================================================
-            // 🛑 חלק 1: חילוץ שם וטלפון (הגרסה שעבדה!) 🛑
-            // ============================================================
 
             const senderName = msg._data.notifyName || msg.pushname || "Unknown";
             
             let rawPhone = chat.name; 
-            // גיבוי למקרה שאין שם צ'אט
             if (!rawPhone) {
                  rawPhone = msg.from.replace('@c.us', '');
             }
 
-            // ניקוי המספר מכל מה שאינו ספרה
+            // ניקוי המספר (Sanitization)
             const finalPhone = rawPhone ? rawPhone.replace(/\D/g, '') : '';
 
             // ============================================================
-            // 🛑 חלק 2: התיקון לטקסט הנעלם 🛑
+            // 🛑 חלק 2: חילוץ הטקסט (שרשרת הבדיקות) 🛑
             // ============================================================
 
-            // אנחנו מנסים לשלוף את הטקסט מ-3 מקומות שונים ליתר ביטחון
             let bodyRaw = msg.body;
 
-            // בדיקת גיבוי: אם ה-body ריק, נסה לשלוף מהמידע הפנימי (_data)
             if (!bodyRaw && msg._data && msg._data.body) {
                 bodyRaw = msg._data.body;
             }
 
-            // בדיקת גיבוי 2: אם זה עדיין ריק, אולי זה קפשן של תמונה/מדיה?
             if (!bodyRaw && msg.hasMedia && msg.caption) {
                 bodyRaw = msg.caption;
             }
             
-            // וידוא סופי שלא יהיה null
-            if (!bodyRaw) bodyRaw = '';
+            // טיפול בסוגי מדיה ללא טקסט
+            if (!bodyRaw && msg.hasMedia) {
+                 if (msg.type === 'image') bodyRaw = '[תמונה]';
+                 else if (msg.type === 'ptt' || msg.type === 'audio') bodyRaw = '[הודעה קולית]';
+                 else if (msg.type === 'document') bodyRaw = '[קובץ]';
+                 else bodyRaw = '[מדיה]';
+            }
 
-            // לוג מיוחד כדי שנראה בעיניים מה מגיע
-            console.log(`🔍 דיבאג הודעה >> שם: ${senderName} | טקסט שנקלט: "${bodyRaw}"`);
-            
+            if (!bodyRaw) bodyRaw = ''; // מונע קריסה
+
             // ============================================================
+
+            console.log(`📩 הודעה תקינה מ: ${senderName} | טלפון: ${finalPhone} | תוכן: "${bodyRaw}"`);
 
             const bodyLower = bodyRaw.toLowerCase();
             const thirtyDaysAgo = new Date();
@@ -106,12 +126,12 @@ export const initWhatsAppListener = () => {
                     }
                 }
 
-                console.log(`✅ שומר ליד חדש עם תוכן: ${bodyRaw}`);
+                console.log(`✅ שומר ליד חדש...`);
 
                 await InboundEmail.create({
                     from: 'WhatsApp',
                     type: matchedTrigger ? `וואטסאפ (${matchedTrigger.text})` : 'וואטסאפ (שיחה חדשה)',
-                    body: bodyRaw, // זה התוכן שאמור להופיע עכשיו
+                    body: bodyRaw,
                     receivedAt: new Date(),
                     status: 'new',
                     
